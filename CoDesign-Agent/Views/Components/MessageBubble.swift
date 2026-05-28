@@ -9,13 +9,20 @@ struct MessageBubble: View {
                 Spacer()
             }
 
-            Text(message.content)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(backgroundColor)
-                .foregroundStyle(textColor)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .frame(maxWidth: 280, alignment: message.role == "user" ? .trailing : .leading)
+            Group {
+                if message.role == "assistant",
+                   let attributed = try? AttributedString(markdown: message.content) {
+                    Text(attributed)
+                } else {
+                    Text(message.content)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(backgroundColor)
+            .foregroundStyle(textColor)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .frame(maxWidth: 280, alignment: message.role == "user" ? .trailing : .leading)
 
             if message.role == "assistant" {
                 Spacer()

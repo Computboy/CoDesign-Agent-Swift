@@ -44,30 +44,32 @@ struct APISettingsView: View {
                 }
 
                 // Quick Reference Section
-                Section("快速参考") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("百炼示例：")
-                            .font(.caption.bold())
-                        Text("Base URL: https://dashscope.aliyuncs.com/compatible-mode/v1")
-                            .font(.caption2)
-                        Text("Model: qwen-plus / qwen-turbo / qwen-max")
-                            .font(.caption2)
-                        Text("Thinking Type: 不发送")
-                            .font(.caption2)
+                Section("快速参考：百炼 / DeepSeek 配置示例") {
+                    DisclosureGroup("点击查看配置示例") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("百炼示例：")
+                                .font(.caption.bold())
+                            Text("Base URL: https://dashscope.aliyuncs.com/compatible-mode/v1")
+                                .font(.caption2)
+                            Text("Model: qwen-plus / qwen-turbo / qwen-max")
+                                .font(.caption2)
+                            Text("Thinking Type: 不发送")
+                                .font(.caption2)
 
-                        Divider()
-                            .padding(.vertical, 4)
+                            Divider()
+                                .padding(.vertical, 4)
 
-                        Text("DeepSeek 示例：")
-                            .font(.caption.bold())
-                        Text("Base URL: https://api.deepseek.com")
-                            .font(.caption2)
-                        Text("Model: deepseek-v4-flash")
-                            .font(.caption2)
-                        Text("Thinking Type: disabled")
-                            .font(.caption2)
+                            Text("DeepSeek 示例：")
+                                .font(.caption.bold())
+                            Text("Base URL: https://api.deepseek.com")
+                                .font(.caption2)
+                            Text("Model: deepseek-v4-flash")
+                                .font(.caption2)
+                            Text("Thinking Type: disabled")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(.secondary)
                 }
 
                 // Clear Configuration Section

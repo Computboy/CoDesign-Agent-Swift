@@ -30,3 +30,6 @@ Packages/
 
 # VSCode（你现在用 VSCode 打开的话）
 .vscode/
+
+# Claude
+CLAUDE.md

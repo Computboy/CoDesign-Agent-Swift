@@ -59,13 +59,19 @@ struct ChatPanel: View {
                     // 正在生成的消息
                     if let vm = viewModel, vm.isStreaming && !vm.currentStreamingText.isEmpty {
                         HStack {
-                            Text(vm.currentStreamingText)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(Color.cardBackground)
-                                .foregroundStyle(Color.textPrimary)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .frame(maxWidth: 280, alignment: .leading)
+                            Group {
+                                if let attributed = try? AttributedString(markdown: vm.currentStreamingText) {
+                                    Text(attributed)
+                                } else {
+                                    Text(vm.currentStreamingText)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.cardBackground)
+                            .foregroundStyle(Color.textPrimary)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .frame(maxWidth: 280, alignment: .leading)
                             Spacer()
                         }
                         .id("streaming")
@@ -128,6 +134,15 @@ struct ChatPanel: View {
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...4)
                 .disabled(viewModel?.isStreaming == true)
+                .onSubmit {
+                    if canSend {
+                        Task {
+                            let text = inputText
+                            inputText = ""
+                            await viewModel?.sendMessage(text)
+                        }
+                    }
+                }
 
             Button {
                 Task {
