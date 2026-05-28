@@ -13,6 +13,14 @@ struct CoDesign_AgentApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
+            Project.self,
+            ChatMessage.self,
+            DesignBrief.self,
+            ProgressStage.self,
+            BoundaryItem.self,
+            RiskItem.self,
+            SuccessMetric.self,
+            LearningTrace.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
