@@ -12,7 +12,6 @@ import SwiftData
 struct CoDesign_AgentApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
             Project.self,
             ChatMessage.self,
             DesignBrief.self,
@@ -34,6 +33,9 @@ struct CoDesign_AgentApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .task {
+                    SeedDataFactory.seedIfNeeded(context: sharedModelContainer.mainContext)
+                }
         }
         .modelContainer(sharedModelContainer)
     }
