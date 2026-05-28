@@ -8,8 +8,43 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - ServiceMode
+
+enum ServiceMode: String {
+    case mock
+    case live
+}
+
+// MARK: - EnvironmentKeys
+
+private struct LLMServiceKey: EnvironmentKey {
+    static let defaultValue: any LLMServiceProtocol = MockLLMService()
+}
+
+extension EnvironmentValues {
+    var llmService: any LLMServiceProtocol {
+        get { self[LLMServiceKey.self] }
+        set { self[LLMServiceKey.self] = newValue }
+    }
+}
+
+private struct StructuredExtractorKey: EnvironmentKey {
+    static let defaultValue: any StructuredExtractorProtocol = MockStructuredExtractor()
+}
+
+extension EnvironmentValues {
+    var structuredExtractor: any StructuredExtractorProtocol {
+        get { self[StructuredExtractorKey.self] }
+        set { self[StructuredExtractorKey.self] = newValue }
+    }
+}
+
+// MARK: - App
+
 @main
 struct CoDesign_AgentApp: App {
+    @AppStorage("serviceMode") private var serviceModeRaw: String = "mock"
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Project.self,
@@ -21,20 +56,36 @@ struct CoDesign_AgentApp: App {
             SuccessMetric.self,
             LearningTrace.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(for: schema, configurations: [config])
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
 
+    var serviceMode: ServiceMode {
+        ServiceMode(rawValue: serviceModeRaw) ?? .mock
+    }
+
+    var llmService: any LLMServiceProtocol {
+        serviceMode == .live ? LiveLLMService() : MockLLMService()
+    }
+
+    var extractor: any StructuredExtractorProtocol {
+        serviceMode == .live ? LiveStructuredExtractor() : MockStructuredExtractor()
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ProjectListView()
+                .environment(\.llmService, llmService)
+                .environment(\.structuredExtractor, extractor)
                 .task {
-                    SeedDataFactory.seedIfNeeded(context: sharedModelContainer.mainContext)
+                    SeedDataFactory.seedIfNeeded(
+                        context: sharedModelContainer.mainContext
+                    )
                 }
         }
         .modelContainer(sharedModelContainer)
