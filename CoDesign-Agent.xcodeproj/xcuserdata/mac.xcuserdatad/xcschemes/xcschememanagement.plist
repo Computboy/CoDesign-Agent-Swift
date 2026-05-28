@@ -4,10 +4,28 @@
 <dict>
 	<key>SchemeUserState</key>
 	<dict>
-		<key>CoDesign-Agent.xcscheme_^#shared#^_</key>
+		<key>CoDesign-Agent.xcscheme</key>
 		<dict>
 			<key>orderHint</key>
 			<integer>0</integer>
+		</dict>
+	</dict>
+	<key>SuppressBuildableAutocreation</key>
+	<dict>
+		<key>044305E82FC8292100A0BB98</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>044305F72FC8292200A0BB98</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>044306012FC8292200A0BB98</key>
+		<dict>
+			<key>primary</key>
+			<true/>
 		</dict>
 	</dict>
 </dict>

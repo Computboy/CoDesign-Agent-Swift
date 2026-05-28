@@ -6,6 +6,7 @@ struct ProjectListView: View {
     @Query(sort: \Project.updatedAt, order: .reverse) private var projects: [Project]
     @State private var viewModel = ProjectListViewModel()
     @State private var isShowingNewProject = false
+    @State private var showingSettings = false
 
     var body: some View {
         NavigationStack {
@@ -21,11 +22,20 @@ struct ProjectListView: View {
             .navigationTitle("Clarify")
             .searchable(text: $viewModel.searchText, prompt: "搜索项目")
             .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
+
                 #if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     EditButton()
                 }
                 #endif
+
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         isShowingNewProject = true
@@ -37,6 +47,9 @@ struct ProjectListView: View {
         }
         .sheet(isPresented: $isShowingNewProject) {
             NewProjectView()
+        }
+        .sheet(isPresented: $showingSettings) {
+            APISettingsView()
         }
     }
 
