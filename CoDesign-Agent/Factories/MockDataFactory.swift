@@ -64,7 +64,9 @@ struct MockDataFactory {
 
         // 3. 创建 9 个 ProgressStage
         let stages = StageDefinition.all.map { def in
-            ProgressStage(order: def.order, name: def.name)
+            let stage = ProgressStage(order: def.order, name: def.name)
+            context.insert(stage)
+            return stage
         }
         project.stages = stages
 
