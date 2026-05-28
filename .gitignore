@@ -1,0 +1,32 @@
+# Xcode 用户配置（最重要，防止你的 Scheme/环境变量上传）
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+
+# Xcode 构建产物
+build/
+DerivedData/
+*.dSYM
+*.dSYM.zip
+*.ipa
+*.hmap
+
+# Xcode 其他垃圾
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xccheckout
+*.moved-aside
+*.xcscmblueprint
+
+# SwiftPM
+.swiftpm/
+.build/
+Packages/
+
+# macOS 系统文件
+.DS_Store
+
+# VSCode（你现在用 VSCode 打开的话）
+.vscode/
