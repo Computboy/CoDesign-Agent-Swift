@@ -164,11 +164,23 @@ struct EditableInsightCard: View {
     @ViewBuilder
     private var cardContent: some View {
         if isConfirmed {
-            CoDesignCard(style: .highlighted(.success)) { cardBody }
+            CoDesignCard(style: .bordered) { cardBody }
+                .overlay(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.success)
+                        .frame(width: 4)
+                        .padding(.vertical, AppTheme.spacingSmall)
+                }
         } else if isRejected {
-            CoDesignCard(style: .highlighted(.warning)) { cardBody }
+            CoDesignCard(style: .bordered) { cardBody }
+                .overlay(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.warning)
+                        .frame(width: 4)
+                        .padding(.vertical, AppTheme.spacingSmall)
+                }
         } else {
-            CoDesignCard { cardBody }
+            CoDesignCard(style: .bordered) { cardBody }
         }
     }
 

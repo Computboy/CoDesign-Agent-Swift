@@ -15,9 +15,12 @@
 ## 核心功能
 
 - 🤖 **AI 苏格拉底式对话**：流式输出，自然追问
+- 🧭 **澄清工作台（v0.3）**：结构化布局，阶段导轨 + 当前澄清卡片 + 快捷操作
+- 📝 **可编辑洞察卡片（v0.3）**：左右滑动确认 / 标记不准确，支持手动编辑字段
 - 📊 **9 阶段进度可视化**：实时追踪设计思维成熟度
 - 🎯 **结构化信息提取**：自动从对话中提取项目要素
-- 📋 **项目边界表**：明确 MVP 范围
+- 🎨 **CoDesign 设计系统（v0.3）**：统一 Button、Card、Badge、StagePill、FlowLayout 等组件
+- 📋 **过程记录（v0.3）**：可折叠的对话历史时间线
 - ⚠️ **风险矩阵**：识别与预案
 - 📈 **设计成熟度分析**：量化评估
 - 🔄 **Mock/Live 双模式**：支持离线开发和真实 API 集成
@@ -49,6 +52,11 @@ xcodebuild -scheme CoDesign-Agent \
 xcodebuild -scheme CoDesign-Agent \
   -destination 'platform=macOS' \
   build
+
+# 运行测试
+xcodebuild -scheme CoDesign-Agent \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  test
 ```
 
 或直接在 Xcode 中打开 `CoDesign-Agent.xcodeproj`，按 `Cmd+R` 运行。
@@ -92,27 +100,96 @@ LLM_THINKING_TYPE=disabled
 
 ```
 CoDesign-Agent/
-├── Models/              # SwiftData 数据模型
-├── ViewModels/          # 业务逻辑层
-├── Views/               # SwiftUI 视图
-│   ├── ProjectList/     # 项目列表页
-│   ├── ProjectDetail/   # 项目详情页
-│   ├── Components/      # 自定义组件
-│   └── Settings/        # API 设置页
-├── Services/            # 服务层
-│   ├── Protocols/       # 服务协议
-│   ├── Mock/            # Mock 实现（离线模式）
-│   ├── Live/            # Live 实现（真实 API）
-│   ├── API/             # OpenAI-compatible 客户端
-│   └── Prompts/         # LLM Prompt 模板
-├── DTOs/                # 数据传输对象
-└── Extensions/          # Swift 扩展
+├── Models/                  # SwiftData 数据模型
+│   ├── Project.swift        # 根实体
+│   ├── DesignBrief.swift    # 15+ 结构化字段
+│   ├── ProgressStage.swift  # 9 阶段进度
+│   ├── ChatMessage.swift    # 对话消息
+│   ├── LearningTrace.swift  # 学习轨迹
+│   ├── RiskItem.swift       # 风险项
+│   ├── SuccessMetric.swift  # 验收指标
+│   ├── BoundaryItem.swift   # 项目边界项
+│   └── ModelExtensions.swift
+├── ViewModels/              # MVVM 业务逻辑层
+│   ├── ChatViewModel.swift          # 对话 + 流式输出
+│   ├── NewProjectViewModel.swift    # 创建项目
+│   ├── ProjectDetailViewModel.swift # 详情页状态
+│   └── ProjectListViewModel.swift   # 列表页
+├── Views/                   # SwiftUI 视图
+│   ├── DesignSystem/        # v0.3 统一设计系统
+│   │   ├── CoDesignTheme.swift        # 排版 / 间距 / 阴影 / 动画 Token
+│   │   ├── CoDesignButton.swift       # 统一按钮（Primary / Secondary / Ghost / Small）
+│   │   ├── CoDesignCard.swift         # 卡片容器（Normal / Elevated / Highlighted / Bordered）
+│   │   ├── CoDesignStatusBadge.swift  # 状态标签
+│   │   ├── CoDesignStagePill.swift    # 阶段胶囊
+│   │   ├── CoDesignSectionHeader.swift
+│   │   └── CoDesignFlowLayout.swift   # 自动换行布局
+│   ├── NewProject/          # 新建项目（Design Seed）
+│   │   └── NewProjectView.swift
+│   ├── ProjectList/         # 项目列表页
+│   │   ├── ProjectListView.swift
+│   │   ├── ProjectCard.swift
+│   │   └── ProjectEmptyStateView.swift
+│   ├── ProjectDetail/       # 项目详情 + 工作台
+│   │   ├── ProjectDetailView.swift           # 主容器（Tab 切换）
+│   │   ├── ClarificationWorkspaceView.swift  # v0.3 澄清工作台
+│   │   ├── WorkspaceHeader.swift             # 工作台头部
+│   │   ├── StageRail.swift                   # 9 阶段水平导轨
+│   │   ├── CurrentClarificationCard.swift    # 当前澄清卡片 + 快捷操作
+│   │   ├── AnswerComposer.swift              # 回答输入区
+│   │   ├── InsightCardsPanel.swift           # 可交互洞察卡片列表
+│   │   ├── EditableInsightCard.swift         # 单字段卡片（滑动 / 编辑 / 确认）
+│   │   ├── InsightFieldEditSheet.swift       # 字段编辑弹窗
+│   │   ├── ProcessLogDisclosure.swift        # 可折叠过程记录
+│   │   ├── ChatPanel.swift                   # 传统聊天视图
+│   │   ├── InsightsPanel.swift               # 只读洞察面板
+│   │   └── ProgressPanel.swift               # 进度面板
+│   ├── Components/           # 通用组件
+│   │   ├── MessageBubble.swift
+│   │   ├── InlineToast.swift
+│   │   ├── ReflectionCard.swift
+│   │   ├── StageNodeView.swift
+│   │   ├── StageExplanationPopover.swift
+│   │   └── TypingIndicatorView.swift
+│   └── Settings/            # API 设置页
+│       └── APISettingsView.swift
+├── Services/                # 服务层
+│   ├── Protocols/           # 服务协议
+│   │   ├── LLMServiceProtocol.swift
+│   │   └── StructuredExtractorProtocol.swift
+│   ├── Mock/                # Mock 实现（离线模式）
+│   │   ├── MockLLMService.swift
+│   │   └── MockStructuredExtractor.swift
+│   ├── Live/                # Live 实现（真实 API）
+│   │   ├── LiveLLMService.swift
+│   │   └── LiveStructuredExtractor.swift
+│   ├── API/                 # OpenAI-compatible 客户端
+│   │   ├── LLMAPIClient.swift
+│   │   ├── LLMAPIConfig.swift
+│   │   ├── ChatCompletionRequest.swift
+│   │   ├── ChatCompletionResponse.swift
+│   │   └── APIError.swift
+│   ├── Prompts/             # LLM Prompt 模板
+│   │   ├── SocraticPromptTemplates.swift
+│   │   └── ExtractionPromptTemplates.swift
+│   ├── ProgressAnalyzer.swift
+│   └── StageDefinition.swift
+├── DTOs/                    # 数据传输对象
+│   ├── DesignBriefSnapshot.swift
+│   ├── ExtractedFields.swift
+│   ├── ChatPayloadMessage.swift
+│   └── ...
+├── Factories/               # 数据工厂
+│   ├── MockDataFactory.swift
+│   └── SeedDataFactory.swift
+└── Extensions/              # Swift 扩展
+    └── Color+Theme.swift    # 颜色 Token + AppTheme
 
 docs/
-├── product-brief.md     # 产品愿景与设计原则
-├── v0.1-mvp-spec.md     # MVP 技术规格
-├── v0.2-spec.md         # Live API 集成规格
-└── v0.2.1-release-notes.md  # 最新版本说明
+├── product-brief.md
+├── v0.1-mvp-spec.md
+├── v0.2-spec.md
+└── v0.2.1-release-notes.md
 ```
 
 ## 核心概念
@@ -123,6 +200,18 @@ docs/
 - **Live 模式**：调用真实 LLM API，适合实际使用
 
 切换方式：设置页或 `UserDefaults.standard.set("live", forKey: "serviceMode")`
+
+### CoDesign 设计系统（v0.3）
+
+统一的设计 Token 和组件库，确保视觉一致性：
+
+- **CoDesignButton** — Primary / Secondary / Ghost 三种样式，支持 Loading 和 Disabled
+- **CoDesignSmallButton** — 紧凑按钮（32pt 高），用于行内操作
+- **CoDesignCard** — Normal / Elevated / Highlighted / Bordered 四种卡片风格
+- **CoDesignStatusBadge** — 状态标签（Complete / Active / Warning / Info / Locked / Partial）
+- **CoDesignStagePill** — 9 阶段胶囊导航
+- **CoDesignFlowLayout** — 自动换行的 Chip 布局
+- **Theme Token** — 统一排版（Typography）、间距（Spacing）、阴影（Shadow）、动画（Animation）
 
 ### 9 阶段设计流程
 
@@ -154,14 +243,14 @@ AI 从对话中自动提取：
 - `risks` - 风险项
 - `milestones` - 里程碑
 
-## 测试
+### 可编辑洞察卡片（v0.3）
 
-```bash
-# 运行单元测试
-xcodebuild test \
-  -scheme CoDesign-Agent \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
-```
+不同于 v0.2 只读展示，v0.3 的 `EditableInsightCard` 支持：
+- **左滑**标记不准确（橙色状态条）
+- **右滑**确认字段（绿色状态条）
+- **点击"编辑"**手动修正字段内容
+- 每个字段独立管理 confirmed / rejected 状态
+- Toast 通知操作结果
 
 ## 文档
 
@@ -174,12 +263,15 @@ xcodebuild test \
 
 - **禁止硬编码 API Key**：始终使用环境变量或 UserDefaults
 - **Fallback 机制**：Live 服务失败时自动降级到 Mock
+- **设计系统优先**：新 UI 使用 DesignSystem 组件，避免裸 `Button` + `.background()`
+- **按钮单层背景**：`CoDesignSmallButton` 自带背景，外层不再套 `.background()` / `.clipShape()` / `Capsule`
 - **平台兼容性**：部分 UI 修饰符仅支持 iOS（如 `.textInputAutocapitalization`），使用 `#if os(iOS)` 保护
 - **SwiftData 迁移**：修改数据模型时注意版本迁移
 
 ## 版本历史
 
-- **v0.2.1** (2026-05-29) - API 配置泛化、设置页、Markdown 渲染、键盘交互优化
+- **v0.3** (2026-05) - 澄清工作台、CoDesign 设计系统、可编辑洞察卡片、滑动手势、过程记录、快捷操作
+- **v0.2.1** - API 配置泛化、设置页、Markdown 渲染、键盘交互优化
 - **v0.2** - Live API 集成、流式对话、结构化提取
 - **v0.1** - MVP 核心闭环、Mock 模式、9 阶段流程
 
@@ -191,6 +283,7 @@ xcodebuild test \
 - 网络 API 集成
 - 自定义组件与动画
 - MVVM 架构模式
+- 设计系统构建
 - 文档与任务拆分
 
 ## License

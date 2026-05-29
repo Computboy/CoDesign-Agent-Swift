@@ -83,7 +83,7 @@ struct CurrentClarificationCard: View {
     // MARK: - Body
 
     var body: some View {
-        CoDesignCard(style: .highlighted(.primaryAccent)) {
+        CoDesignCard(style: .bordered) {
             VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
 
                 // Stage header
@@ -114,6 +114,12 @@ struct CurrentClarificationCard: View {
                 // Quick action buttons (always visible, disabled during streaming)
                 quickActionsSection
             }
+        }
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color.primaryAccent)
+                .frame(width: 4)
+                .padding(.vertical, AppTheme.spacingSmall)
         }
     }
 
@@ -293,7 +299,7 @@ struct CurrentClarificationCard: View {
                     Label("给我一个例子", systemImage: "lightbulb")
                         .font(AppTheme.Typography.caption.weight(.medium))
                         .padding(.horizontal, AppTheme.spacingMedium)
-                        .padding(.vertical, AppTheme.spacingSmall)
+                        .frame(height: AppTheme.Layout.buttonHeightSmall)
                         .background(
                             Capsule()
                                 .fill(Color.primaryAccent.opacity(quickActionsDisabled ? 0.05 : 0.1))
@@ -309,7 +315,7 @@ struct CurrentClarificationCard: View {
                     Label("我还不确定", systemImage: "questionmark.circle")
                         .font(AppTheme.Typography.caption.weight(.medium))
                         .padding(.horizontal, AppTheme.spacingMedium)
-                        .padding(.vertical, AppTheme.spacingSmall)
+                        .frame(height: AppTheme.Layout.buttonHeightSmall)
                         .background(
                             Capsule()
                                 .fill(Color.warning.opacity(quickActionsDisabled ? 0.05 : 0.1))
@@ -325,7 +331,7 @@ struct CurrentClarificationCard: View {
                     Label("换个角度问", systemImage: "arrow.triangle.2.circlepath")
                         .font(AppTheme.Typography.caption.weight(.medium))
                         .padding(.horizontal, AppTheme.spacingMedium)
-                        .padding(.vertical, AppTheme.spacingSmall)
+                        .frame(height: AppTheme.Layout.buttonHeightSmall)
                         .background(
                             Capsule()
                                 .fill(Color.info.opacity(quickActionsDisabled ? 0.05 : 0.1))

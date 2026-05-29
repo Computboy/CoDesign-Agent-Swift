@@ -105,7 +105,7 @@ struct NewProjectView: View {
     // MARK: - Design Idea Card (Required)
 
     private var designIdeaCard: some View {
-        CoDesignCard {
+        CoDesignCard(style: .bordered) {
             VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
                 CoDesignSectionHeader(title: "我现在的设计想法是")
 
@@ -139,7 +139,7 @@ struct NewProjectView: View {
     // MARK: - Project Type Card (Optional)
 
     private var projectTypeCard: some View {
-        CoDesignCard {
+        CoDesignCard(style: .bordered) {
             VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
                 CoDesignSectionHeader(
                     title: "项目类型",
@@ -165,7 +165,7 @@ struct NewProjectView: View {
     // MARK: - Constraints Card (Optional)
 
     private var constraintsCard: some View {
-        CoDesignCard {
+        CoDesignCard(style: .bordered) {
             VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
                 CoDesignSectionHeader(
                     title: "已知限制",
@@ -194,7 +194,7 @@ struct NewProjectView: View {
     // MARK: - Clarification Priorities Card (Optional)
 
     private var clarificationPrioritiesCard: some View {
-        CoDesignCard {
+        CoDesignCard(style: .bordered) {
             VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
                 CoDesignSectionHeader(
                     title: "我希望 AI 先帮我澄清",
