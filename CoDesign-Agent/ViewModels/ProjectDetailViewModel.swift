@@ -4,6 +4,7 @@ import Observation
 // MARK: - Tab 定义
 
 enum ProjectDetailTab: String, CaseIterable, Identifiable {
+    case workspace
     case chat
     case progress
     case insights
@@ -12,6 +13,7 @@ enum ProjectDetailTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .workspace: return "工作台"
         case .chat: return "对话"
         case .progress: return "进度"
         case .insights: return "洞察"
@@ -20,6 +22,7 @@ enum ProjectDetailTab: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
+        case .workspace: return "square.grid.2x2"
         case .chat: return "bubble.left.and.bubble.right"
         case .progress: return "chart.line.uptrend.xyaxis"
         case .insights: return "sparkles"
@@ -32,7 +35,7 @@ enum ProjectDetailTab: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class ProjectDetailViewModel {
-    var selectedTab: ProjectDetailTab = .chat
+    var selectedTab: ProjectDetailTab = .workspace
 
     func sortedStages(for project: Project) -> [ProgressStage] {
         project.stages.sorted { $0.order < $1.order }

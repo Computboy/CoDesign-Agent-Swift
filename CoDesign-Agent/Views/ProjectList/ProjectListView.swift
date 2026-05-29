@@ -10,13 +10,22 @@ struct ProjectListView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            ZStack {
+                Color.appBackground
+                    .ignoresSafeArea()
+
                 let filtered = viewModel.filteredProjects(projects)
 
                 if filtered.isEmpty {
-                    emptyStateView
+                    ProjectEmptyStateView(
+                        isSearchEmpty: !viewModel.searchText.isEmpty
+                    ) {
+                        isShowingNewProject = true
+                    }
+                    .transition(.opacity)
                 } else {
-                    projectList(filtered)
+                    projectScrollList(filtered)
+                        .transition(.opacity)
                 }
             }
             .navigationTitle("Clarify")
@@ -29,12 +38,6 @@ struct ProjectListView: View {
                         Image(systemName: "gearshape")
                     }
                 }
-
-                #if os(iOS)
-                ToolbarItem(placement: .navigationBarLeading) {
-                    EditButton()
-                }
-                #endif
 
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -53,95 +56,43 @@ struct ProjectListView: View {
         }
     }
 
-    // MARK: - Project List
+    // MARK: - Project Scroll List
 
-    private func projectList(_ filtered: [Project]) -> some View {
-        List {
-            ForEach(filtered) { project in
-                NavigationLink {
-                    ProjectDetailView(project: project)
-                } label: {
-                    ProjectCard(project: project)
+    private func projectScrollList(_ filtered: [Project]) -> some View {
+        ScrollView {
+            LazyVStack(spacing: AppTheme.spacingMedium) {
+                ForEach(filtered) { project in
+                    NavigationLink {
+                        ProjectDetailView(project: project)
+                    } label: {
+                        ProjectCard(project: project)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            deleteProject(project)
+                        } label: {
+                            Label("删除项目", systemImage: "trash")
+                        }
+                    }
+                    .transition(
+                        .opacity.combined(with: .move(edge: .bottom))
+                    )
                 }
             }
-            .onDelete { offsets in
-                viewModel.deleteProjects(
-                    at: offsets,
-                    from: projects,
-                    context: modelContext
-                )
-            }
+            .padding(.horizontal, AppTheme.spacingMedium)
+            .padding(.vertical, AppTheme.spacingSmall)
+            .animation(AppTheme.Animation.standard, value: filtered.map(\.id))
         }
-        .listStyle(.plain)
     }
 
-    // MARK: - Empty State
+    // MARK: - Deletion
 
-    private var emptyStateView: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "folder.badge.questionmark")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.textTertiary)
-
-            if viewModel.searchText.isEmpty {
-                Text("还没有项目")
-                    .font(.headline)
-                    .foregroundStyle(Color.textSecondary)
-                Text("点击右上角 + 创建你的第一个项目")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.textTertiary)
-            } else {
-                Text("没有找到匹配的项目")
-                    .font(.headline)
-                    .foregroundStyle(Color.textSecondary)
-            }
+    private func deleteProject(_ project: Project) {
+        withAnimation(AppTheme.Animation.standard) {
+            modelContext.delete(project)
+            try? modelContext.save()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.appBackground)
-    }
-}
-
-// MARK: - Project Card
-
-struct ProjectCard: View {
-    let project: Project
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-            // 项目名称
-            Text(project.name)
-                .font(.headline)
-                .foregroundStyle(Color.textPrimary)
-                .lineLimit(1)
-
-            // 简短描述
-            if !project.briefDescription.isEmpty {
-                Text(project.briefDescription)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.textSecondary)
-                    .lineLimit(2)
-            }
-
-            // 进度条
-            ProgressView(value: project.completionRate)
-                .tint(.primaryAccent)
-                .padding(.vertical, 2)
-
-            // 底部信息栏
-            HStack(spacing: AppTheme.spacingMedium) {
-                Label("\(Int(project.completionRate * 100))%", systemImage: "chart.bar.fill")
-                Label("\(project.messages.count)", systemImage: "bubble.left.fill")
-                Label("\(project.learningTraces.count)", systemImage: "lightbulb.fill")
-                Spacer()
-                Text(project.updatedAt, style: .date)
-            }
-            .font(.caption)
-            .foregroundStyle(Color.textTertiary)
-        }
-        .padding(AppTheme.spacingMedium)
-        .background(Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
-        .padding(.vertical, 2)
     }
 }
 

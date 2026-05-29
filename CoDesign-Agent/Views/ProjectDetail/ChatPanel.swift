@@ -3,10 +3,8 @@ import SwiftData
 
 struct ChatPanel: View {
     let project: Project
-    let llmService: any LLMServiceProtocol
-    let extractor: any StructuredExtractorProtocol
+    let chatViewModel: ChatViewModel
 
-    @State private var viewModel: ChatViewModel?
     @State private var inputText: String = ""
 
     var body: some View {
@@ -15,7 +13,7 @@ struct ChatPanel: View {
             messageList
 
             // 错误提示
-            if let errorMessage = viewModel?.errorMessage {
+            if let errorMessage = chatViewModel.errorMessage {
                 Text(errorMessage)
                     .font(.caption)
                     .foregroundStyle(Color.danger)
@@ -29,15 +27,6 @@ struct ChatPanel: View {
             // 输入区域
             inputArea
         }
-        .onAppear {
-            if viewModel == nil {
-                viewModel = ChatViewModel(
-                    project: project,
-                    llmService: llmService,
-                    extractor: extractor
-                )
-            }
-        }
     }
 
     // MARK: - Message List
@@ -46,7 +35,7 @@ struct ChatPanel: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    if project.messages.isEmpty && (viewModel?.isStreaming == false) {
+                    if project.messages.isEmpty && !chatViewModel.isStreaming {
                         emptyState
                     }
 
@@ -57,13 +46,13 @@ struct ChatPanel: View {
                     }
 
                     // 正在生成的消息
-                    if let vm = viewModel, vm.isStreaming && !vm.currentStreamingText.isEmpty {
+                    if chatViewModel.isStreaming && !chatViewModel.currentStreamingText.isEmpty {
                         HStack {
                             Group {
-                                if let attributed = try? AttributedString(markdown: vm.currentStreamingText) {
+                                if let attributed = try? AttributedString(markdown: chatViewModel.currentStreamingText) {
                                     Text(attributed)
                                 } else {
-                                    Text(vm.currentStreamingText)
+                                    Text(chatViewModel.currentStreamingText)
                                 }
                             }
                             .padding(.horizontal, 12)
@@ -78,7 +67,7 @@ struct ChatPanel: View {
                     }
 
                     // Typing indicator
-                    if let vm = viewModel, vm.isStreaming && vm.currentStreamingText.isEmpty {
+                    if chatViewModel.isStreaming && chatViewModel.currentStreamingText.isEmpty {
                         HStack {
                             TypingIndicatorView()
                                 .frame(maxWidth: 200)
@@ -96,8 +85,8 @@ struct ChatPanel: View {
                     }
                 }
             }
-            .onChange(of: viewModel?.currentStreamingText) {
-                if viewModel?.isStreaming == true {
+            .onChange(of: chatViewModel.currentStreamingText) {
+                if chatViewModel.isStreaming {
                     withAnimation {
                         proxy.scrollTo("streaming", anchor: .bottom)
                     }
@@ -133,13 +122,13 @@ struct ChatPanel: View {
             TextField("输入你的想法...", text: $inputText, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...4)
-                .disabled(viewModel?.isStreaming == true)
+                .disabled(chatViewModel.isStreaming)
                 .onSubmit {
                     if canSend {
                         Task {
                             let text = inputText
                             inputText = ""
-                            await viewModel?.sendMessage(text)
+                            await chatViewModel.sendMessage(text)
                         }
                     }
                 }
@@ -148,7 +137,7 @@ struct ChatPanel: View {
                 Task {
                     let text = inputText
                     inputText = ""
-                    await viewModel?.sendMessage(text)
+                    await chatViewModel.sendMessage(text)
                 }
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
@@ -163,6 +152,6 @@ struct ChatPanel: View {
 
     private var canSend: Bool {
         !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && viewModel?.isStreaming == false
+            && !chatViewModel.isStreaming
     }
 }

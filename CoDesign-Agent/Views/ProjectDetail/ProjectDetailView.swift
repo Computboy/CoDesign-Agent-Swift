@@ -4,6 +4,7 @@ import SwiftData
 struct ProjectDetailView: View {
     let project: Project
     @State private var viewModel = ProjectDetailViewModel()
+    @State private var chatViewModel: ChatViewModel?
     @Environment(\.llmService) private var llmService
     @Environment(\.structuredExtractor) private var structuredExtractor
 
@@ -26,17 +27,26 @@ struct ProjectDetailView: View {
 
             // MARK: - Tab Content
             Group {
-                switch viewModel.selectedTab {
-                case .chat:
-                    ChatPanel(
-                        project: project,
-                        llmService: llmService,
-                        extractor: structuredExtractor
-                    )
-                case .progress:
-                    ProgressPanel(project: project)
-                case .insights:
-                    InsightsPanel(project: project)
+                if let chatVM = chatViewModel {
+                    switch viewModel.selectedTab {
+                    case .workspace:
+                        ClarificationWorkspaceView(
+                            project: project,
+                            chatViewModel: chatVM
+                        )
+                    case .chat:
+                        ChatPanel(
+                            project: project,
+                            chatViewModel: chatVM
+                        )
+                    case .progress:
+                        ProgressPanel(project: project)
+                    case .insights:
+                        InsightsPanel(project: project)
+                    }
+                } else {
+                    ProgressView("正在准备工作台...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -46,6 +56,16 @@ struct ProjectDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .task {
+            // 只在首次加载时初始化一次
+            if chatViewModel == nil {
+                chatViewModel = ChatViewModel(
+                    project: project,
+                    llmService: llmService,
+                    extractor: structuredExtractor
+                )
+            }
+        }
     }
 }
 
@@ -84,5 +104,7 @@ struct ProjectDetailHeader: View {
             name: "测试项目",
             briefDescription: "这是一个测试项目的详细描述"
         ))
+        .environment(\.llmService, MockLLMService())
+        .environment(\.structuredExtractor, MockStructuredExtractor())
     }
 }
