@@ -6,6 +6,8 @@ import SwiftUI
 /// Each stage is rendered as a CoDesignStagePill with state derived from ProgressStage data.
 struct StageRail: View {
     let stages: [ProgressStage]
+    @State private var selectedStage: ProgressStage?
+    @State private var selectedDefinition: StageDefinition?
 
     private var sortedStages: [ProgressStage] {
         stages.sorted { $0.order < $1.order }
@@ -22,21 +24,46 @@ struct StageRail: View {
     }
 
     var body: some View {
-        if sortedStages.isEmpty {
-            emptyState
-        } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AppTheme.spacingSmall) {
-                    ForEach(sortedStages) { stage in
-                        CoDesignStagePill(
-                            order: stage.order,
-                            name: stage.name,
-                            state: pillState(for: stage),
-                            isCompact: true
-                        )
+        ZStack {
+            if sortedStages.isEmpty {
+                emptyState
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AppTheme.spacingSmall) {
+                        ForEach(sortedStages) { stage in
+                            CoDesignStagePill(
+                                order: stage.order,
+                                name: stage.name,
+                                state: pillState(for: stage),
+                                isCompact: true
+                            )
+                            .onLongPressGesture(minimumDuration: 0.5) {
+                                // 长按显示阶段解释
+                                if let definition = StageDefinition.all.first(where: { $0.order == stage.order }) {
+                                    withAnimation(AppTheme.Animation.spring) {
+                                        selectedStage = stage
+                                        selectedDefinition = definition
+                                    }
+                                }
+                            }
+                        }
                     }
+                    .padding(.horizontal, AppTheme.spacingMedium)
                 }
-                .padding(.horizontal, AppTheme.spacingMedium)
+            }
+
+            // 阶段解释弹窗
+            if let stage = selectedStage, let definition = selectedDefinition {
+                StageExplanationPopover(
+                    stage: stage,
+                    definition: definition,
+                    onDismiss: {
+                        withAnimation(AppTheme.Animation.spring) {
+                            selectedStage = nil
+                            selectedDefinition = nil
+                        }
+                    }
+                )
             }
         }
     }

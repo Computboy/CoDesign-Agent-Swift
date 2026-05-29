@@ -8,6 +8,7 @@ struct CurrentClarificationCard: View {
     let project: Project
     let isStreaming: Bool
     let streamingText: String
+    let onQuickAction: (String) -> Void
 
     // MARK: - State
 
@@ -32,6 +33,11 @@ struct CurrentClarificationCard: View {
         return sorted.last(where: { $0.role == "assistant" })?.content ?? ""
     }
 
+    /// Whether quick actions should be disabled (streaming or no conversation yet)
+    private var quickActionsDisabled: Bool {
+        isStreaming || cardState == .welcome
+    }
+
     private var currentStage: ProgressStage? {
         let sorted = project.stages.sorted { $0.order < $1.order }
         return sorted.first(where: { $0.status == "active" })
@@ -46,30 +52,30 @@ struct CurrentClarificationCard: View {
 
     private var relatedFields: [String] {
         switch stageOrder {
-        case 1: return ["目标用户", "核心痛点", "使用场景"]
-        case 2: return ["核心价值", "差异化"]
-        case 3: return ["项目边界", "MVP 功能"]
-        case 4: return ["技术模块", "交互流程"]
-        case 5: return ["运行逻辑"]
-        case 6: return ["硬性约束"]
-        case 7: return ["验收标准"]
-        case 8: return ["风险预案"]
-        case 9: return ["里程碑"]
+        case 1: return ["targetUser", "painPoint", "useScenario"]
+        case 2: return ["coreValue", "differentiation"]
+        case 3: return ["mvpFeatures", "boundaryItems"]
+        case 4: return ["interactionFlow", "userActions"]
+        case 5: return ["risks", "failureCases"]
+        case 6: return ["successMetrics", "evaluationCriteria"]
+        case 7: return ["prototypePlan", "visualEvidence"]
+        case 8: return ["implementationPlan", "technicalConstraints"]
+        case 9: return ["finalBrief", "reflection", "nextSteps"]
         default: return []
         }
     }
 
     private var whyAsk: String {
         switch stageOrder {
-        case 1: return "如果目标用户和使用场景不清楚，后续功能边界会变得非常泛。"
-        case 2: return "没有清晰的价值主张，设计方案容易沦为通用方案的翻版。"
-        case 3: return "不划定边界，MVP 会无限膨胀，导致无法交付。"
-        case 4: return "功能和技术方案需要与边界对齐，否则会出现过度设计。"
-        case 5: return "运行逻辑不清晰会导致用户体验断裂或异常处理缺失。"
-        case 6: return "硬性约束（时间、预算、技术栈）决定了方案的可行性。"
-        case 7: return "没有可量化指标，就无法判断设计是否成功。"
-        case 8: return "提前识别风险可以降低项目失败的概率。"
-        case 9: return "里程碑帮助拆解大任务，避免最后一刻赶工。"
+        case 1: return "如果目标用户、痛点和使用场景不清楚，后续功能边界会变得非常泛。"
+        case 2: return "这一阶段需要明确产品真正提供的价值，以及它和普通聊天工具或表单工具的区别。"
+        case 3: return "明确 MVP 边界可以避免功能膨胀，让当前版本更容易完成和展示。"
+        case 4: return "交互流程决定用户如何一步步参与澄清，而不是只被动等待 AI 输出。"
+        case 5: return "提前识别风险可以帮助系统设计降级方案，避免 AI 追问跑偏或越界。"
+        case 6: return "设计项目需要可评价的标准，否则很难判断方案是否真正有效。"
+        case 7: return "课程展示需要能被看见的过程和产物，而不仅是文字说明。"
+        case 8: return "技术实现路径会影响 MVP 的取舍，需要尽早和设计目标对齐。"
+        case 9: return "最后阶段需要把前面的澄清结果整合为可展示、可复盘的设计方案。"
         default: return ""
         }
     }
@@ -104,6 +110,9 @@ struct CurrentClarificationCard: View {
                 if !whyAsk.isEmpty {
                     whyAskSection
                 }
+
+                // Quick action buttons (always visible, disabled during streaming)
+                quickActionsSection
             }
         }
     }
@@ -154,11 +163,11 @@ struct CurrentClarificationCard: View {
 
     private var welcomeContent: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-            Text("你好！我是 CoDesign Agent")
+            Text("设计澄清工作台")
                 .font(AppTheme.Typography.headline)
                 .foregroundStyle(Color.textPrimary)
 
-            Text("在下面输入你的设计想法，我会通过追问帮你逐步澄清目标用户、核心痛点、功能边界和方案。不用一次想清楚，我们一步步来。")
+            Text("在下方输入你的初始设计想法。CoDesign Agent 会将你的想法拆解为 9 个澄清阶段，通过追问帮你逐步明确目标用户、核心痛点、功能边界和实施方案。")
                 .font(AppTheme.Typography.body)
                 .foregroundStyle(Color.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -167,40 +176,57 @@ struct CurrentClarificationCard: View {
 
     private var streamingContent: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-            if let attributed = try? AttributedString(markdown: streamingText) {
-                Text(attributed)
-                    .font(AppTheme.Typography.body)
-                    .foregroundStyle(Color.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+            if streamingText.isEmpty {
+                HStack(spacing: AppTheme.spacingSmall) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("AI 正在准备下一轮澄清问题...")
+                        .font(AppTheme.Typography.body)
+                        .foregroundStyle(Color.textSecondary)
+                }
             } else {
-                Text(streamingText)
-                    .font(AppTheme.Typography.body)
-                    .foregroundStyle(Color.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                if let attributed = try? AttributedString(markdown: streamingText) {
+                    Text(attributed)
+                        .font(AppTheme.Typography.body)
+                        .foregroundStyle(Color.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(streamingText)
+                        .font(AppTheme.Typography.body)
+                        .foregroundStyle(Color.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            HStack(spacing: 4) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("正在生成回复...")
-                    .font(AppTheme.Typography.caption)
-                    .foregroundStyle(Color.textTertiary)
+                HStack(spacing: 4) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("正在生成回复...")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(Color.textTertiary)
+                }
             }
         }
     }
 
     private var responseContent: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-            if let attributed = try? AttributedString(markdown: latestAssistantText) {
-                Text(attributed)
+            if latestAssistantText.isEmpty {
+                Text("AI 正在准备下一轮澄清问题...")
                     .font(AppTheme.Typography.body)
-                    .foregroundStyle(Color.textPrimary)
+                    .foregroundStyle(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text(latestAssistantText)
-                    .font(AppTheme.Typography.body)
-                    .foregroundStyle(Color.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let attributed = try? AttributedString(markdown: latestAssistantText) {
+                    Text(attributed)
+                        .font(AppTheme.Typography.body)
+                        .foregroundStyle(Color.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(latestAssistantText)
+                        .font(AppTheme.Typography.body)
+                        .foregroundStyle(Color.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }
@@ -252,6 +278,65 @@ struct CurrentClarificationCard: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
+
+    // MARK: - Quick Actions
+
+    private var quickActionsSection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+            Divider()
+                .padding(.vertical, AppTheme.spacingXS)
+
+            CoDesignFlowLayout(spacing: AppTheme.spacingSmall) {
+                Button {
+                    onQuickAction("给我一个例子：请基于当前阶段和问题，给我一个具体回答示例，帮助我理解应该怎么回答。")
+                } label: {
+                    Label("给我一个例子", systemImage: "lightbulb")
+                        .font(AppTheme.Typography.caption.weight(.medium))
+                        .padding(.horizontal, AppTheme.spacingMedium)
+                        .padding(.vertical, AppTheme.spacingSmall)
+                        .background(
+                            Capsule()
+                                .fill(Color.primaryAccent.opacity(quickActionsDisabled ? 0.05 : 0.1))
+                        )
+                        .foregroundStyle(quickActionsDisabled ? Color.textTertiary : Color.primaryAccent)
+                }
+                .buttonStyle(.plain)
+                .disabled(quickActionsDisabled)
+
+                Button {
+                    onQuickAction("我还不确定：我现在还不确定，请你把这个问题拆得更简单一点，用更容易回答的方式继续引导我。")
+                } label: {
+                    Label("我还不确定", systemImage: "questionmark.circle")
+                        .font(AppTheme.Typography.caption.weight(.medium))
+                        .padding(.horizontal, AppTheme.spacingMedium)
+                        .padding(.vertical, AppTheme.spacingSmall)
+                        .background(
+                            Capsule()
+                                .fill(Color.warning.opacity(quickActionsDisabled ? 0.05 : 0.1))
+                        )
+                        .foregroundStyle(quickActionsDisabled ? Color.textTertiary : Color.warning)
+                }
+                .buttonStyle(.plain)
+                .disabled(quickActionsDisabled)
+
+                Button {
+                    onQuickAction("换个角度问：请换一个角度重新追问我这个问题，不要重复刚才的表达。")
+                } label: {
+                    Label("换个角度问", systemImage: "arrow.triangle.2.circlepath")
+                        .font(AppTheme.Typography.caption.weight(.medium))
+                        .padding(.horizontal, AppTheme.spacingMedium)
+                        .padding(.vertical, AppTheme.spacingSmall)
+                        .background(
+                            Capsule()
+                                .fill(Color.info.opacity(quickActionsDisabled ? 0.05 : 0.1))
+                        )
+                        .foregroundStyle(quickActionsDisabled ? Color.textTertiary : Color.info)
+                }
+                .buttonStyle(.plain)
+                .disabled(quickActionsDisabled)
+            }
+        }
+    }
 }
 
 // MARK: - Preview
@@ -259,11 +344,12 @@ struct CurrentClarificationCard: View {
 #Preview {
     ScrollView {
         VStack(spacing: AppTheme.spacingMedium) {
-            // Welcome state
+            // Welcome state (completely empty project)
             CurrentClarificationCard(
                 project: Project(name: "新项目", briefDescription: ""),
                 isStreaming: false,
-                streamingText: ""
+                streamingText: "",
+                onQuickAction: { text in print("Quick action: \(text)") }
             )
 
             // Has response
@@ -278,10 +364,11 @@ struct CurrentClarificationCard: View {
                     return p
                 }(),
                 isStreaming: false,
-                streamingText: ""
+                streamingText: "",
+                onQuickAction: { text in print("Quick action: \(text)") }
             )
 
-            // Streaming
+            // Streaming with text
             CurrentClarificationCard(
                 project: {
                     let p = Project(name: "校园导航", briefDescription: "")
@@ -291,7 +378,22 @@ struct CurrentClarificationCard: View {
                     return p
                 }(),
                 isStreaming: true,
-                streamingText: "让我想想你的核心价值主张..."
+                streamingText: "让我想想你的核心价值主张...",
+                onQuickAction: { text in print("Quick action: \(text)") }
+            )
+
+            // Streaming with empty text (safety check)
+            CurrentClarificationCard(
+                project: {
+                    let p = Project(name: "校园导航", briefDescription: "")
+                    p.stages = [
+                        ProgressStage(order: 3, name: "项目边界定义", status: "active", completionRatio: 0.0),
+                    ]
+                    return p
+                }(),
+                isStreaming: true,
+                streamingText: "",
+                onQuickAction: { text in print("Quick action: \(text)") }
             )
         }
         .padding()

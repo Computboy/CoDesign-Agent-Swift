@@ -25,7 +25,12 @@ struct ClarificationWorkspaceView: View {
                 CurrentClarificationCard(
                     project: project,
                     isStreaming: chatViewModel.isStreaming,
-                    streamingText: chatViewModel.currentStreamingText
+                    streamingText: chatViewModel.currentStreamingText,
+                    onQuickAction: { text in
+                        Task {
+                            await chatViewModel.sendMessage(text)
+                        }
+                    }
                 )
 
                 // 4. Answer Composer
@@ -51,15 +56,15 @@ struct ClarificationWorkspaceView: View {
                     }
                 }
 
-                // 6. Process Log (collapsed by default)
+                // 6. Insight Cards Panel (v0.3 interactive fields)
+                InsightCardsPanel(project: project)
+
+                // 7. Process Log (collapsed by default, shows conversation history)
                 ProcessLogDisclosure(
                     messages: project.messages,
                     isStreaming: chatViewModel.isStreaming,
                     streamingText: chatViewModel.currentStreamingText
                 )
-
-                // 7. Insights Panel (reused from existing)
-                InsightsPanel(project: project)
             }
             .padding(.horizontal, AppTheme.spacingMedium)
             .padding(.vertical, AppTheme.spacingSmall)

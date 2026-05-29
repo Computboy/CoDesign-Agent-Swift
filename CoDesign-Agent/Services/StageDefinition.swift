@@ -36,6 +36,26 @@ enum BriefField: String, CaseIterable {
     // 阶段 9：项目阶段拆分与排期
     case milestones
 
+    /// 字段的中文显示名称
+    var displayName: String {
+        switch self {
+        case .targetUser: return "目标用户"
+        case .painPoint: return "核心痛点"
+        case .useScenario: return "使用场景"
+        case .coreValue: return "核心价值"
+        case .differentiation: return "差异化"
+        case .boundaryItems: return "项目边界"
+        case .mvpFeatures: return "MVP 功能"
+        case .technicalModules: return "技术模块"
+        case .interactionFlow: return "交互流程"
+        case .operationLogic: return "运行逻辑"
+        case .hardConstraints: return "硬性约束"
+        case .successMetrics: return "验收标准"
+        case .risks: return "风险预案"
+        case .milestones: return "里程碑"
+        }
+    }
+
     /// 判断该字段在 snapshot 中是否已填充
     func isFilled(in snapshot: DesignBriefSnapshot) -> Bool {
         switch self {
@@ -84,6 +104,68 @@ struct StageDefinition {
         guard !briefFields.isEmpty else { return 0 }
         let filled = briefFields.filter { $0.isFilled(in: snapshot) }.count
         return Double(filled) / Double(briefFields.count)
+    }
+
+    /// 该阶段的思考问题
+    var thinkingQuestions: [String] {
+        switch order {
+        case 1:
+            return [
+                "谁是你的目标用户？",
+                "他们在什么场景下遇到问题？",
+                "问题的具体表现是什么？"
+            ]
+        case 2:
+            return [
+                "你的方案与现有方案有何不同？",
+                "用户为什么选择你的方案？",
+                "核心价值主张是什么？"
+            ]
+        case 3:
+            return [
+                "MVP 包含哪些核心功能？",
+                "哪些功能被排除在外？",
+                "项目边界如何划定？"
+            ]
+        case 4:
+            return [
+                "用户如何与系统交互？",
+                "需要哪些技术模块？",
+                "交互流程是否清晰？"
+            ]
+        case 5:
+            return [
+                "可能面临哪些风险？",
+                "风险发生的概率有多大？",
+                "如何应对这些风险？"
+            ]
+        case 6:
+            return [
+                "如何衡量项目成功？",
+                "有哪些可量化的指标？",
+                "评估标准是什么？"
+            ]
+        case 7:
+            return [
+                "需要展示什么原型？",
+                "哪些视觉证据能说服评审？",
+                "如何呈现设计过程？"
+            ]
+        case 8:
+            return [
+                "技术实现有哪些约束？",
+                "时间和资源如何分配？",
+                "实现路径是否可行？"
+            ]
+        case 9:
+            return [
+                "最终方案如何总结？",
+                "学到了什么？",
+                "下一步如何迭代？"
+            ]
+        default:
+            return ["请思考这个阶段的核心问题和关键决策。"]
+        }
     }
 
     // MARK: - 9 阶段静态定义
