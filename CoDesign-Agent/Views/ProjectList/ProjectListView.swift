@@ -28,7 +28,7 @@ struct ProjectListView: View {
                         .transition(.opacity)
                 }
             }
-            .navigationTitle("Clarify")
+            .navigationTitle("CoDesign")
             .searchable(text: $viewModel.searchText, prompt: "搜索项目")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -60,7 +60,15 @@ struct ProjectListView: View {
 
     private func projectScrollList(_ filtered: [Project]) -> some View {
         ScrollView {
-            LazyVStack(spacing: AppTheme.spacingMedium) {
+            let columns: [GridItem] = {
+                #if os(macOS)
+                [GridItem(.adaptive(minimum: 320), spacing: AppTheme.spacingMedium)]
+                #else
+                [GridItem(.adaptive(minimum: 300), spacing: AppTheme.spacingMedium)]
+                #endif
+            }()
+
+            LazyVGrid(columns: columns, spacing: AppTheme.spacingMedium) {
                 ForEach(filtered) { project in
                     NavigationLink {
                         ProjectDetailView(project: project)

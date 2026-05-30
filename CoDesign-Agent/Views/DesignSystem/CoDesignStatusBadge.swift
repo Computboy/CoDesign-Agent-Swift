@@ -108,7 +108,7 @@ struct CoDesignStatusBadge: View {
         // Custom labels
         HStack(spacing: AppTheme.spacingSmall) {
             CoDesignStatusBadge(status: .complete, text: "Stage 1 Done")
-            CoDesignStatusBadge(status: .active, text: "Clarifying")
+            CoDesignStatusBadge(status: .active, text: "CoDesign")
             CoDesignStatusBadge(status: .warning, text: "Missing Fields")
         }
     }

@@ -116,9 +116,9 @@ extension Color {
 
 enum AppTheme {
     // 圆角
-    static let cornerRadiusSmall: CGFloat = 8
-    static let cornerRadiusMedium: CGFloat = 14
-    static let cornerRadiusLarge: CGFloat = 22
+    static let cornerRadiusSmall: CGFloat = 12
+    static let cornerRadiusMedium: CGFloat = 20
+    static let cornerRadiusLarge: CGFloat = 24
 
     // 间距
     static let spacingSmall: CGFloat = 8

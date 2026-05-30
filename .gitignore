@@ -33,3 +33,10 @@ Packages/
 
 # Claude
 CLAUDE.md
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate

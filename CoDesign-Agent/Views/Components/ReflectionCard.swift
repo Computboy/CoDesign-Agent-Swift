@@ -16,6 +16,30 @@ struct ReflectionCard: View {
         }
     }
 
+    /// Stage-differentiated title for converge actions, avoiding repetitive text.
+    private var displayTitle: String {
+        guard trace.actionType == "converge" else { return trace.title }
+        switch trace.stageOrder {
+        case 1: return "你完成了一次问题收敛"
+        case 2: return "你完成了一次价值判断"
+        case 3: return "你完成了一次边界澄清"
+        case 4: return "你完成了一次方案拆解"
+        default: return "你完成了一次设计推进"
+        }
+    }
+
+    /// Stage-differentiated detail for converge actions.
+    private var displayDetail: String {
+        guard trace.actionType == "converge" else { return trace.detail }
+        switch trace.stageOrder {
+        case 1: return "你把模糊想法推进到了更具体的痛点与使用场景。"
+        case 2: return "你开始区分「这个产品能做什么」和「为什么值得做」。"
+        case 3: return "你把发散的想法收束成了更清晰的范围与约束。"
+        case 4: return "你开始把目标转化为可实现的功能模块。"
+        default: return "你让项目从模糊想法向清晰方案前进了一步。"
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Header: icon + title
@@ -24,7 +48,7 @@ struct ReflectionCard: View {
                     .font(.title3)
                     .foregroundStyle(iconAndColor.1)
 
-                Text(trace.title)
+                Text(displayTitle)
                     .font(.headline)
                     .foregroundStyle(Color.textPrimary)
 
@@ -32,7 +56,7 @@ struct ReflectionCard: View {
             }
 
             // Detail
-            Text(trace.detail)
+            Text(displayDetail)
                 .font(.subheadline)
                 .foregroundStyle(Color.textSecondary)
                 .lineLimit(nil)

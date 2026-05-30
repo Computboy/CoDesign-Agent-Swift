@@ -16,13 +16,14 @@ struct ProjectDetailView: View {
                 .background(Color.cardBackground)
 
             // MARK: - Tab Picker
-            Picker("Tab", selection: $viewModel.selectedTab) {
+            Picker("", selection: $viewModel.selectedTab) {
                 ForEach(ProjectDetailTab.allCases) { tab in
                     Label(tab.title, systemImage: tab.systemImage)
                         .tag(tab)
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .padding(AppTheme.spacingMedium)
 
             // MARK: - Tab Content

@@ -234,21 +234,33 @@ struct EditableInsightCard: View {
                 Divider()
                     .padding(.vertical, AppTheme.spacingXS)
 
-                HStack(spacing: AppTheme.spacingSmall) {
-                    CoDesignSmallButton("编辑", icon: "pencil") {
-                        onEdit()
-                    }
+                if isFilled {
+                    HStack(spacing: AppTheme.spacingSmall) {
+                        CoDesignSmallButton("编辑", icon: "pencil") {
+                            onEdit()
+                        }
 
-                    if !isConfirmed {
-                        CoDesignSmallButton("确认", icon: "checkmark", isFilled: true) {
-                            onConfirm()
+                        if !isConfirmed {
+                            CoDesignSmallButton("确认", icon: "checkmark", isFilled: true) {
+                                onConfirm()
+                            }
+                        }
+
+                        if !isRejected {
+                            CoDesignSmallButton("标记不准确", icon: "exclamationmark.triangle") {
+                                onReject()
+                            }
                         }
                     }
-
-                    if !isRejected {
-                        CoDesignSmallButton("标记不准确", icon: "exclamationmark.triangle") {
-                            onReject()
+                } else {
+                    HStack(spacing: AppTheme.spacingSmall) {
+                        CoDesignSmallButton("手动填写", icon: "pencil") {
+                            onEdit()
                         }
+
+                        Text("等待对话补全")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(Color.textTertiary)
                     }
                 }
             }

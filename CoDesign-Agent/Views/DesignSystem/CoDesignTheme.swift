@@ -31,17 +31,18 @@ extension AppTheme {
     // MARK: - Shadows
 
     enum Shadow {
-        static let cardRadius: CGFloat = 6
+        /// Light, unified card shadow — subtle lift without heavy depth.
+        static let cardRadius: CGFloat = 8
         static let cardY: CGFloat = 2
-        static let cardOpacity: Double = 0.06
+        static let cardOpacity: Double = 0.04
 
         static let elevatedRadius: CGFloat = 12
-        static let elevatedY: CGFloat = 4
-        static let elevatedOpacity: Double = 0.10
+        static let elevatedY: CGFloat = 3
+        static let elevatedOpacity: Double = 0.06
 
         static let focusRadius: CGFloat = 16
-        static let focusY: CGFloat = 6
-        static let focusOpacity: Double = 0.14
+        static let focusY: CGFloat = 4
+        static let focusOpacity: Double = 0.08
     }
 
     // MARK: - Animation

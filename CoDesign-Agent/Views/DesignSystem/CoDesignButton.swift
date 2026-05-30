@@ -73,6 +73,7 @@ struct CoDesignButton: View {
         .disabled(effectiveDisabled)
         .opacity(effectiveDisabled ? 0.5 : 1.0)
         .animation(AppTheme.Animation.quick, value: effectiveDisabled)
+        .buttonStyle(.plain)
     }
 
     // MARK: - Styling helpers
@@ -159,6 +160,7 @@ struct CoDesignSmallButton: View {
                     .fill(isFilled ? Color.primaryAccent : Color.primaryAccent.opacity(0.1))
             )
         }
+        .buttonStyle(.plain)
     }
 }
 
