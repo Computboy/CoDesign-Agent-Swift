@@ -38,40 +38,25 @@ struct ClarificationWorkspaceView: View {
             let availableWidth = proxy.size.width
             let sideWidth = clamp(availableWidth * 0.23, min: 240, max: 340)
 
-            HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
-                ScrollView(.vertical, showsIndicators: false) {
+            ScrollView(.vertical, showsIndicators: false) {
+                HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
                     StageRailPanel(project: project)
-                }
-                .scrollIndicators(.hidden)
-                .frame(width: sideWidth)
+                        .frame(width: sideWidth)
 
-                ScrollView(.vertical, showsIndicators: false) {
                     CurrentWorkspaceColumn(
                         project: project,
                         chatViewModel: chatViewModel,
                         onExportBrief: onExportBrief
                     )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-                    ProcessLogDisclosure(
-                        messages: project.messages,
-                        isStreaming: chatViewModel.isStreaming,
-                        streamingText: chatViewModel.currentStreamingText
-                    )
-                    .padding(.top, AppTheme.spacingLarge)
-                    .padding(.bottom, 40)
-                }
-                .scrollIndicators(.hidden)
-                .frame(maxWidth: .infinity)
-
-                ScrollView(.vertical, showsIndicators: false) {
                     InsightCardsPanel(project: project)
-                        .padding(.bottom, AppTheme.spacingLarge)
+                        .frame(width: sideWidth)
                 }
-                .scrollIndicators(.hidden)
-                .frame(width: sideWidth)
+                .frame(minHeight: max(proxy.size.height - AppTheme.spacingLarge * 2, 0), alignment: .top)
+                .padding(AppTheme.spacingLarge)
             }
-            .frame(maxHeight: .infinity)
-            .padding(AppTheme.spacingLarge)
+            .scrollIndicators(.hidden)
         }
     }
 
@@ -146,10 +131,6 @@ private struct CurrentWorkspaceColumn: View {
                     onExport: onExportBrief
                 )
             } else {
-                AIContextNotice {
-                    print("[AIContextNotice] Undo tapped")
-                }
-
                 CurrentClarificationCard(
                     project: project,
                     isStreaming: chatViewModel.isStreaming,

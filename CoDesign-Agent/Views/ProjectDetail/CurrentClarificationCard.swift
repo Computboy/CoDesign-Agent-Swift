@@ -9,6 +9,7 @@ struct CurrentClarificationCard: View {
     let isStreaming: Bool
     let streamingText: String
     let onQuickAction: (String) -> Void
+    private let responseAreaHeight: CGFloat = 190
 
     // MARK: - State
 
@@ -199,6 +200,7 @@ struct CurrentClarificationCard: View {
                         .font(AppTheme.Typography.body)
                         .foregroundStyle(Color.textSecondary)
                 }
+                .frame(maxWidth: .infinity, minHeight: responseAreaHeight, alignment: .leading)
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
                     if let attributed = try? AttributedString(markdown: streamingText) {
@@ -206,15 +208,17 @@ struct CurrentClarificationCard: View {
                             .font(questionFont)
                             .foregroundStyle(Color.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Text(streamingText)
                             .font(questionFont)
                             .foregroundStyle(Color.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .scrollIndicators(.hidden)
-                .frame(maxHeight: 220)
+                .frame(maxWidth: .infinity, minHeight: responseAreaHeight, maxHeight: responseAreaHeight, alignment: .topLeading)
 
                 HStack(spacing: 4) {
                     ProgressView()
@@ -225,6 +229,7 @@ struct CurrentClarificationCard: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var responseContent: some View {
@@ -234,6 +239,7 @@ struct CurrentClarificationCard: View {
                     .font(AppTheme.Typography.body)
                     .foregroundStyle(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: responseAreaHeight, alignment: .leading)
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
                     if let attributed = try? AttributedString(markdown: latestAssistantText) {
@@ -241,17 +247,20 @@ struct CurrentClarificationCard: View {
                             .font(questionFont)
                             .foregroundStyle(Color.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Text(latestAssistantText)
                             .font(questionFont)
                             .foregroundStyle(Color.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .scrollIndicators(.hidden)
-                .frame(maxHeight: 220)
+                .frame(maxWidth: .infinity, minHeight: responseAreaHeight, maxHeight: responseAreaHeight, alignment: .topLeading)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var waitingContent: some View {

@@ -53,9 +53,10 @@ struct AnswerComposer: View {
                         .fill(canSend ? Color.primaryAccent : Color.textTertiary)
                 )
             }
+            .buttonStyle(.plain)
             .disabled(!canSend)
         }
-        .padding(.horizontal, AppTheme.Layout.cardPadding)
+        .frame(maxWidth: .infinity)
         .padding(.vertical, AppTheme.spacingSmall)
     }
 
