@@ -92,6 +92,7 @@ struct ChatPanel: View {
                     }
                 }
             }
+            .scrollIndicators(.hidden)
         }
     }
 

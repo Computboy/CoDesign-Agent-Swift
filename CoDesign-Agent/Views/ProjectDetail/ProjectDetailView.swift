@@ -47,7 +47,10 @@ struct ProjectDetailView: View {
                     case .workspace:
                         ClarificationWorkspaceView(
                             project: project,
-                            chatViewModel: chatVM
+                            chatViewModel: chatVM,
+                            onExportBrief: {
+                                print("[WorkspaceGlobalBar] Export Brief tapped for project: \(project.name)")
+                            }
                         )
                     case .chat:
                         ChatPanel(

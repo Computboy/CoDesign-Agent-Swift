@@ -17,6 +17,7 @@ struct InsightsPanel: View {
             }
             .padding()
         }
+        .scrollIndicators(.hidden)
         .background(Color.appBackground)
     }
 }

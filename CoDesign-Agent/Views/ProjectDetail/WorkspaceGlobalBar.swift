@@ -2,6 +2,10 @@ import SwiftUI
 
 // MARK: - WorkspaceGlobalBar
 
+/// A thin control strip below the system navigation bar.
+/// Does NOT repeat the project title or brand name — those live in the
+/// navigation bar.  Only exposes workspace controls: autonomy, context loop,
+/// export, and the view-mode menu.
 struct WorkspaceGlobalBar: View {
     let project: Project
     @Binding var selectedTab: ProjectDetailTab
@@ -13,28 +17,16 @@ struct WorkspaceGlobalBar: View {
             compactLayout
         }
         .padding(.horizontal, AppTheme.spacingLarge)
-        .padding(.vertical, AppTheme.spacingSmall)
-        .background(.regularMaterial)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Color.primaryAccent.opacity(0.12))
-                .frame(height: 1)
-        }
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial)
     }
+
+    // MARK: - Regular (enough room for all controls)
 
     private var regularLayout: some View {
         HStack(spacing: AppTheme.spacingMedium) {
-            brandBlock
 
-            Divider()
-                .frame(height: 28)
-
-            Text(project.name)
-                .font(AppTheme.Typography.subheadline.weight(.semibold))
-                .foregroundStyle(Color.textPrimary)
-                .lineLimit(1)
-
-            Spacer(minLength: AppTheme.spacingMedium)
+            Spacer()
 
             autonomyControl
             contextLoopBadge
@@ -43,41 +35,19 @@ struct WorkspaceGlobalBar: View {
         }
     }
 
+    // MARK: - Compact (tiny screen)
+
     private var compactLayout: some View {
         HStack(spacing: AppTheme.spacingSmall) {
-            VStack(alignment: .leading, spacing: 2) {
-                brandBlock
 
-                Text(project.name)
-                    .font(AppTheme.Typography.caption.weight(.medium))
-                    .foregroundStyle(Color.textSecondary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: AppTheme.spacingSmall)
+            Spacer()
 
             contextLoopBadge
             viewModeMenu
         }
     }
 
-    private var brandBlock: some View {
-        HStack(spacing: AppTheme.spacingSmall) {
-            Image(systemName: "sparkles.rectangle.stack")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.primaryAccent)
-                .frame(width: 30, height: 30)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.primaryAccent.opacity(0.10))
-                )
-
-            Text("CoDesign Agent")
-                .font(AppTheme.Typography.subheadline.weight(.semibold))
-                .foregroundStyle(Color.textPrimary)
-                .lineLimit(1)
-        }
-    }
+    // MARK: - Autonomy
 
     private var autonomyControl: some View {
         HStack(spacing: AppTheme.spacingSmall) {
@@ -93,7 +63,7 @@ struct WorkspaceGlobalBar: View {
         .font(AppTheme.Typography.caption)
         .foregroundStyle(Color.textTertiary)
         .padding(.horizontal, AppTheme.spacingSmall)
-        .frame(height: 36)
+        .frame(height: 32)
         .background(
             Capsule(style: .continuous)
                 .fill(Color.cardBackground)
@@ -118,11 +88,13 @@ struct WorkspaceGlobalBar: View {
         }
     }
 
+    // MARK: - Context Loop Badge
+
     private var contextLoopBadge: some View {
         HStack(spacing: AppTheme.spacingXS) {
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 11, weight: .semibold))
-            Text("Your edits update the next question")
+                .font(.system(size: 10, weight: .semibold))
+            Text("Context Loop Active")
                 .lineLimit(1)
         }
         .font(AppTheme.Typography.caption.weight(.medium))
@@ -134,6 +106,8 @@ struct WorkspaceGlobalBar: View {
                 .fill(Color.primaryAccent.opacity(0.09))
         )
     }
+
+    // MARK: - Export
 
     private var exportButton: some View {
         Button {
@@ -151,6 +125,8 @@ struct WorkspaceGlobalBar: View {
         }
         .buttonStyle(.plain)
     }
+
+    // MARK: - View Mode Menu
 
     private var viewModeMenu: some View {
         Menu {

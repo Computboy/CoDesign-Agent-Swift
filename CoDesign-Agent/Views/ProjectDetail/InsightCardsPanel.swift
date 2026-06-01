@@ -28,10 +28,6 @@ struct InsightCardsPanel: View {
         .successMetrics,
     ]
 
-    private var sortedLearningTraces: [LearningTrace] {
-        project.learningTraces.sorted { $0.timestamp < $1.timestamp }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
 
@@ -66,7 +62,6 @@ struct InsightCardsPanel: View {
                                 showToast("\(field.displayName) 已确认", type: .success)
                                 recentlyConfirmedField = field.rawValue
                             }
-                            // Clear animation state after delay
                             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                                 recentlyConfirmedField = nil
                             }
@@ -82,32 +77,37 @@ struct InsightCardsPanel: View {
                     .animation(AppTheme.Animation.spring, value: recentlyConfirmedField)
                 }
             } else {
-                CoDesignCard {
-                    VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-                        Text("暂无设计简报数据")
-                            .font(AppTheme.Typography.body)
-                            .foregroundStyle(Color.textTertiary)
+                VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+                    Text("暂无设计简报数据")
+                        .font(AppTheme.Typography.body)
+                        .foregroundStyle(Color.textTertiary)
 
-                        Text("开始和 AI 对话后，提取的字段会显示在这里")
-                            .font(AppTheme.Typography.caption)
-                            .foregroundStyle(Color.textTertiary)
-                    }
+                    Text("开始和 AI 对话后，提取的字段会显示在这里")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(Color.textTertiary)
                 }
             }
 
-            // Learning Trace Timeline (preserved from original InsightsPanel)
-            learningTraceSection
         }
+        .padding(AppTheme.Layout.cardPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .fill(Color.cardBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .strokeBorder(Color.primaryAccent.opacity(0.14), lineWidth: AppTheme.Border.thin)
+        )
+        .coDesignShadow(.card)
         .sheet(item: $editingField) { field in
             if let brief = project.brief {
                 InsightFieldEditSheet(
                     field: field,
                     brief: brief,
                     onSaveSuccess: {
-                        // Clear confirmed/rejected status for this field after edit
                         confirmedFields.remove(field.rawValue)
                         rejectedFields.remove(field.rawValue)
-                        // Show success toast
                         showToast("\(field.displayName) 编辑已保存", type: .success)
                     }
                 )
@@ -162,29 +162,6 @@ struct InsightCardsPanel: View {
         } else {
             rejectedFields.insert(key)
             confirmedFields.remove(key)
-        }
-    }
-
-    // MARK: - Learning Trace Section
-
-    private var learningTraceSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-            CoDesignSectionHeader(
-                title: "学习轨迹",
-                subtitle: "\(sortedLearningTraces.count) 条记录"
-            )
-
-            if sortedLearningTraces.isEmpty {
-                CoDesignCard {
-                    Text("还没有学习轨迹——开始和 AI 对话，你的设计思维动作会被记录在这里")
-                        .font(AppTheme.Typography.body)
-                        .foregroundStyle(Color.textTertiary)
-                }
-            } else {
-                ForEach(sortedLearningTraces) { trace in
-                    ReflectionCard(trace: trace)
-                }
-            }
         }
     }
 }

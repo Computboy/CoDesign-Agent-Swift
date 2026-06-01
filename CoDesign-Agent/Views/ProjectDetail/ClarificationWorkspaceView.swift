@@ -10,10 +10,19 @@ import SwiftUI
 struct ClarificationWorkspaceView: View {
     let project: Project
     let chatViewModel: ChatViewModel
+    var onExportBrief: () -> Void = {}
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// System size-class driven: compact → single-column scroll, regular → three-column workspace.
+    /// No hardcoded pixel threshold — adapts to iPad split-screen and window resizing automatically.
+    private var useWideLayout: Bool {
+        horizontalSizeClass == .regular
+    }
 
     var body: some View {
-        GeometryReader { proxy in
-            if proxy.size.width >= 1000 {
+        Group {
+            if useWideLayout {
                 wideLayout
             } else {
                 narrowLayout
@@ -22,36 +31,48 @@ struct ClarificationWorkspaceView: View {
         .background(Color.appBackground)
     }
 
+    // MARK: - Wide Layout (three-column)
+
     private var wideLayout: some View {
-        VStack(spacing: AppTheme.spacingLarge) {
-            HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
-                StageRailPanel(project: project)
-                    .frame(width: 260)
+        GeometryReader { proxy in
+            let availableWidth = proxy.size.width
+            let sideWidth = clamp(availableWidth * 0.23, min: 240, max: 340)
 
-                ScrollView {
-                    CurrentWorkspaceColumn(
-                        project: project,
-                        chatViewModel: chatViewModel
-                    )
-                    .padding(.bottom, AppTheme.spacingLarge)
-                }
-                .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: AppTheme.spacingLarge) {
+                HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
+                    StageRailPanel(project: project)
+                        .frame(width: sideWidth)
+                        .frame(maxHeight: .infinity)
 
-                ScrollView {
-                    InsightCardsPanel(project: project)
-                        .padding(.bottom, AppTheme.spacingLarge)
+                    ScrollView {
+                        CurrentWorkspaceColumn(
+                            project: project,
+                            chatViewModel: chatViewModel,
+                            onExportBrief: onExportBrief
+                        )
+                        .padding(.bottom, 40)
+                    }
+                    .scrollIndicators(.hidden)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    ScrollView {
+                        InsightCardsPanel(project: project)
+                            .padding(.bottom, AppTheme.spacingLarge)
+                    }
+                    .scrollIndicators(.hidden)
+                    .frame(width: sideWidth)
+                    .frame(maxHeight: .infinity)
                 }
-                .frame(width: 340, maxHeight: .infinity)
+                .frame(maxHeight: .infinity)
+
+                ProcessLogDisclosure(
+                    messages: project.messages,
+                    isStreaming: chatViewModel.isStreaming,
+                    streamingText: chatViewModel.currentStreamingText
+                )
             }
-            .frame(maxHeight: .infinity)
-
-            ProcessLogDisclosure(
-                messages: project.messages,
-                isStreaming: chatViewModel.isStreaming,
-                streamingText: chatViewModel.currentStreamingText
-            )
+            .padding(AppTheme.spacingLarge)
         }
-        .padding(AppTheme.spacingLarge)
     }
 
     private var narrowLayout: some View {
@@ -63,7 +84,8 @@ struct ClarificationWorkspaceView: View {
                 CurrentWorkspaceColumn(
                     project: project,
                     chatViewModel: chatViewModel,
-                    includesHeader: false
+                    includesHeader: false,
+                    onExportBrief: onExportBrief
                 )
 
                 InsightCardsPanel(project: project)
@@ -76,7 +98,9 @@ struct ClarificationWorkspaceView: View {
             }
             .padding(.horizontal, AppTheme.spacingMedium)
             .padding(.vertical, AppTheme.spacingSmall)
+            .padding(.bottom, 40)
         }
+        .scrollIndicators(.hidden)
     }
 }
 
@@ -86,6 +110,34 @@ private struct CurrentWorkspaceColumn: View {
     let project: Project
     let chatViewModel: ChatViewModel
     var includesHeader: Bool = true
+    var onExportBrief: () -> Void = {}
+
+    // MARK: - Completion Detection
+
+    /// True when the project has reached 100 % completion OR the latest assistant
+    /// message contains an unambiguous wrap-up phrase.
+    private var isProjectComplete: Bool {
+        if project.completionRate >= 1.0 { return true }
+
+        let sorted = project.stages.sorted { $0.order < $1.order }
+        if !sorted.isEmpty && sorted.allSatisfy({ $0.status == "completed" }) {
+            return true
+        }
+
+        // Text-based heuristic — only very specific wrap-up phrases
+        // (no bare "完成" to avoid false positives)
+        let latestAssistant = project.messages
+            .sorted { $0.timestamp < $1.timestamp }
+            .last(where: { $0.role == "assistant" })
+        if let content = latestAssistant?.content {
+            let phrases = ["所有阶段", "所有 9 个阶段", "祝你项目顺利"]
+            if phrases.contains(where: { content.contains($0) }) {
+                return true
+            }
+        }
+
+        return false
+    }
 
     var body: some View {
         VStack(spacing: AppTheme.spacingMedium) {
@@ -93,21 +145,32 @@ private struct CurrentWorkspaceColumn: View {
                 WorkspaceHeader(project: project)
             }
 
-            AIContextNotice {
-                print("[AIContextNotice] Undo tapped")
+            if isProjectComplete {
+                DesignCompletionReviewCard(
+                    project: project,
+                    onSend: send,
+                    onExport: onExportBrief
+                )
+            } else {
+                AIContextNotice {
+                    print("[AIContextNotice] Undo tapped")
+                }
+
+                CurrentClarificationCard(
+                    project: project,
+                    isStreaming: chatViewModel.isStreaming,
+                    streamingText: chatViewModel.currentStreamingText,
+                    onQuickAction: send
+                )
+
+                AnswerComposer(
+                    isStreaming: chatViewModel.isStreaming,
+                    onSend: send
+                )
             }
 
-            CurrentClarificationCard(
-                project: project,
-                isStreaming: chatViewModel.isStreaming,
-                streamingText: chatViewModel.currentStreamingText,
-                onQuickAction: send
-            )
-
-            AnswerComposer(
-                isStreaming: chatViewModel.isStreaming,
-                onSend: send
-            )
+            // Learning trace — shown in both completed and uncompleted states
+            LearningTraceSection(project: project)
 
             if let errorMessage = chatViewModel.errorMessage {
                 CoDesignCard(style: .highlighted(.danger)) {
@@ -131,6 +194,11 @@ private struct CurrentWorkspaceColumn: View {
 }
 
 // MARK: - Preview
+
+/// Clamp a value to [min, max]. Used to keep proportional layout widths within sensible bounds.
+private func clamp(_ value: CGFloat, min lower: CGFloat, max upper: CGFloat) -> CGFloat {
+    Swift.min(Swift.max(value, lower), upper)
+}
 
 #Preview {
     NavigationStack {

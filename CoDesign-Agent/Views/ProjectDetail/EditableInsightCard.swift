@@ -186,17 +186,17 @@ struct EditableInsightCard: View {
 
     @ViewBuilder
     private var cardBody: some View {
-            VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
 
                 // Header: title + key + badge
                 HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 1) {
                         Text(fieldDisplayName)
-                            .font(AppTheme.Typography.subheadline.weight(.semibold))
+                            .font(AppTheme.Typography.caption.weight(.semibold))
                             .foregroundStyle(Color.textPrimary)
 
                         Text(field.rawValue)
-                            .font(AppTheme.Typography.captionMono)
+                            .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(Color.textTertiary)
                     }
 
@@ -211,55 +211,98 @@ struct EditableInsightCard: View {
                 // Value or placeholder
                 if isFilled {
                     Text(fieldValue ?? "")
-                        .font(AppTheme.Typography.body)
+                        .font(AppTheme.Typography.caption)
                         .foregroundStyle(Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
-                        .lineLimit(4)
+                        .lineLimit(2)
                 } else {
                     Text("暂未提取，后续对话中会逐步补全")
-                        .font(AppTheme.Typography.body)
+                        .font(AppTheme.Typography.caption)
                         .foregroundStyle(Color.textTertiary)
                         .italic()
+                        .lineLimit(1)
                 }
 
                 // Rejected hint
                 if isRejected {
-                    Text("你可以点击编辑手动修正，或在下一轮回答中告诉 AI 哪里不准确。")
-                        .font(AppTheme.Typography.caption)
+                    Text("你可以点击编辑手动修正")
+                        .font(.system(size: 10))
                         .foregroundStyle(Color.warning)
                         .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(1)
                 }
 
-                // Action buttons
-                Divider()
-                    .padding(.vertical, AppTheme.spacingXS)
-
+                // Action buttons — compact single row
                 if isFilled {
-                    HStack(spacing: AppTheme.spacingSmall) {
-                        CoDesignSmallButton("编辑", icon: "pencil") {
+                    HStack(spacing: AppTheme.spacingXS) {
+                        Button {
                             onEdit()
+                        } label: {
+                            Label("编辑", systemImage: "pencil")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color.primaryAccent)
+                                .padding(.horizontal, 8)
+                                .frame(height: 26)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(Color.primaryAccent.opacity(0.10))
+                                )
                         }
+                        .buttonStyle(.plain)
 
                         if !isConfirmed {
-                            CoDesignSmallButton("确认", icon: "checkmark", isFilled: true) {
+                            Button {
                                 onConfirm()
+                            } label: {
+                                Label("确认", systemImage: "checkmark")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 8)
+                                    .frame(height: 26)
+                                    .background(
+                                        Capsule(style: .continuous)
+                                            .fill(Color.success)
+                                    )
                             }
+                            .buttonStyle(.plain)
                         }
 
                         if !isRejected {
-                            CoDesignSmallButton("标记不准确", icon: "exclamationmark.triangle") {
+                            Button {
                                 onReject()
+                            } label: {
+                                Label("不准确", systemImage: "exclamationmark.triangle")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(Color.warning)
+                                    .padding(.horizontal, 8)
+                                    .frame(height: 26)
+                                    .background(
+                                        Capsule(style: .continuous)
+                                            .fill(Color.warning.opacity(0.10))
+                                    )
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 } else {
-                    HStack(spacing: AppTheme.spacingSmall) {
-                        CoDesignSmallButton("手动填写", icon: "pencil") {
+                    HStack(spacing: AppTheme.spacingXS) {
+                        Button {
                             onEdit()
+                        } label: {
+                            Label("手动填写", systemImage: "pencil")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color.primaryAccent)
+                                .padding(.horizontal, 8)
+                                .frame(height: 26)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(Color.primaryAccent.opacity(0.10))
+                                )
                         }
+                        .buttonStyle(.plain)
 
                         Text("等待对话补全")
-                            .font(AppTheme.Typography.caption)
+                            .font(.system(size: 10))
                             .foregroundStyle(Color.textTertiary)
                     }
                 }

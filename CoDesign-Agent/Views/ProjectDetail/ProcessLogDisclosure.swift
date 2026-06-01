@@ -82,6 +82,7 @@ struct ProcessLogDisclosure: View {
                                 }
                             }
                         }
+                        .scrollIndicators(.hidden)
                         .frame(maxHeight: 400)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     }

@@ -1,0 +1,251 @@
+import SwiftUI
+
+// MARK: - DesignCompletionReviewCard
+
+/// Shown in the centre column when all 9 stages are completed (or the assistant
+/// has sent a completion / congratulations message).  Provides a lightweight
+/// summary of the key Design Brief fields and offers export / review actions.
+///
+/// This is a pure UI-layer view — no new Model / DB fields.
+struct DesignCompletionReviewCard: View {
+    let project: Project
+    let onSend: (String) -> Void
+    let onExport: () -> Void
+
+    // MARK: - Key fields
+
+    private var keyFields: [(label: String, value: String)] {
+        var fields: [(String, String)] = []
+        if let v = project.brief?.targetUser, !v.isEmpty {
+            fields.append(("Target User", v))
+        }
+        if let v = project.brief?.painPoint, !v.isEmpty {
+            fields.append(("Core Pain Point", v))
+        }
+        if let v = project.brief?.mvpFeatures, !v.isEmpty {
+            fields.append(("MVP Features", v))
+        }
+        let metricsCount = project.brief?.successMetrics.count ?? 0
+        if metricsCount > 0 {
+            fields.append(("Success Metrics", "\(metricsCount) metrics defined"))
+        }
+        return fields
+    }
+
+    // MARK: - Body
+
+    var body: some View {
+        CoDesignCard(style: .normal) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+
+                // Header
+                headerSection
+
+                // Key fields summary
+                if !keyFields.isEmpty {
+                    summarySection
+                } else {
+                    Text("暂无已提取的字段，请在 Insights 面板中查看你的设计简报。")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(Color.textTertiary)
+                }
+
+                // Updated time
+                HStack(spacing: AppTheme.spacingXS) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.textTertiary)
+                    Text("更新于 \(project.updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(Color.textTertiary)
+                }
+
+                Divider()
+
+                // Action buttons
+                actionButtons
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .strokeBorder(Color.primaryAccent.opacity(0.22), lineWidth: 1.5)
+        )
+    }
+
+    // MARK: - Header
+
+    private var headerSection: some View {
+        HStack(alignment: .top, spacing: AppTheme.spacingMedium) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 32, weight: .semibold))
+                .foregroundStyle(Color.success)
+                .frame(width: 48, height: 48)
+                .background(
+                    Circle()
+                        .fill(Color.success.opacity(0.10))
+                )
+
+            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
+                Text("Design Brief Ready")
+                    .font(AppTheme.Typography.headline)
+                    .foregroundStyle(Color.textPrimary)
+
+                Text("Your 9-stage clarification is complete. You can now review, export, or refine the brief.")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: AppTheme.spacingSmall)
+
+            CoDesignStatusBadge(status: .complete, text: "100%")
+        }
+    }
+
+    // MARK: - Summary
+
+    private var summarySection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+            Text("Key Fields")
+                .font(AppTheme.Typography.caption.weight(.semibold))
+                .foregroundStyle(Color.textSecondary)
+
+            VStack(spacing: AppTheme.spacingSmall) {
+                ForEach(keyFields, id: \.label) { field in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(field.label)
+                            .font(AppTheme.Typography.caption.weight(.semibold))
+                            .foregroundStyle(Color.textTertiary)
+                        Text(field.value)
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(Color.textSecondary)
+                            .lineLimit(2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(AppTheme.spacingSmall)
+                    .background(
+                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                            .fill(Color.softAccentBackground)
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: - Action Buttons
+
+    private var actionButtons: some View {
+        VStack(spacing: AppTheme.spacingSmall) {
+            // Primary row
+            HStack(spacing: AppTheme.spacingSmall) {
+                Button {
+                    onExport()
+                } label: {
+                    Label("Export Brief", systemImage: "square.and.arrow.up")
+                        .font(AppTheme.Typography.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .frame(height: AppTheme.Layout.buttonHeightSmall)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.primaryAccent)
+                        )
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    // TODO: integrate tab switch to Insights
+                    print("[DesignCompletionReviewCard] Review Brief tapped – switch to Insights tab")
+                } label: {
+                    Label("Review Brief", systemImage: "doc.text.magnifyingglass")
+                        .font(AppTheme.Typography.caption.weight(.medium))
+                        .foregroundStyle(Color.primaryAccent)
+                        .padding(.horizontal, 14)
+                        .frame(height: AppTheme.Layout.buttonHeightSmall)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.primaryAccent.opacity(0.10))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Secondary row
+            HStack(spacing: AppTheme.spacingSmall) {
+                Button {
+                    // TODO: implement stage navigation
+                    print("[DesignCompletionReviewCard] Revisit Previous Stage tapped")
+                } label: {
+                    Label("Revisit Previous Stage", systemImage: "arrow.counterclockwise")
+                        .font(AppTheme.Typography.caption.weight(.medium))
+                        .foregroundStyle(Color.textSecondary)
+                        .padding(.horizontal, 14)
+                        .frame(height: AppTheme.Layout.buttonHeightSmall)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.cardBackground)
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(Color.textTertiary.opacity(0.25), lineWidth: AppTheme.Border.thin)
+                        )
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    onSend("继续优化")
+                } label: {
+                    Label("Continue Refinement", systemImage: "bubble.left.and.bubble.right")
+                        .font(AppTheme.Typography.caption.weight(.medium))
+                        .foregroundStyle(Color.textSecondary)
+                        .padding(.horizontal, 14)
+                        .frame(height: AppTheme.Layout.buttonHeightSmall)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.cardBackground)
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(Color.textTertiary.opacity(0.25), lineWidth: AppTheme.Border.thin)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    ScrollView {
+        VStack(spacing: AppTheme.spacingMedium) {
+            DesignCompletionReviewCard(
+                project: {
+                    let p = Project(name: "校园导航助手", briefDescription: "帮助新生找到教室")
+                    let brief = DesignBrief()
+                    brief.targetUser = "大一新生，尤其是来自外地的学生"
+                    brief.painPoint = "校园面积大、建筑命名混乱，新生经常找不到教室"
+                    brief.mvpFeatures = "AR 导航、语音提示、离线地图缓存"
+                    p.brief = brief
+                    p.stages = StageDefinition.all.map {
+                        ProgressStage(order: $0.order, name: $0.name, status: "completed", completionRatio: 1.0)
+                    }
+                    return p
+                }(),
+                onSend: { print("Send: \($0)") },
+                onExport: { print("Export") }
+            )
+
+            // Empty brief variant
+            DesignCompletionReviewCard(
+                project: Project(name: "新项目", briefDescription: ""),
+                onSend: { _ in },
+                onExport: { }
+            )
+        }
+        .padding()
+    }
+    .background(Color.appBackground)
+}

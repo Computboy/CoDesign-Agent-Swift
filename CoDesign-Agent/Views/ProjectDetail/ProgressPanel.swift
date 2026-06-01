@@ -32,6 +32,7 @@ struct ProgressPanel: View {
                 }
                 .padding()
             }
+            .scrollIndicators(.hidden)
         }
     }
 

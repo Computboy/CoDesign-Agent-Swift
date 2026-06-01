@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - AnswerComposer
 
 /// The input area for the Clarification Workspace.
-/// Replaces ChatPanel's input area with quick-action chips and Design System styling.
+/// Just the text field and send button — quick actions live in CurrentClarificationCard.
 struct AnswerComposer: View {
     let isStreaming: Bool
     let onSend: (String) -> Void
@@ -15,31 +15,8 @@ struct AnswerComposer: View {
             && !isStreaming
     }
 
-    private let quickActions: [(title: String, icon: String, text: String)] = [
-        ("我还不确定", "questionmark.circle", "我暂时还不确定，你能帮我换个角度思考吗？"),
-        ("给我一个例子", "lightbulb", "能给我一个具体的例子来帮助我理解吗？"),
-        ("换个角度问", "arrow.triangle.2.circlepath", "能换一个角度来问这个问题吗？"),
-    ]
-
     var body: some View {
         VStack(spacing: AppTheme.spacingSmall) {
-            // Quick action chips
-            if !isStreaming {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: AppTheme.spacingSmall) {
-                        ForEach(quickActions, id: \.title) { action in
-                            CoDesignSmallButton(
-                                action.title,
-                                icon: action.icon
-                            ) {
-                                inputText = action.text
-                            }
-                        }
-                    }
-                    .padding(.horizontal, AppTheme.spacingMedium)
-                }
-            }
-
             // Input area
             HStack(alignment: .bottom, spacing: AppTheme.spacingSmall) {
                 // Text field
