@@ -12,54 +12,62 @@ struct ClarificationWorkspaceView: View {
     let chatViewModel: ChatViewModel
 
     var body: some View {
+        GeometryReader { proxy in
+            if proxy.size.width >= 1000 {
+                wideLayout
+            } else {
+                narrowLayout
+            }
+        }
+        .background(Color.appBackground)
+    }
+
+    private var wideLayout: some View {
+        VStack(spacing: AppTheme.spacingLarge) {
+            HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
+                StageRailPanel(project: project)
+                    .frame(width: 260)
+
+                ScrollView {
+                    CurrentWorkspaceColumn(
+                        project: project,
+                        chatViewModel: chatViewModel
+                    )
+                    .padding(.bottom, AppTheme.spacingLarge)
+                }
+                .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity)
+
+                ScrollView {
+                    InsightCardsPanel(project: project)
+                        .padding(.bottom, AppTheme.spacingLarge)
+                }
+                .frame(width: 340, maxHeight: .infinity)
+            }
+            .frame(maxHeight: .infinity)
+
+            ProcessLogDisclosure(
+                messages: project.messages,
+                isStreaming: chatViewModel.isStreaming,
+                streamingText: chatViewModel.currentStreamingText
+            )
+        }
+        .padding(AppTheme.spacingLarge)
+    }
+
+    private var narrowLayout: some View {
         ScrollView {
             VStack(spacing: AppTheme.spacingMedium) {
-
-                // 1. Workspace Header
                 WorkspaceHeader(project: project)
-
-                // 2. Stage Rail
                 StageRail(stages: project.stages)
 
-                // 3. Current Clarification Card
-                CurrentClarificationCard(
+                CurrentWorkspaceColumn(
                     project: project,
-                    isStreaming: chatViewModel.isStreaming,
-                    streamingText: chatViewModel.currentStreamingText,
-                    onQuickAction: { text in
-                        Task {
-                            await chatViewModel.sendMessage(text)
-                        }
-                    }
+                    chatViewModel: chatViewModel,
+                    includesHeader: false
                 )
 
-                // 4. Answer Composer
-                AnswerComposer(
-                    isStreaming: chatViewModel.isStreaming,
-                    onSend: { text in
-                        Task {
-                            await chatViewModel.sendMessage(text)
-                        }
-                    }
-                )
-
-                // 5. Error message
-                if let errorMessage = chatViewModel.errorMessage {
-                    CoDesignCard(style: .highlighted(.danger)) {
-                        HStack(spacing: AppTheme.spacingSmall) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(Color.danger)
-                            Text(errorMessage)
-                                .font(AppTheme.Typography.caption)
-                                .foregroundStyle(Color.danger)
-                        }
-                    }
-                }
-
-                // 6. Insight Cards Panel (v0.3 interactive fields)
                 InsightCardsPanel(project: project)
 
-                // 7. Process Log (collapsed by default, shows conversation history)
                 ProcessLogDisclosure(
                     messages: project.messages,
                     isStreaming: chatViewModel.isStreaming,
@@ -69,7 +77,56 @@ struct ClarificationWorkspaceView: View {
             .padding(.horizontal, AppTheme.spacingMedium)
             .padding(.vertical, AppTheme.spacingSmall)
         }
-        .background(Color.appBackground)
+    }
+}
+
+// MARK: - CurrentWorkspaceColumn
+
+private struct CurrentWorkspaceColumn: View {
+    let project: Project
+    let chatViewModel: ChatViewModel
+    var includesHeader: Bool = true
+
+    var body: some View {
+        VStack(spacing: AppTheme.spacingMedium) {
+            if includesHeader {
+                WorkspaceHeader(project: project)
+            }
+
+            AIContextNotice {
+                print("[AIContextNotice] Undo tapped")
+            }
+
+            CurrentClarificationCard(
+                project: project,
+                isStreaming: chatViewModel.isStreaming,
+                streamingText: chatViewModel.currentStreamingText,
+                onQuickAction: send
+            )
+
+            AnswerComposer(
+                isStreaming: chatViewModel.isStreaming,
+                onSend: send
+            )
+
+            if let errorMessage = chatViewModel.errorMessage {
+                CoDesignCard(style: .highlighted(.danger)) {
+                    HStack(spacing: AppTheme.spacingSmall) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Color.danger)
+                        Text(errorMessage)
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(Color.danger)
+                    }
+                }
+            }
+        }
+    }
+
+    private func send(_ text: String) {
+        Task {
+            await chatViewModel.sendMessage(text)
+        }
     }
 }
 

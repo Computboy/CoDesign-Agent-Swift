@@ -10,21 +10,35 @@ struct ProjectDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Header
-            ProjectDetailHeader(project: project, viewModel: viewModel)
-                .padding(AppTheme.spacingMedium)
-                .background(Color.cardBackground)
-
-            // MARK: - Tab Picker
-            Picker("", selection: $viewModel.selectedTab) {
-                ForEach(ProjectDetailTab.allCases) { tab in
-                    Label(tab.title, systemImage: tab.systemImage)
-                        .tag(tab)
+            WorkspaceGlobalBar(
+                project: project,
+                selectedTab: Binding(
+                    get: { viewModel.selectedTab },
+                    set: { viewModel.selectedTab = $0 }
+                ),
+                onExportBrief: {
+                    print("[WorkspaceGlobalBar] Export Brief tapped for project: \(project.name)")
                 }
+            )
+
+            if viewModel.selectedTab != .workspace {
+                HStack(spacing: AppTheme.spacingSmall) {
+                    Label(viewModel.selectedTab.title, systemImage: viewModel.selectedTab.systemImage)
+                        .font(AppTheme.Typography.caption.weight(.semibold))
+                        .foregroundStyle(Color.textSecondary)
+
+                    Spacer()
+
+                    CoDesignSmallButton("回到工作台", icon: "square.grid.2x2") {
+                        withAnimation(AppTheme.Animation.standard) {
+                            viewModel.selectedTab = .workspace
+                        }
+                    }
+                }
+                .padding(.horizontal, AppTheme.spacingLarge)
+                .padding(.vertical, AppTheme.spacingSmall)
+                .background(Color.appBackground)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(AppTheme.spacingMedium)
 
             // MARK: - Tab Content
             Group {

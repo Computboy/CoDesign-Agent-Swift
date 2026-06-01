@@ -106,6 +106,61 @@ struct StageDefinition {
         return Double(filled) / Double(briefFields.count)
     }
 
+    var iconName: String {
+        switch order {
+        case 1: return "scope"
+        case 2: return "sparkles"
+        case 3: return "rectangle.dashed"
+        case 4: return "square.stack.3d.up"
+        case 5: return "slider.horizontal.3"
+        case 6: return "lock.shield"
+        case 7: return "checklist"
+        case 8: return "exclamationmark.triangle"
+        case 9: return "calendar"
+        default: return "circle.grid.3x3"
+        }
+    }
+
+    var shortSubtitle: String {
+        switch order {
+        case 1: return "Pain point and scenario"
+        case 2: return "Value and differentiation"
+        case 3: return "MVP boundary"
+        case 4: return "Features and modules"
+        case 5: return "Rules and operations"
+        case 6: return "Hard constraints"
+        case 7: return "Success metrics"
+        case 8: return "Risks and fallback"
+        case 9: return "Milestones and schedule"
+        default: return "Design clarification"
+        }
+    }
+
+    var compactPurpose: String {
+        switch order {
+        case 1:
+            return "Clarify who you design for, what problem they face, and where it happens."
+        case 2:
+            return "Make the value proposition concrete and separate it from existing options."
+        case 3:
+            return "Clarify what the first version will do, and what it will not do."
+        case 4:
+            return "Break the idea into user-facing features, modules, and interaction flow."
+        case 5:
+            return "Define the operating rules that keep the experience predictable."
+        case 6:
+            return "Name the limits that the design cannot exceed."
+        case 7:
+            return "Turn success into visible, measurable acceptance criteria."
+        case 8:
+            return "Surface risks early and prepare fallback decisions."
+        case 9:
+            return "Convert the clarified brief into phases and next steps."
+        default:
+            return description
+        }
+    }
+
     /// 该阶段的思考问题
     var thinkingQuestions: [String] {
         switch order {

@@ -48,48 +48,65 @@ struct CurrentClarificationCard: View {
         currentStage?.order ?? 1
     }
 
-    // MARK: - Static Mapping
+    private var currentDefinition: StageDefinition? {
+        StageDefinition.all.first(where: { $0.order == stageOrder })
+    }
 
-    private var relatedFields: [String] {
-        switch stageOrder {
-        case 1: return ["targetUser", "painPoint", "useScenario"]
-        case 2: return ["coreValue", "differentiation"]
-        case 3: return ["mvpFeatures", "boundaryItems"]
-        case 4: return ["interactionFlow", "userActions"]
-        case 5: return ["risks", "failureCases"]
-        case 6: return ["successMetrics", "evaluationCriteria"]
-        case 7: return ["prototypePlan", "visualEvidence"]
-        case 8: return ["implementationPlan", "technicalConstraints"]
-        case 9: return ["finalBrief", "reflection", "nextSteps"]
-        default: return []
-        }
+    private var questionFont: Font {
+        Font.system(.title3, design: .default).weight(.medium)
+    }
+
+    private var relatedFields: [BriefField] {
+        currentDefinition?.briefFields ?? []
     }
 
     private var whyAsk: String {
-        switch stageOrder {
-        case 1: return "如果目标用户、痛点和使用场景不清楚，后续功能边界会变得非常泛。"
-        case 2: return "这一阶段需要明确产品真正提供的价值，以及它和普通聊天工具或表单工具的区别。"
-        case 3: return "明确 MVP 边界可以避免功能膨胀，让当前版本更容易完成和展示。"
-        case 4: return "交互流程决定用户如何一步步参与澄清，而不是只被动等待 AI 输出。"
-        case 5: return "提前识别风险可以帮助系统设计降级方案，避免 AI 追问跑偏或越界。"
-        case 6: return "设计项目需要可评价的标准，否则很难判断方案是否真正有效。"
-        case 7: return "课程展示需要能被看见的过程和产物，而不仅是文字说明。"
-        case 8: return "技术实现路径会影响 MVP 的取舍，需要尽早和设计目标对齐。"
-        case 9: return "最后阶段需要把前面的澄清结果整合为可展示、可复盘的设计方案。"
-        default: return ""
-        }
+        currentDefinition?.compactPurpose ?? ""
+    }
+
+    private var quickActions: [ClarificationQuickAction] {
+        [
+            ClarificationQuickAction(
+                title: "给我一个例子",
+                icon: "lightbulb",
+                tint: .primaryAccent,
+                prompt: "给我一个例子：请基于当前阶段和问题，给我一个具体回答示例，帮助我理解应该怎么回答。"
+            ),
+            ClarificationQuickAction(
+                title: "我还不确定",
+                icon: "questionmark.circle",
+                tint: .warning,
+                prompt: "我还不确定：我现在还不确定，请你把这个问题拆得更简单一点，用更容易回答的方式继续引导我。"
+            ),
+            ClarificationQuickAction(
+                title: "换个角度问",
+                icon: "arrow.triangle.2.circlepath",
+                tint: .info,
+                prompt: "换个角度问：请换一个角度重新追问我这个问题，不要重复刚才的表达。"
+            ),
+            ClarificationQuickAction(
+                title: "生成边界草稿",
+                icon: "rectangle.dashed",
+                tint: .secondaryAccent,
+                prompt: "请基于我已有回答，先帮我草拟一个 MVP 范围，包括“现在做什么”和“暂时不做什么”，但不要替我最终决定。"
+            ),
+            ClarificationQuickAction(
+                title: "跳过",
+                icon: "forward",
+                tint: .textSecondary,
+                prompt: "这个问题先跳过，请基于已有信息继续推进到下一个最合理的澄清点。"
+            ),
+        ]
     }
 
     // MARK: - Body
 
     var body: some View {
-        CoDesignCard(style: .bordered) {
+        CoDesignCard(style: .normal) {
             VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
 
-                // Stage header
                 stageHeader
 
-                // Content area
                 switch cardState {
                 case .welcome:
                     welcomeContent
@@ -101,44 +118,36 @@ struct CurrentClarificationCard: View {
                     waitingContent
                 }
 
-                // Related fields
-                if !relatedFields.isEmpty {
-                    relatedFieldsSection
-                }
-
-                // Why ask
-                if !whyAsk.isEmpty {
-                    whyAskSection
-                }
-
-                // Quick action buttons (always visible, disabled during streaming)
+                contextSection
                 quickActionsSection
             }
-        }
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(Color.primaryAccent)
-                .frame(width: 4)
-                .padding(.vertical, AppTheme.spacingSmall)
         }
     }
 
     // MARK: - Stage Header
 
     private var stageHeader: some View {
-        HStack(spacing: AppTheme.spacingSmall) {
-            if let stage = currentStage {
-                Text("阶段 \(stage.order)")
-                    .font(AppTheme.Typography.captionMono)
-                    .foregroundStyle(Color.primaryAccent)
+        HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
+                Text("Current Clarification")
+                    .font(AppTheme.Typography.headline)
+                    .foregroundStyle(Color.textPrimary)
 
-                Text(stage.name)
-                    .font(AppTheme.Typography.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.textPrimary)
-            } else {
-                Text("设计澄清")
-                    .font(AppTheme.Typography.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.textPrimary)
+                if let stage = currentStage {
+                    Text("Stage \(stage.order) · \(stage.name)")
+                        .font(AppTheme.Typography.caption.weight(.medium))
+                        .foregroundStyle(Color.primaryAccent)
+                        .padding(.horizontal, 10)
+                        .frame(height: AppTheme.Layout.badgeHeight)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.primaryAccent.opacity(0.10))
+                        )
+                } else {
+                    Text("设计澄清")
+                        .font(AppTheme.Typography.caption.weight(.medium))
+                        .foregroundStyle(Color.textTertiary)
+                }
             }
 
             Spacer()
@@ -193,12 +202,12 @@ struct CurrentClarificationCard: View {
             } else {
                 if let attributed = try? AttributedString(markdown: streamingText) {
                     Text(attributed)
-                        .font(AppTheme.Typography.body)
+                        .font(questionFont)
                         .foregroundStyle(Color.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text(streamingText)
-                        .font(AppTheme.Typography.body)
+                        .font(questionFont)
                         .foregroundStyle(Color.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -224,12 +233,12 @@ struct CurrentClarificationCard: View {
             } else {
                 if let attributed = try? AttributedString(markdown: latestAssistantText) {
                     Text(attributed)
-                        .font(AppTheme.Typography.body)
+                        .font(questionFont)
                         .foregroundStyle(Color.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text(latestAssistantText)
-                        .font(AppTheme.Typography.body)
+                        .font(questionFont)
                         .foregroundStyle(Color.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -246,17 +255,41 @@ struct CurrentClarificationCard: View {
         }
     }
 
-    // MARK: - Related Fields
+    // MARK: - Context
+
+    private var contextSection: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: AppTheme.spacingMedium) {
+                if !whyAsk.isEmpty {
+                    whyAskSection
+                }
+
+                if !relatedFields.isEmpty {
+                    relatedFieldsSection
+                }
+            }
+
+            VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+                if !whyAsk.isEmpty {
+                    whyAskSection
+                }
+
+                if !relatedFields.isEmpty {
+                    relatedFieldsSection
+                }
+            }
+        }
+    }
 
     private var relatedFieldsSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-            Text("本轮可能更新")
-                .font(AppTheme.Typography.caption)
-                .foregroundStyle(Color.textTertiary)
+            Text("This may update")
+                .font(AppTheme.Typography.caption.weight(.semibold))
+                .foregroundStyle(Color.textSecondary)
 
             CoDesignFlowLayout(spacing: AppTheme.spacingXS) {
                 ForEach(relatedFields, id: \.self) { field in
-                    Text(field)
+                    Text(field.displayName)
                         .font(AppTheme.Typography.caption.weight(.medium))
                         .foregroundStyle(Color.primaryAccent)
                         .padding(.horizontal, 8)
@@ -268,21 +301,33 @@ struct CurrentClarificationCard: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AppTheme.spacingMedium)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                .fill(Color.primaryAccent.opacity(0.045))
+        )
     }
 
     // MARK: - Why Ask
 
     private var whyAskSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-            Label("为什么问", systemImage: "questionmark.circle")
-                .font(AppTheme.Typography.caption.weight(.medium))
-                .foregroundStyle(Color.textTertiary)
+            Label("Why I'm asking", systemImage: "questionmark.circle")
+                .font(AppTheme.Typography.caption.weight(.semibold))
+                .foregroundStyle(Color.textSecondary)
 
             Text(whyAsk)
                 .font(AppTheme.Typography.caption)
                 .foregroundStyle(Color.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AppTheme.spacingMedium)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                .fill(Color.softAccentBackground)
+        )
     }
 
     // MARK: - Quick Actions
@@ -293,56 +338,35 @@ struct CurrentClarificationCard: View {
                 .padding(.vertical, AppTheme.spacingXS)
 
             CoDesignFlowLayout(spacing: AppTheme.spacingSmall) {
-                Button {
-                    onQuickAction("给我一个例子：请基于当前阶段和问题，给我一个具体回答示例，帮助我理解应该怎么回答。")
-                } label: {
-                    Label("给我一个例子", systemImage: "lightbulb")
-                        .font(AppTheme.Typography.caption.weight(.medium))
-                        .padding(.horizontal, AppTheme.spacingMedium)
-                        .frame(height: AppTheme.Layout.buttonHeightSmall)
-                        .background(
-                            Capsule()
-                                .fill(Color.primaryAccent.opacity(quickActionsDisabled ? 0.05 : 0.1))
-                        )
-                        .foregroundStyle(quickActionsDisabled ? Color.textTertiary : Color.primaryAccent)
+                ForEach(quickActions) { action in
+                    Button {
+                        onQuickAction(action.prompt)
+                    } label: {
+                        Label(action.title, systemImage: action.icon)
+                            .font(AppTheme.Typography.caption.weight(.medium))
+                            .padding(.horizontal, AppTheme.spacingMedium)
+                            .frame(height: AppTheme.Layout.buttonHeightSmall)
+                            .background(
+                                Capsule()
+                                    .fill(action.tint.opacity(quickActionsDisabled ? 0.05 : 0.10))
+                            )
+                            .foregroundStyle(quickActionsDisabled ? Color.textTertiary : action.tint)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(quickActionsDisabled)
                 }
-                .buttonStyle(.plain)
-                .disabled(quickActionsDisabled)
-
-                Button {
-                    onQuickAction("我还不确定：我现在还不确定，请你把这个问题拆得更简单一点，用更容易回答的方式继续引导我。")
-                } label: {
-                    Label("我还不确定", systemImage: "questionmark.circle")
-                        .font(AppTheme.Typography.caption.weight(.medium))
-                        .padding(.horizontal, AppTheme.spacingMedium)
-                        .frame(height: AppTheme.Layout.buttonHeightSmall)
-                        .background(
-                            Capsule()
-                                .fill(Color.warning.opacity(quickActionsDisabled ? 0.05 : 0.1))
-                        )
-                        .foregroundStyle(quickActionsDisabled ? Color.textTertiary : Color.warning)
-                }
-                .buttonStyle(.plain)
-                .disabled(quickActionsDisabled)
-
-                Button {
-                    onQuickAction("换个角度问：请换一个角度重新追问我这个问题，不要重复刚才的表达。")
-                } label: {
-                    Label("换个角度问", systemImage: "arrow.triangle.2.circlepath")
-                        .font(AppTheme.Typography.caption.weight(.medium))
-                        .padding(.horizontal, AppTheme.spacingMedium)
-                        .frame(height: AppTheme.Layout.buttonHeightSmall)
-                        .background(
-                            Capsule()
-                                .fill(Color.info.opacity(quickActionsDisabled ? 0.05 : 0.1))
-                        )
-                        .foregroundStyle(quickActionsDisabled ? Color.textTertiary : Color.info)
-                }
-                .buttonStyle(.plain)
-                .disabled(quickActionsDisabled)
             }
         }
     }
+}
+
+private struct ClarificationQuickAction: Identifiable {
+    let title: String
+    let icon: String
+    let tint: Color
+    let prompt: String
+
+    var id: String { title }
 }
 
 // MARK: - Preview
