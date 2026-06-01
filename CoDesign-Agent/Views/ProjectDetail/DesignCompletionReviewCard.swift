@@ -66,10 +66,6 @@ struct DesignCompletionReviewCard: View {
                 actionButtons
             }
         }
-        .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
-                .strokeBorder(Color.primaryAccent.opacity(0.22), lineWidth: 1.5)
-        )
     }
 
     // MARK: - Header
@@ -77,12 +73,12 @@ struct DesignCompletionReviewCard: View {
     private var headerSection: some View {
         HStack(alignment: .top, spacing: AppTheme.spacingMedium) {
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 32, weight: .semibold))
-                .foregroundStyle(Color.success)
-                .frame(width: 48, height: 48)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(Color.success.opacity(0.9))
+                .frame(width: 42, height: 42)
                 .background(
                     Circle()
-                        .fill(Color.success.opacity(0.10))
+                        .fill(Color.success.opacity(0.08))
                 )
 
             VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
@@ -106,29 +102,53 @@ struct DesignCompletionReviewCard: View {
 
     private var summarySection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-            Text("关键字段")
-                .font(AppTheme.Typography.caption.weight(.semibold))
-                .foregroundStyle(Color.textSecondary)
+            HStack(spacing: AppTheme.spacingXS) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.textTertiary)
 
-            VStack(spacing: AppTheme.spacingSmall) {
-                ForEach(keyFields, id: \.label) { field in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(field.label)
-                            .font(AppTheme.Typography.caption.weight(.semibold))
-                            .foregroundStyle(Color.textTertiary)
-                        Text(field.value)
-                            .font(AppTheme.Typography.caption)
-                            .foregroundStyle(Color.textSecondary)
-                            .lineLimit(2)
+                Text("Brief Snapshot")
+                    .font(AppTheme.Typography.caption.weight(.semibold))
+                    .foregroundStyle(Color.textSecondary)
+            }
+
+            VStack(spacing: 0) {
+                ForEach(Array(keyFields.enumerated()), id: \.offset) { index, field in
+                    HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
+                        Circle()
+                            .fill(Color.primaryAccent.opacity(0.35))
+                            .frame(width: 5, height: 5)
+                            .padding(.top, 7)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(field.label)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color.textTertiary)
+                            Text(field.value)
+                                .font(AppTheme.Typography.caption)
+                                .foregroundStyle(Color.textSecondary)
+                                .lineLimit(2)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(AppTheme.spacingSmall)
-                    .background(
-                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                            .fill(Color.softAccentBackground)
-                    )
+                    .padding(.vertical, AppTheme.spacingSmall)
+
+                    if index < keyFields.count - 1 {
+                        Divider()
+                            .overlay(AppTheme.Border.color)
+                    }
                 }
             }
+            .padding(.horizontal, AppTheme.spacingMedium)
+            .padding(.vertical, AppTheme.spacingXS)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                    .fill(Color.panelBackground.opacity(0.72))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                    .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
+            )
         }
     }
 
@@ -158,14 +178,7 @@ struct DesignCompletionReviewCard: View {
                     print("[DesignCompletionReviewCard] Review Brief tapped – switch to Insights tab")
                 } label: {
                     Label("查看简报", systemImage: "doc.text.magnifyingglass")
-                        .font(AppTheme.Typography.caption.weight(.medium))
-                        .foregroundStyle(Color.primaryAccent)
-                        .padding(.horizontal, 14)
-                        .frame(height: AppTheme.Layout.buttonHeightSmall)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color.primaryAccent.opacity(0.10))
-                        )
+                        .secondaryCompletionButtonStyle(tint: .primaryAccent)
                 }
                 .buttonStyle(.plain)
             }
@@ -177,18 +190,7 @@ struct DesignCompletionReviewCard: View {
                     print("[DesignCompletionReviewCard] Revisit Previous Stage tapped")
                 } label: {
                     Label("回到上一阶段", systemImage: "arrow.counterclockwise")
-                        .font(AppTheme.Typography.caption.weight(.medium))
-                        .foregroundStyle(Color.textSecondary)
-                        .padding(.horizontal, 14)
-                        .frame(height: AppTheme.Layout.buttonHeightSmall)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color.cardBackground)
-                        )
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .strokeBorder(Color.textTertiary.opacity(0.25), lineWidth: AppTheme.Border.thin)
-                        )
+                        .secondaryCompletionButtonStyle(tint: .textSecondary)
                 }
                 .buttonStyle(.plain)
 
@@ -196,23 +198,30 @@ struct DesignCompletionReviewCard: View {
                     onSend("继续优化")
                 } label: {
                     Label("继续优化", systemImage: "bubble.left.and.bubble.right")
-                        .font(AppTheme.Typography.caption.weight(.medium))
-                        .foregroundStyle(Color.textSecondary)
-                        .padding(.horizontal, 14)
-                        .frame(height: AppTheme.Layout.buttonHeightSmall)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color.cardBackground)
-                        )
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .strokeBorder(Color.textTertiary.opacity(0.25), lineWidth: AppTheme.Border.thin)
-                        )
+                        .secondaryCompletionButtonStyle(tint: .textSecondary)
                 }
                 .buttonStyle(.plain)
             }
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+private extension View {
+    func secondaryCompletionButtonStyle(tint: Color) -> some View {
+        self
+            .font(AppTheme.Typography.caption.weight(.medium))
+            .foregroundStyle(tint.opacity(0.86))
+            .padding(.horizontal, 12)
+            .frame(height: AppTheme.Layout.buttonHeightSmall)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.clear)
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
+            )
     }
 }
 

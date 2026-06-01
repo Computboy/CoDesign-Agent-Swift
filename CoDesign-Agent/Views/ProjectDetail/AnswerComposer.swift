@@ -28,7 +28,7 @@ struct AnswerComposer: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                        .strokeBorder(Color.primaryAccent.opacity(0.08), lineWidth: AppTheme.Border.thin)
+                        .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
                 )
                 .disabled(isStreaming)
                 .onSubmit { send() }
@@ -50,7 +50,7 @@ struct AnswerComposer: View {
                 .frame(width: 36, height: 36)
                 .background(
                     Circle()
-                        .fill(canSend ? Color.primaryAccent : Color.textTertiary)
+                        .fill(canSend ? Color.primaryAccent : Color.textTertiary.opacity(0.45))
                 )
             }
             .buttonStyle(.plain)

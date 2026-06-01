@@ -161,12 +161,11 @@ struct EditableInsightCard: View {
         }
     }
 
-    @ViewBuilder
     private var cardContent: some View {
         let accentColor: Color = {
             if isConfirmed { return .success }
             if isRejected { return .warning }
-            return .primaryAccent.opacity(0.0)
+            return .clear
         }()
 
         return VStack {
@@ -180,7 +179,7 @@ struct EditableInsightCard: View {
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
                 .strokeBorder(
-                    isConfirmed || isRejected ? accentColor.opacity(0.25) : Color.primaryAccent.opacity(0.06),
+                    AppTheme.Border.color,
                     lineWidth: AppTheme.Border.thin
                 )
         )
@@ -188,135 +187,121 @@ struct EditableInsightCard: View {
             if isConfirmed || isRejected {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(accentColor)
-                    .frame(width: 3)
+                    .frame(width: 4)
                     .padding(.vertical, 10)
             }
         }
+        .shadow(color: Color.black.opacity(0.02), radius: 8, x: 0, y: 2)
     }
 
     @ViewBuilder
     private var cardBody: some View {
-            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
+        VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
 
-                // Header: title + key + badge
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(fieldDisplayName)
-                            .font(AppTheme.Typography.caption.weight(.semibold))
-                            .foregroundStyle(Color.textPrimary)
+            // Header: title + key + badge
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(fieldDisplayName)
+                        .font(AppTheme.Typography.caption.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
 
-                        Text(field.rawValue)
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(Color.textTertiary)
-                    }
-
-                    Spacer()
-
-                    CoDesignStatusBadge(
-                        status: statusBadge.status,
-                        text: statusBadge.text
-                    )
-                }
-
-                // Value or placeholder
-                if isFilled {
-                    Text(fieldValue ?? "")
-                        .font(AppTheme.Typography.caption)
-                        .foregroundStyle(Color.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .lineLimit(2)
-                } else {
-                    Text("暂未提取，后续对话中会逐步补全")
-                        .font(AppTheme.Typography.caption)
+                    Text(field.rawValue)
+                        .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(Color.textTertiary)
-                        .italic()
-                        .lineLimit(1)
                 }
 
-                // Rejected hint
-                if isRejected {
-                    Text("你可以点击编辑手动修正")
+                Spacer()
+
+                CoDesignStatusBadge(
+                    status: statusBadge.status,
+                    text: statusBadge.text
+                )
+            }
+
+            // Value or placeholder
+            if isFilled {
+                Text(fieldValue ?? "")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
+            } else {
+                Text("暂未提取，后续对话中会逐步补全")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(Color.textTertiary)
+                    .italic()
+                    .lineLimit(1)
+            }
+
+            // Rejected hint
+            if isRejected {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 9, weight: .medium))
+                    Text("已标记为需修正，可点击编辑调整")
                         .font(.system(size: 10))
-                        .foregroundStyle(Color.warning)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .lineLimit(1)
                 }
+                .foregroundStyle(Color.warning)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(1)
+            }
 
-                // Action buttons — compact single row
-                if isFilled {
-                    HStack(spacing: AppTheme.spacingXS) {
+            // Action buttons — compact single row
+            if isFilled {
+                HStack(spacing: AppTheme.spacingXS) {
+                    quietFieldButton("编辑", icon: "pencil", tint: .primaryAccent, action: onEdit)
+
+                    if !isConfirmed {
+                        quietFieldButton("确认", icon: "checkmark", tint: .success, action: onConfirm)
+                    }
+
+                    if !isRejected {
                         Button {
-                            onEdit()
+                            onReject()
                         } label: {
-                            Label("编辑", systemImage: "pencil")
+                            Image(systemName: "exclamationmark.triangle")
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Color.primaryAccent)
-                                .padding(.horizontal, 8)
-                                .frame(height: 26)
+                                .foregroundStyle(Color.warning.opacity(0.85))
+                                .frame(width: 26, height: 26)
                                 .background(
-                                    Capsule(style: .continuous)
-                                        .fill(Color.primaryAccent.opacity(0.10))
+                                    Circle()
+                                        .fill(Color.warning.opacity(0.08))
                                 )
                         }
                         .buttonStyle(.plain)
-
-                        if !isConfirmed {
-                            Button {
-                                onConfirm()
-                            } label: {
-                                Label("确认", systemImage: "checkmark")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 8)
-                                    .frame(height: 26)
-                                    .background(
-                                        Capsule(style: .continuous)
-                                            .fill(Color.success)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-
-                        if !isRejected {
-                            Button {
-                                onReject()
-                            } label: {
-                                Label("不准确", systemImage: "exclamationmark.triangle")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(Color.warning)
-                                    .padding(.horizontal, 8)
-                                    .frame(height: 26)
-                                    .background(
-                                        Capsule(style: .continuous)
-                                            .fill(Color.warning.opacity(0.10))
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
+                        .help("标记不准确")
                     }
-                } else {
-                    HStack(spacing: AppTheme.spacingXS) {
-                        Button {
-                            onEdit()
-                        } label: {
-                            Label("手动填写", systemImage: "pencil")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Color.primaryAccent)
-                                .padding(.horizontal, 8)
-                                .frame(height: 26)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(Color.primaryAccent.opacity(0.10))
-                                )
-                        }
-                        .buttonStyle(.plain)
+                }
+            } else {
+                HStack(spacing: AppTheme.spacingXS) {
+                    quietFieldButton("手动填写", icon: "pencil", tint: .primaryAccent, action: onEdit)
 
-                        Text("等待对话补全")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Color.textTertiary)
-                    }
+                    Text("等待对话补全")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.textTertiary)
                 }
             }
+        }
+    }
+
+    private func quietFieldButton(
+        _ title: String,
+        icon: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(tint.opacity(0.9))
+                .padding(.horizontal, 8)
+                .frame(height: 26)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(tint.opacity(0.08))
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 

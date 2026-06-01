@@ -55,11 +55,11 @@ struct CoDesignCard<Content: View>: View {
     private var backgroundView: some View {
         switch style {
         case .normal:
-            Color.cardBackground
+            Color.elevatedCardBackground
         case .elevated:
             Color.elevatedCardBackground
         case .highlighted:
-            Color.cardBackground
+            Color.elevatedCardBackground
         case .bordered:
             Color.clear
         }
@@ -71,17 +71,23 @@ struct CoDesignCard<Content: View>: View {
     private var overlayView: some View {
         switch style {
         case .normal, .elevated:
-            EmptyView()
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
         case .highlighted(let accentColor):
-            HStack(spacing: 0) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(accentColor)
-                    .frame(width: 4)
-                Spacer()
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                    .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
+
+                HStack(spacing: 0) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(accentColor.opacity(0.9))
+                        .frame(width: 4)
+                    Spacer()
+                }
             }
         case .bordered:
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
-                .strokeBorder(Color.textTertiary.opacity(0.3), lineWidth: AppTheme.Border.thin)
+                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
         }
     }
 

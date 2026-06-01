@@ -56,7 +56,7 @@ struct ClarificationWorkspaceView: View {
                 .frame(minHeight: max(proxy.size.height - AppTheme.spacingLarge * 2, 0), alignment: .top)
                 .padding(AppTheme.spacingLarge)
             }
-            .scrollIndicators(.hidden, axes: .vertical)
+            .coDesignHideScrollIndicators()
         }
     }
 
@@ -79,7 +79,7 @@ struct ClarificationWorkspaceView: View {
             .padding(.vertical, AppTheme.spacingSmall)
             .padding(.bottom, 40)
         }
-        .scrollIndicators(.hidden)
+        .coDesignHideScrollIndicators()
     }
 }
 

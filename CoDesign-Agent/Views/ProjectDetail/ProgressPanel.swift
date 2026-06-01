@@ -19,7 +19,7 @@ struct ProgressPanel: View {
         if project.stages.isEmpty {
             emptyState
         } else {
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 20) {
                     // Overall progress summary
                     overallProgressSection
@@ -32,7 +32,7 @@ struct ProgressPanel: View {
                 }
                 .padding()
             }
-            .scrollIndicators(.hidden)
+            .coDesignHideScrollIndicators()
         }
     }
 

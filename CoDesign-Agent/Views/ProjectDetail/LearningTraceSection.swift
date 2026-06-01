@@ -106,7 +106,7 @@ struct LearningTraceSection: View {
                     )
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(shortTitle(for: trace))
+                    Text(designActionTitle(for: trace))
                         .font(AppTheme.Typography.subheadline.weight(.semibold))
                         .foregroundStyle(Color.textPrimary)
 
@@ -155,12 +155,12 @@ struct LearningTraceSection: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.cardBackground)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .fill(Color.elevatedCardBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.primaryAccent.opacity(0.12), lineWidth: AppTheme.Border.thin)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
         )
         .coDesignShadow(.elevated)
     }
@@ -177,6 +177,7 @@ struct LearningTraceSection: View {
                 }
                 .padding(.horizontal, 2)
             }
+            .coDesignHideScrollIndicators()
             .onHover { hovering in
                 withAnimation(AppTheme.Animation.quick) {
                     isHoveringCarousel = hovering
@@ -241,15 +242,15 @@ struct LearningTraceSection: View {
             .padding(12)
             .frame(width: 130, height: 96, alignment: .topLeading)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
                     .fill(isSelected
                         ? color.opacity(0.06)
                         : Color.elevatedCardBackground)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
                     .strokeBorder(
-                        isSelected ? color.opacity(0.35) : color.opacity(0.08),
+                        isSelected ? color.opacity(0.24) : AppTheme.Border.color,
                         lineWidth: isSelected ? AppTheme.Border.medium : AppTheme.Border.thin
                     )
             )
@@ -280,21 +281,28 @@ struct LearningTraceSection: View {
     }
 
     private func shortTitle(for trace: LearningTrace) -> String {
-        let t = trace.title
+        designActionTitle(for: trace)
+    }
 
-        if t.hasPrefix("你完成了一次") {
-            return String(t.dropFirst("你完成了一次".count))
+    private func designActionTitle(for trace: LearningTrace) -> String {
+        switch trace.stageOrder {
+        case 1: return "你锚定了痛点场景"
+        case 2: return "你提炼了差异价值"
+        case 3: return "你收缩了项目范围"
+        case 4: return "你拆解了功能方案"
+        case 5: return "你明确了运行规则"
+        case 6: return "你识别了硬性约束"
+        case 7: return "你明确了验收标准"
+        case 8: return "你识别了核心风险"
+        case 9: return "你排定了推进阶段"
+        default:
+            switch trace.actionType {
+            case "reframe": return "你重新定义了问题"
+            case "boundaryShrink": return "你收缩了项目范围"
+            case "converge": return "你形成了设计判断"
+            default: return trace.title
+            }
         }
-
-        let mappings: [String: String] = [
-            "重新定义问题": "重新定义",
-            "收缩项目边界": "边界收缩",
-            "收敛核心痛点": "痛点收敛",
-        ]
-        if let mapped = mappings[t] { return mapped }
-
-        if t.count > 6 { return String(t.prefix(6)) }
-        return t
     }
 }
 

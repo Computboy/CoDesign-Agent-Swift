@@ -92,14 +92,14 @@ struct InsightCardsPanel: View {
         .padding(AppTheme.Layout.cardPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
-                .fill(Color.cardBackground.opacity(0.65))
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                .fill(Color.panelBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
-                .strokeBorder(Color.primaryAccent.opacity(0.06), lineWidth: AppTheme.Border.thin)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
         )
-        .shadow(color: Color.black.opacity(0.02), radius: 4, x: 0, y: 1)
+        .coDesignShadow(.card)
         .sheet(item: $editingField) { field in
             if let brief = project.brief {
                 InsightFieldEditSheet(

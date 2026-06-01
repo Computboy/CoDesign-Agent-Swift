@@ -40,3 +40,7 @@ CLAUDE.md
 # Xcode user state
 xcuserdata/
 *.xcuserstate
+
+# Codex
+AGENTS.md
+

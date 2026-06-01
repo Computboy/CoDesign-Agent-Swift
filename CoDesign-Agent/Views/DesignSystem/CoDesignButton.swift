@@ -121,7 +121,7 @@ struct CoDesignButton: View {
             EmptyView()
         case .secondary:
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .strokeBorder(Color.primaryAccent.opacity(0.3), lineWidth: AppTheme.Border.thin)
+                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
         }
     }
 }

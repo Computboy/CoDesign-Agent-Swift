@@ -9,7 +9,7 @@ struct InsightsPanel: View {
     }
 
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 20) {
                 BriefSummarySection(brief: project.brief)
                 Divider()
@@ -17,7 +17,7 @@ struct InsightsPanel: View {
             }
             .padding()
         }
-        .scrollIndicators(.hidden)
+        .coDesignHideScrollIndicators()
         .background(Color.appBackground)
     }
 }

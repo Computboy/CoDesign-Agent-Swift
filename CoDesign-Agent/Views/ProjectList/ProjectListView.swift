@@ -59,7 +59,7 @@ struct ProjectListView: View {
     // MARK: - Project Scroll List
 
     private func projectScrollList(_ filtered: [Project]) -> some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: false) {
             let columns: [GridItem] = {
                 #if os(macOS)
                 [GridItem(.adaptive(minimum: 320), spacing: AppTheme.spacingMedium)]
@@ -92,6 +92,7 @@ struct ProjectListView: View {
             .padding(.vertical, AppTheme.spacingSmall)
             .animation(AppTheme.Animation.standard, value: filtered.map(\.id))
         }
+        .coDesignHideScrollIndicators()
     }
 
     // MARK: - Deletion

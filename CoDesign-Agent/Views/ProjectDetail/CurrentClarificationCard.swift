@@ -148,7 +148,7 @@ struct CurrentClarificationCard: View {
                         .frame(height: AppTheme.Layout.badgeHeight)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(Color.primaryAccent.opacity(0.10))
+                                .fill(Color.primaryAccent.opacity(0.07))
                         )
                 } else {
                     Text("设计澄清")
@@ -223,7 +223,7 @@ struct CurrentClarificationCard: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .scrollIndicators(.hidden)
+                .coDesignHideScrollIndicators()
                 .frame(maxWidth: .infinity, minHeight: responseAreaHeight, maxHeight: responseAreaHeight, alignment: .topLeading)
 
                 HStack(spacing: 4) {
@@ -262,7 +262,7 @@ struct CurrentClarificationCard: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .scrollIndicators(.hidden)
+                .coDesignHideScrollIndicators()
                 .frame(maxWidth: .infinity, minHeight: responseAreaHeight, maxHeight: responseAreaHeight, alignment: .topLeading)
             }
         }
@@ -319,7 +319,7 @@ struct CurrentClarificationCard: View {
                         .padding(.vertical, 4)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(Color.primaryAccent.opacity(0.1))
+                                .fill(Color.primaryAccent.opacity(0.07))
                         )
                 }
             }
@@ -328,7 +328,11 @@ struct CurrentClarificationCard: View {
         .padding(AppTheme.spacingMedium)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .fill(Color.primaryAccent.opacity(0.045))
+                .fill(Color.panelBackground.opacity(0.75))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
         )
     }
 
@@ -349,7 +353,11 @@ struct CurrentClarificationCard: View {
         .padding(AppTheme.spacingMedium)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .fill(Color.softAccentBackground)
+                .fill(Color.panelBackground.opacity(0.75))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
         )
     }
 
@@ -371,9 +379,9 @@ struct CurrentClarificationCard: View {
                             .frame(height: AppTheme.Layout.buttonHeightSmall)
                             .background(
                                 Capsule()
-                                    .fill(action.tint.opacity(quickActionsDisabled ? 0.05 : 0.10))
+                                    .fill(action.tint.opacity(quickActionsDisabled ? 0.04 : 0.07))
                             )
-                            .foregroundStyle(quickActionsDisabled ? Color.textTertiary : action.tint)
+                            .foregroundStyle(quickActionsDisabled ? Color.textTertiary : action.tint.opacity(0.88))
                     }
                     .buttonStyle(.plain)
                     .disabled(quickActionsDisabled)

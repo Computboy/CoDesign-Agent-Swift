@@ -35,7 +35,7 @@ struct NewProjectView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: AppTheme.spacingLarge) {
 
                     // Header with guided copy
@@ -72,6 +72,7 @@ struct NewProjectView: View {
                 }
                 .padding(AppTheme.spacingLarge)
             }
+            .coDesignHideScrollIndicators()
             .background(Color.appBackground)
             .navigationTitle("从一个模糊想法开始")
             #if os(iOS)
@@ -114,6 +115,7 @@ struct NewProjectView: View {
                     .foregroundStyle(Color.textPrimary)
                     .frame(minHeight: 80)
                     .scrollContentBackground(.hidden)
+                    .coDesignHideScrollIndicators()
                     .overlay(alignment: .topLeading) {
                         if designIdea.isEmpty {
                             Text("例如：我想做一个帮助大学生更好完成设计类课程开题的 AI 工具")
@@ -177,6 +179,7 @@ struct NewProjectView: View {
                     .foregroundStyle(Color.textPrimary)
                     .frame(minHeight: 60)
                     .scrollContentBackground(.hidden)
+                    .coDesignHideScrollIndicators()
                     .overlay(alignment: .topLeading) {
                         if knownConstraints.isEmpty {
                             Text("例如：两周内完成、只能用 SwiftUI、需要本地存储")

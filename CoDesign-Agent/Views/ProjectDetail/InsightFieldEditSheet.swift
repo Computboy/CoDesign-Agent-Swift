@@ -96,7 +96,7 @@ struct InsightFieldEditSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
 
                     // Field info
@@ -124,6 +124,7 @@ struct InsightFieldEditSheet: View {
                                 .foregroundStyle(Color.textPrimary)
                                 .frame(minHeight: 120)
                                 .scrollContentBackground(.hidden)
+                                .coDesignHideScrollIndicators()
                                 .onChange(of: editText) { oldValue, newValue in
                                     if newValue.count > maxCharacterLimit {
                                         editText = String(newValue.prefix(maxCharacterLimit))
@@ -160,6 +161,7 @@ struct InsightFieldEditSheet: View {
                 }
                 .padding(AppTheme.spacingMedium)
             }
+            .coDesignHideScrollIndicators()
             .background(Color.appBackground)
             .navigationTitle("编辑\(fieldDisplayName)")
             #if os(iOS)

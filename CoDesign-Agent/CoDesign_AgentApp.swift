@@ -7,6 +7,9 @@
 
 import SwiftUI
 import SwiftData
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - ServiceMode
 
@@ -45,6 +48,10 @@ extension EnvironmentValues {
 struct CoDesign_AgentApp: App {
     @AppStorage("serviceMode") private var serviceModeRaw: String = "mock"
 
+    init() {
+        configureScrollIndicators()
+    }
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Project.self,
@@ -80,6 +87,7 @@ struct CoDesign_AgentApp: App {
     var body: some Scene {
         WindowGroup {
             ProjectListView()
+                .coDesignHideScrollIndicators()
                 .environment(\.llmService, llmService)
                 .environment(\.structuredExtractor, extractor)
                 .task {
@@ -89,5 +97,12 @@ struct CoDesign_AgentApp: App {
                 }
         }
         .modelContainer(sharedModelContainer)
+    }
+
+    private func configureScrollIndicators() {
+        #if canImport(UIKit)
+        UIScrollView.appearance().showsVerticalScrollIndicator = false
+        UIScrollView.appearance().showsHorizontalScrollIndicator = false
+        #endif
     }
 }

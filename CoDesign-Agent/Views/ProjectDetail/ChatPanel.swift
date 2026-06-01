@@ -33,7 +33,7 @@ struct ChatPanel: View {
 
     private var messageList: some View {
         ScrollViewReader { proxy in
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 12) {
                     if project.messages.isEmpty && !chatViewModel.isStreaming {
                         emptyState
@@ -92,7 +92,7 @@ struct ChatPanel: View {
                     }
                 }
             }
-            .scrollIndicators(.hidden)
+            .coDesignHideScrollIndicators()
         }
     }
 

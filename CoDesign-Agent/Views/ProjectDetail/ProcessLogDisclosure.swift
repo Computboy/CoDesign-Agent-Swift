@@ -63,7 +63,7 @@ struct ProcessLogDisclosure: View {
                         emptyState
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     } else {
-                        ScrollView {
+                        ScrollView(.vertical, showsIndicators: false) {
                             LazyVStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
                                 ForEach(sortedMessages) { message in
                                     ProcessLogMessageRow(message: message)
@@ -82,7 +82,7 @@ struct ProcessLogDisclosure: View {
                                 }
                             }
                         }
-                        .scrollIndicators(.hidden)
+                        .coDesignHideScrollIndicators()
                         .frame(maxHeight: 400)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     }

@@ -70,18 +70,42 @@ struct CoDesignStatusBadge: View {
     var body: some View {
         HStack(spacing: AppTheme.spacingXS) {
             Image(systemName: status.iconName)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 8, weight: .semibold))
 
             Text(text ?? status.defaultText)
-                .font(AppTheme.Typography.caption.weight(.medium))
+                .font(.system(size: 11, weight: .medium))
         }
-        .foregroundStyle(status.tint)
-        .padding(.horizontal, 8)
-        .frame(height: AppTheme.Layout.badgeHeight)
+        .foregroundStyle(foregroundColor)
+        .padding(.horizontal, 7)
+        .frame(height: 20)
         .background(
             Capsule(style: .continuous)
-                .fill(status.tint.opacity(0.12))
+                .fill(status.tint.opacity(backgroundOpacity))
         )
+    }
+
+    private var foregroundColor: Color {
+        switch status {
+        case .complete:
+            return status.tint.opacity(0.82)
+        case .locked:
+            return status.tint.opacity(0.75)
+        default:
+            return status.tint
+        }
+    }
+
+    private var backgroundOpacity: Double {
+        switch status {
+        case .complete:
+            return 0.08
+        case .warning, .error:
+            return 0.10
+        case .locked:
+            return 0.06
+        default:
+            return 0.08
+        }
     }
 }
 

@@ -8,23 +8,33 @@ struct ReflectionCard: View {
         case "reframe":
             return ("arrow.triangle.2.circlepath", Color.primaryAccent)
         case "converge":
-            return ("scope", Color.green)
+            return ("scope", Color.success)
         case "boundaryShrink":
-            return ("rectangle.compress.vertical", Color.orange)
+            return ("rectangle.compress.vertical", Color.warning)
         default:
-            return ("sparkles", Color.gray)
+            return ("sparkles", Color.textTertiary)
         }
     }
 
     /// Stage-differentiated title for converge actions, avoiding repetitive text.
     private var displayTitle: String {
-        guard trace.actionType == "converge" else { return trace.title }
         switch trace.stageOrder {
-        case 1: return "你完成了一次问题收敛"
-        case 2: return "你完成了一次价值判断"
-        case 3: return "你完成了一次边界澄清"
-        case 4: return "你完成了一次方案拆解"
-        default: return "你完成了一次设计推进"
+        case 1: return "你锚定了痛点场景"
+        case 2: return "你提炼了差异价值"
+        case 3: return "你收缩了项目范围"
+        case 4: return "你拆解了功能方案"
+        case 5: return "你明确了运行规则"
+        case 6: return "你识别了硬性约束"
+        case 7: return "你明确了验收标准"
+        case 8: return "你识别了核心风险"
+        case 9: return "你排定了推进阶段"
+        default:
+            switch trace.actionType {
+            case "reframe": return "你重新定义了问题"
+            case "boundaryShrink": return "你收缩了项目范围"
+            case "converge": return "你形成了设计判断"
+            default: return trace.title
+            }
         }
     }
 
@@ -36,6 +46,11 @@ struct ReflectionCard: View {
         case 2: return "你开始区分「这个产品能做什么」和「为什么值得做」。"
         case 3: return "你把发散的想法收束成了更清晰的范围与约束。"
         case 4: return "你开始把目标转化为可实现的功能模块。"
+        case 5: return "你把体验推进为更明确的运行逻辑和规则。"
+        case 6: return "你识别了必须遵守的资源、技术或场景限制。"
+        case 7: return "你把“做好”转化为可以检查的验收标准。"
+        case 8: return "你提前识别了可能阻碍项目成立的关键风险。"
+        case 9: return "你把方案拆成了更可执行的阶段和里程碑。"
         default: return "你让项目从模糊想法向清晰方案前进了一步。"
         }
     }
@@ -45,11 +60,16 @@ struct ReflectionCard: View {
             // Header: icon + title
             HStack(spacing: 8) {
                 Image(systemName: iconAndColor.0)
-                    .font(.title3)
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(iconAndColor.1)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(iconAndColor.1.opacity(0.08))
+                    )
 
                 Text(displayTitle)
-                    .font(.headline)
+                    .font(AppTheme.Typography.subheadline.weight(.semibold))
                     .foregroundStyle(Color.textPrimary)
 
                 Spacer()
@@ -57,7 +77,7 @@ struct ReflectionCard: View {
 
             // Detail
             Text(displayDetail)
-                .font(.subheadline)
+                .font(AppTheme.Typography.caption)
                 .foregroundStyle(Color.textSecondary)
                 .lineLimit(nil)
 
@@ -76,8 +96,13 @@ struct ReflectionCard: View {
             }
         }
         .padding()
-        .background(Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
+        .background(Color.elevatedCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
+        )
+        .coDesignShadow(.card)
     }
 }
 

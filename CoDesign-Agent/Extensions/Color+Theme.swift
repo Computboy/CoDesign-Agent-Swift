@@ -30,6 +30,8 @@ extension Color {
         #endif
     }()
 
+    static let panelBackground = Color(red: 0.973, green: 0.980, blue: 0.988)
+
     // MARK: 品牌色
 
     static let primaryAccent = Color(red: 0.35, green: 0.47, blue: 0.93)   // 柔和蓝紫
@@ -116,7 +118,7 @@ extension Color {
 
 enum AppTheme {
     // 圆角
-    static let cornerRadiusSmall: CGFloat = 12
+    static let cornerRadiusSmall: CGFloat = 14
     static let cornerRadiusMedium: CGFloat = 20
     static let cornerRadiusLarge: CGFloat = 24
 

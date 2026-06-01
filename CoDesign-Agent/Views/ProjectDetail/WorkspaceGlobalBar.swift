@@ -66,11 +66,11 @@ struct WorkspaceGlobalBar: View {
         .frame(height: 32)
         .background(
             Capsule(style: .continuous)
-                .fill(Color.cardBackground)
+                .fill(Color.elevatedCardBackground.opacity(0.78))
         )
         .overlay(
             Capsule(style: .continuous)
-                .strokeBorder(Color.primaryAccent.opacity(0.14), lineWidth: AppTheme.Border.thin)
+                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
         )
         .accessibilityLabel("Shared Autonomy Balanced")
     }
@@ -98,12 +98,12 @@ struct WorkspaceGlobalBar: View {
                 .lineLimit(1)
         }
         .font(AppTheme.Typography.caption.weight(.medium))
-        .foregroundStyle(Color.primaryAccent)
+        .foregroundStyle(Color.primaryAccent.opacity(0.82))
         .padding(.horizontal, 10)
         .frame(height: 32)
         .background(
             Capsule(style: .continuous)
-                .fill(Color.primaryAccent.opacity(0.09))
+                .fill(Color.primaryAccent.opacity(0.06))
         )
     }
 
@@ -115,12 +115,12 @@ struct WorkspaceGlobalBar: View {
         } label: {
             Label("导出简报", systemImage: "square.and.arrow.up")
                 .font(AppTheme.Typography.caption.weight(.semibold))
-                .foregroundStyle(Color.primaryAccent)
+                .foregroundStyle(Color.white)
                 .padding(.horizontal, 12)
                 .frame(height: 32)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(Color.primaryAccent.opacity(0.08))
+                        .fill(Color.primaryAccent)
                 )
         }
         .buttonStyle(.plain)
@@ -151,7 +151,11 @@ struct WorkspaceGlobalBar: View {
                 .frame(width: 32, height: 32)
                 .background(
                     Circle()
-                        .fill(Color.cardBackground)
+                        .fill(Color.elevatedCardBackground)
+                )
+                .overlay(
+                    Circle()
+                        .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
                 )
         }
         .buttonStyle(.plain)

@@ -50,6 +50,7 @@ struct StageRail: View {
                     }
                     .padding(.horizontal, AppTheme.spacingMedium)
                 }
+                .coDesignHideScrollIndicators()
             }
 
             // 阶段解释弹窗

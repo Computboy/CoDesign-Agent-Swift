@@ -33,11 +33,12 @@ struct StageRailPanel: View {
                 emptyState
             } else {
                 VStack(spacing: AppTheme.spacingSmall) {
-                    ForEach(sortedStages) { stage in
+                    ForEach(Array(sortedStages.enumerated()), id: \.element.id) { index, stage in
                         StageRailRow(
                             stage: stage,
                             definition: StageDefinition.all.first(where: { $0.order == stage.order }),
-                            isActive: stage.id == activeStage?.id
+                            isActive: stage.id == activeStage?.id,
+                            isLast: index == sortedStages.count - 1
                         )
                     }
                 }
@@ -49,12 +50,12 @@ struct StageRailPanel: View {
         .padding(AppTheme.Layout.cardPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
-                .fill(Color.cardBackground)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                .fill(Color.panelBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
-                .strokeBorder(Color.primaryAccent.opacity(0.14), lineWidth: AppTheme.Border.thin)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
         )
         .coDesignShadow(.card)
     }
@@ -109,7 +110,7 @@ struct StageRailPanel: View {
                 .padding(AppTheme.spacingMedium)
                 .background(
                     RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                        .fill(Color.primaryAccent.opacity(activeStage.status == "active" ? 0.08 : 0.04))
+                        .fill(Color.primaryAccent.opacity(activeStage.status == "active" ? 0.045 : 0.03))
                 )
             }
         }
@@ -120,6 +121,7 @@ private struct StageRailRow: View {
     let stage: ProgressStage
     let definition: StageDefinition?
     let isActive: Bool
+    let isLast: Bool
 
     private var tint: Color {
         switch stage.status {
@@ -141,15 +143,24 @@ private struct StageRailRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
-            ZStack {
-                Circle()
-                    .fill(isActive ? Color.primaryAccent.opacity(0.14) : tint.opacity(0.10))
-                    .frame(width: 34, height: 34)
+            VStack(spacing: 4) {
+                ZStack {
+                    Circle()
+                        .fill(isActive ? Color.primaryAccent.opacity(0.08) : tint.opacity(0.08))
+                        .frame(width: 34, height: 34)
 
-                Image(systemName: definition?.iconName ?? "circle.grid.3x3")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(isActive ? Color.primaryAccent : tint)
+                    Image(systemName: definition?.iconName ?? "circle.grid.3x3")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isActive ? Color.primaryAccent.opacity(0.9) : tint.opacity(0.8))
+                }
+
+                if !isLast {
+                    Rectangle()
+                        .fill(Color.black.opacity(0.045))
+                        .frame(width: 1, height: 16)
+                }
             }
+            .frame(width: 34)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: AppTheme.spacingXS) {
@@ -179,11 +190,11 @@ private struct StageRailRow: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .fill(isActive ? Color.primaryAccent.opacity(0.08) : Color.clear)
+                .fill(isActive ? Color.primaryAccent.opacity(0.045) : Color.clear)
         )
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .strokeBorder(isActive ? Color.primaryAccent.opacity(0.32) : Color.clear, lineWidth: AppTheme.Border.thin)
+                .strokeBorder(isActive ? Color.primaryAccent.opacity(0.18) : Color.clear, lineWidth: AppTheme.Border.thin)
         )
     }
 }
