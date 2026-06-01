@@ -123,39 +123,39 @@ struct StageDefinition {
 
     var shortSubtitle: String {
         switch order {
-        case 1: return "Pain point and scenario"
-        case 2: return "Value and differentiation"
-        case 3: return "MVP boundary"
-        case 4: return "Features and modules"
-        case 5: return "Rules and operations"
-        case 6: return "Hard constraints"
-        case 7: return "Success metrics"
-        case 8: return "Risks and fallback"
-        case 9: return "Milestones and schedule"
-        default: return "Design clarification"
+        case 1: return "痛点与场景"
+        case 2: return "价值与差异化"
+        case 3: return "项目边界"
+        case 4: return "功能与模块"
+        case 5: return "规则与运行"
+        case 6: return "硬性约束"
+        case 7: return "验收标准"
+        case 8: return "风险与预案"
+        case 9: return "里程碑与排期"
+        default: return "设计澄清"
         }
     }
 
     var compactPurpose: String {
         switch order {
         case 1:
-            return "Clarify who you design for, what problem they face, and where it happens."
+            return "明确你的设计对象是谁、他们面临什么问题、在什么场景发生。"
         case 2:
-            return "Make the value proposition concrete and separate it from existing options."
+            return "将价值主张具体化，并与现有方案区分开来。"
         case 3:
-            return "Clarify what the first version will do, and what it will not do."
+            return "明确第一版做什么、不做什么，划定项目边界。"
         case 4:
-            return "Break the idea into user-facing features, modules, and interaction flow."
+            return "将想法拆解为用户可见的功能、模块和交互流程。"
         case 5:
-            return "Define the operating rules that keep the experience predictable."
+            return "定义保持体验可预测的运行规则。"
         case 6:
-            return "Name the limits that the design cannot exceed."
+            return "明确设计不可突破的限制条件。"
         case 7:
-            return "Turn success into visible, measurable acceptance criteria."
+            return "将成功转化为可见、可量化的验收标准。"
         case 8:
-            return "Surface risks early and prepare fallback decisions."
+            return "提前暴露风险并准备应对方案。"
         case 9:
-            return "Convert the clarified brief into phases and next steps."
+            return "将已澄清的简报转化为阶段和下一步行动。"
         default:
             return description
         }

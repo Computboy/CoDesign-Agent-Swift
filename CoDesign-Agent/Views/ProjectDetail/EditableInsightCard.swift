@@ -163,24 +163,34 @@ struct EditableInsightCard: View {
 
     @ViewBuilder
     private var cardContent: some View {
-        if isConfirmed {
-            CoDesignCard(style: .bordered) { cardBody }
-                .overlay(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.success)
-                        .frame(width: 4)
-                        .padding(.vertical, AppTheme.spacingSmall)
-                }
-        } else if isRejected {
-            CoDesignCard(style: .bordered) { cardBody }
-                .overlay(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.warning)
-                        .frame(width: 4)
-                        .padding(.vertical, AppTheme.spacingSmall)
-                }
-        } else {
-            CoDesignCard(style: .bordered) { cardBody }
+        let accentColor: Color = {
+            if isConfirmed { return .success }
+            if isRejected { return .warning }
+            return .primaryAccent.opacity(0.0)
+        }()
+
+        return VStack {
+            cardBody
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                .fill(Color.elevatedCardBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                .strokeBorder(
+                    isConfirmed || isRejected ? accentColor.opacity(0.25) : Color.primaryAccent.opacity(0.06),
+                    lineWidth: AppTheme.Border.thin
+                )
+        )
+        .overlay(alignment: .leading) {
+            if isConfirmed || isRejected {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(accentColor)
+                    .frame(width: 3)
+                    .padding(.vertical, 10)
+            }
         }
     }
 

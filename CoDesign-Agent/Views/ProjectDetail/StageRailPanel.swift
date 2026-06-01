@@ -43,9 +43,8 @@ struct StageRailPanel: View {
                 }
             }
 
-            Spacer(minLength: AppTheme.spacingMedium)
-
             progressFooter
+                .padding(.top, AppTheme.spacingSmall)
         }
         .padding(AppTheme.Layout.cardPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -62,11 +61,11 @@ struct StageRailPanel: View {
 
     private var panelHeader: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-            Text("STAGE RAIL")
+            Text("阶段面板")
                 .font(AppTheme.Typography.captionMono)
                 .foregroundStyle(Color.textTertiary)
 
-            Text("9-stage design flow")
+            Text("9 阶段设计流程")
                 .font(AppTheme.Typography.subheadline.weight(.semibold))
                 .foregroundStyle(Color.textPrimary)
         }
@@ -82,7 +81,7 @@ struct StageRailPanel: View {
     private var progressFooter: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
             HStack {
-                Text("Stage Progress")
+                Text("阶段进度")
                     .font(AppTheme.Typography.caption.weight(.medium))
                     .foregroundStyle(Color.textSecondary)
 
@@ -98,7 +97,7 @@ struct StageRailPanel: View {
 
             if let activeStage, let currentDefinition {
                 VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-                    Text("You're in \(currentDefinition.shortSubtitle)")
+                    Text("当前阶段：\(currentDefinition.shortSubtitle)")
                         .font(AppTheme.Typography.caption.weight(.semibold))
                         .foregroundStyle(Color.textPrimary)
 
@@ -168,7 +167,7 @@ private struct StageRailRow: View {
                     .foregroundStyle(Color.textPrimary)
                     .lineLimit(1)
 
-                Text(definition?.shortSubtitle ?? "Design clarification")
+                Text(definition?.shortSubtitle ?? "设计澄清")
                     .font(.system(size: 11))
                     .foregroundStyle(Color.textTertiary)
                     .lineLimit(1)

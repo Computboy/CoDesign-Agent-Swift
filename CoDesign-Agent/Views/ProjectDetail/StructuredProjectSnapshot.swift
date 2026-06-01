@@ -31,7 +31,7 @@ struct StructuredProjectSnapshot: View {
             // Section header
             HStack {
                 VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-                    Text("Structured Project Snapshot")
+                    Text("结构化项目快照")
                         .font(AppTheme.Typography.headline)
                         .foregroundStyle(Color.textPrimary)
                     Text("\(filledCount) of \(displayFields.count) fields extracted")
@@ -47,7 +47,7 @@ struct StructuredProjectSnapshot: View {
                         // TODO: open bulk edit
                         print("[StructuredProjectSnapshot] Edit All tapped")
                     } label: {
-                        Label("Edit All", systemImage: "pencil.line")
+                        Label("编辑全部", systemImage: "pencil.line")
                             .font(AppTheme.Typography.caption.weight(.medium))
                             .foregroundStyle(Color.primaryAccent)
                             .padding(.horizontal, 10)
@@ -193,7 +193,7 @@ private struct FieldSnapshotCard: View {
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("Not defined yet")
+                Text("尚未定义")
                     .font(AppTheme.Typography.caption)
                     .foregroundStyle(Color.textTertiary)
                     .italic()

@@ -51,14 +51,14 @@ struct WorkspaceGlobalBar: View {
 
     private var autonomyControl: some View {
         HStack(spacing: AppTheme.spacingSmall) {
-            Text("AI-guided")
+            Text("AI 引导")
             VStack(spacing: 2) {
                 autonomyTrack
-                Text("Balanced")
+                Text("平衡")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(Color.primaryAccent)
             }
-            Text("User-led")
+            Text("用户主导")
         }
         .font(AppTheme.Typography.caption)
         .foregroundStyle(Color.textTertiary)
@@ -94,7 +94,7 @@ struct WorkspaceGlobalBar: View {
         HStack(spacing: AppTheme.spacingXS) {
             Image(systemName: "arrow.triangle.2.circlepath")
                 .font(.system(size: 10, weight: .semibold))
-            Text("Context Loop Active")
+            Text("上下文循环已激活")
                 .lineLimit(1)
         }
         .font(AppTheme.Typography.caption.weight(.medium))
@@ -113,7 +113,7 @@ struct WorkspaceGlobalBar: View {
         Button {
             onExportBrief()
         } label: {
-            Label("Export Brief", systemImage: "square.and.arrow.up")
+            Label("导出简报", systemImage: "square.and.arrow.up")
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(Color.primaryAccent)
                 .padding(.horizontal, 12)
@@ -130,7 +130,7 @@ struct WorkspaceGlobalBar: View {
 
     private var viewModeMenu: some View {
         Menu {
-            Picker("View Mode", selection: $selectedTab) {
+            Picker("视图模式", selection: $selectedTab) {
                 ForEach(ProjectDetailTab.allCases) { tab in
                     Label(tab.title, systemImage: tab.systemImage)
                         .tag(tab)
@@ -142,7 +142,7 @@ struct WorkspaceGlobalBar: View {
             Button {
                 selectedTab = .workspace
             } label: {
-                Label("Back to Workspace", systemImage: "square.grid.2x2")
+                Label("回到工作台", systemImage: "square.grid.2x2")
             }
         } label: {
             Image(systemName: "ellipsis.circle")

@@ -42,7 +42,7 @@ struct LearningTraceSection: View {
                 Spacer()
 
                 if !recentTraces.isEmpty {
-                    Text("\(recentTraces.count) records")
+                    Text("\(recentTraces.count) 条记录")
                         .font(AppTheme.Typography.captionMono)
                         .foregroundStyle(Color.textTertiary)
                 }
@@ -51,23 +51,17 @@ struct LearningTraceSection: View {
             if recentTraces.isEmpty {
                 emptyState
             } else {
-                // MARK: Carousel + optional overlay
-                ZStack(alignment: .top) {
-
-                    // Detail overlay — only visible when a card is tapped
-                    if showingDetail, let trace = selectedTrace {
-                        detailOverlay(for: trace)
-                            .transition(
-                                .move(edge: .top)
-                                .combined(with: .opacity)
-                            )
-                            .zIndex(1)
-                    }
-
-                    // Carousel always visible
-                    carousel
-                        .zIndex(0)
+                // Detail card — pushes carousel down when visible
+                if showingDetail, let trace = selectedTrace {
+                    detailCard(for: trace)
+                        .transition(
+                            .move(edge: .top)
+                            .combined(with: .opacity)
+                        )
                 }
+
+                // Carousel always visible below
+                carousel
             }
         }
     }
@@ -93,9 +87,9 @@ struct LearningTraceSection: View {
         }
     }
 
-    // MARK: - Detail Overlay (bubble)
+    // MARK: - Detail Card (pushes carousel down)
 
-    private func detailOverlay(for trace: LearningTrace) -> some View {
+    private func detailCard(for trace: LearningTrace) -> some View {
         let (icon, color) = iconAndColor(for: trace)
 
         return VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
@@ -211,7 +205,6 @@ struct LearningTraceSection: View {
         return Button {
             withAnimation(AppTheme.Animation.spring) {
                 if isSelected {
-                    // Tap same card → dismiss
                     showingDetail = false
                     selectedTrace = nil
                 } else {
@@ -224,11 +217,11 @@ struct LearningTraceSection: View {
 
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(isSelected ? color : Color.textTertiary)
+                    .foregroundStyle(isSelected ? color : color.opacity(0.65))
                     .frame(width: 30, height: 30)
                     .background(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(isSelected ? color.opacity(0.12) : Color.textTertiary.opacity(0.06))
+                            .fill(isSelected ? color.opacity(0.14) : color.opacity(0.08))
                     )
 
                 Spacer(minLength: 2)
@@ -242,7 +235,7 @@ struct LearningTraceSection: View {
                 HStack(spacing: 4) {
                     Text("S\(trace.stageOrder)")
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(isSelected ? color : Color.textTertiary)
+                        .foregroundStyle(Color.textTertiary)
                 }
             }
             .padding(12)
@@ -250,16 +243,17 @@ struct LearningTraceSection: View {
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(isSelected
-                        ? Color.primaryAccent.opacity(0.06)
-                        : Color.cardBackground)
+                        ? color.opacity(0.06)
+                        : Color.elevatedCardBackground)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Color.primaryAccent.opacity(0.40) : Color.primaryAccent.opacity(0.08),
+                        isSelected ? color.opacity(0.35) : color.opacity(0.08),
                         lineWidth: isSelected ? AppTheme.Border.medium : AppTheme.Border.thin
                     )
             )
+            .shadow(color: isSelected ? color.opacity(0.08) : Color.clear, radius: 6, x: 0, y: 2)
             .scaleEffect(isSelected ? 1.03 : 1.0)
         }
         .buttonStyle(.plain)

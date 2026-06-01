@@ -129,7 +129,7 @@ struct CurrentClarificationCard: View {
     private var stageHeader: some View {
         HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
             VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-                Text("Current Clarification")
+                Text("当前澄清")
                     .font(AppTheme.Typography.headline)
                     .foregroundStyle(Color.textPrimary)
 
@@ -283,7 +283,7 @@ struct CurrentClarificationCard: View {
 
     private var relatedFieldsSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-            Text("This may update")
+            Text("可能更新")
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(Color.textSecondary)
 
@@ -313,7 +313,7 @@ struct CurrentClarificationCard: View {
 
     private var whyAskSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-            Label("Why I'm asking", systemImage: "questionmark.circle")
+            Label("追问意图", systemImage: "questionmark.circle")
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(Color.textSecondary)
 

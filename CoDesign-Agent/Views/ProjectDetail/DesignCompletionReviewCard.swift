@@ -17,17 +17,17 @@ struct DesignCompletionReviewCard: View {
     private var keyFields: [(label: String, value: String)] {
         var fields: [(String, String)] = []
         if let v = project.brief?.targetUser, !v.isEmpty {
-            fields.append(("Target User", v))
+            fields.append((BriefField.targetUser.displayName, v))
         }
         if let v = project.brief?.painPoint, !v.isEmpty {
-            fields.append(("Core Pain Point", v))
+            fields.append((BriefField.painPoint.displayName, v))
         }
         if let v = project.brief?.mvpFeatures, !v.isEmpty {
-            fields.append(("MVP Features", v))
+            fields.append((BriefField.mvpFeatures.displayName, v))
         }
         let metricsCount = project.brief?.successMetrics.count ?? 0
         if metricsCount > 0 {
-            fields.append(("Success Metrics", "\(metricsCount) metrics defined"))
+            fields.append((BriefField.successMetrics.displayName, "已定义 \(metricsCount) 项指标"))
         }
         return fields
     }
@@ -86,11 +86,11 @@ struct DesignCompletionReviewCard: View {
                 )
 
             VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-                Text("Design Brief Ready")
+                Text("设计简报已完成")
                     .font(AppTheme.Typography.headline)
                     .foregroundStyle(Color.textPrimary)
 
-                Text("Your 9-stage clarification is complete. You can now review, export, or refine the brief.")
+                Text("9 阶段设计澄清已完成。你可以查看简报、导出、或继续优化。")
                     .font(AppTheme.Typography.caption)
                     .foregroundStyle(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -106,7 +106,7 @@ struct DesignCompletionReviewCard: View {
 
     private var summarySection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-            Text("Key Fields")
+            Text("关键字段")
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(Color.textSecondary)
 
@@ -141,7 +141,7 @@ struct DesignCompletionReviewCard: View {
                 Button {
                     onExport()
                 } label: {
-                    Label("Export Brief", systemImage: "square.and.arrow.up")
+                    Label("导出简报", systemImage: "square.and.arrow.up")
                         .font(AppTheme.Typography.caption.weight(.semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 14)
@@ -157,7 +157,7 @@ struct DesignCompletionReviewCard: View {
                     // TODO: integrate tab switch to Insights
                     print("[DesignCompletionReviewCard] Review Brief tapped – switch to Insights tab")
                 } label: {
-                    Label("Review Brief", systemImage: "doc.text.magnifyingglass")
+                    Label("查看简报", systemImage: "doc.text.magnifyingglass")
                         .font(AppTheme.Typography.caption.weight(.medium))
                         .foregroundStyle(Color.primaryAccent)
                         .padding(.horizontal, 14)
@@ -176,7 +176,7 @@ struct DesignCompletionReviewCard: View {
                     // TODO: implement stage navigation
                     print("[DesignCompletionReviewCard] Revisit Previous Stage tapped")
                 } label: {
-                    Label("Revisit Previous Stage", systemImage: "arrow.counterclockwise")
+                    Label("回到上一阶段", systemImage: "arrow.counterclockwise")
                         .font(AppTheme.Typography.caption.weight(.medium))
                         .foregroundStyle(Color.textSecondary)
                         .padding(.horizontal, 14)
@@ -195,7 +195,7 @@ struct DesignCompletionReviewCard: View {
                 Button {
                     onSend("继续优化")
                 } label: {
-                    Label("Continue Refinement", systemImage: "bubble.left.and.bubble.right")
+                    Label("继续优化", systemImage: "bubble.left.and.bubble.right")
                         .font(AppTheme.Typography.caption.weight(.medium))
                         .foregroundStyle(Color.textSecondary)
                         .padding(.horizontal, 14)
