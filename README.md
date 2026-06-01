@@ -330,7 +330,7 @@ do {
 
 | 版本 | 时间 | 内容 |
 |------|------|------|
-| v0.3.2 | 2026-06 | 工作台结构性布局修复：wide layout 改为单一页面级滚动，移除三栏独立滚动条；移除中间顶部 AIContextNotice；AI 回复文本撑满卡片宽度并固定回复区域高度；发送按钮使用 `.buttonStyle(.plain)` 避免默认灰色背景叠加；去重 ProcessLogDisclosure。 |
+| v0.3.2 | 2026-06 | 工作台结构性布局修复：wide layout 保留单一页面级滚动但隐藏滚动指示器，移除三栏独立滚动条；移除中间顶部 AIContextNotice；AI 回复文本撑满卡片宽度并固定回复区域高度；发送输入框移入“当前澄清”卡片并置于快捷操作上方；发送按钮使用 `.buttonStyle(.plain)` 避免默认灰色背景叠加；去重 ProcessLogDisclosure。 |
 | v0.3.1 | 2026-05 | UI polish：去除调试文字、空卡片按钮优化、ReflectionCard 按阶段差异化、项目列表宽屏 Grid 布局、统一圆角阴影 |
 | v0.3 | 2026-05 | 澄清工作台、CoDesign 设计系统、可编辑洞察卡片（滑动手势）、过程记录、快捷操作 |
 | v0.2.1 | — | API 配置泛化、设置页、Markdown 渲染、键盘交互优化 |

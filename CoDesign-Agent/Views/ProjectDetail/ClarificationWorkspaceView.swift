@@ -56,7 +56,7 @@ struct ClarificationWorkspaceView: View {
                 .frame(minHeight: max(proxy.size.height - AppTheme.spacingLarge * 2, 0), alignment: .top)
                 .padding(AppTheme.spacingLarge)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.hidden, axes: .vertical)
         }
     }
 
@@ -135,11 +135,7 @@ private struct CurrentWorkspaceColumn: View {
                     project: project,
                     isStreaming: chatViewModel.isStreaming,
                     streamingText: chatViewModel.currentStreamingText,
-                    onQuickAction: send
-                )
-
-                AnswerComposer(
-                    isStreaming: chatViewModel.isStreaming,
+                    onQuickAction: send,
                     onSend: send
                 )
             }

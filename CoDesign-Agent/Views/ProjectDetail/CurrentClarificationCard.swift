@@ -9,6 +9,7 @@ struct CurrentClarificationCard: View {
     let isStreaming: Bool
     let streamingText: String
     let onQuickAction: (String) -> Void
+    let onSend: (String) -> Void
     private let responseAreaHeight: CGFloat = 190
 
     // MARK: - State
@@ -120,6 +121,10 @@ struct CurrentClarificationCard: View {
                 }
 
                 contextSection
+                AnswerComposer(
+                    isStreaming: isStreaming,
+                    onSend: onSend
+                )
                 quickActionsSection
             }
         }
@@ -396,7 +401,8 @@ private struct ClarificationQuickAction: Identifiable {
                 project: Project(name: "新项目", briefDescription: ""),
                 isStreaming: false,
                 streamingText: "",
-                onQuickAction: { text in print("Quick action: \(text)") }
+                onQuickAction: { text in print("Quick action: \(text)") },
+                onSend: { text in print("Send: \(text)") }
             )
 
             // Has response
@@ -412,7 +418,8 @@ private struct ClarificationQuickAction: Identifiable {
                 }(),
                 isStreaming: false,
                 streamingText: "",
-                onQuickAction: { text in print("Quick action: \(text)") }
+                onQuickAction: { text in print("Quick action: \(text)") },
+                onSend: { text in print("Send: \(text)") }
             )
 
             // Streaming with text
@@ -426,7 +433,8 @@ private struct ClarificationQuickAction: Identifiable {
                 }(),
                 isStreaming: true,
                 streamingText: "让我想想你的核心价值主张...",
-                onQuickAction: { text in print("Quick action: \(text)") }
+                onQuickAction: { text in print("Quick action: \(text)") },
+                onSend: { text in print("Send: \(text)") }
             )
 
             // Streaming with empty text (safety check)
@@ -440,7 +448,8 @@ private struct ClarificationQuickAction: Identifiable {
                 }(),
                 isStreaming: true,
                 streamingText: "",
-                onQuickAction: { text in print("Quick action: \(text)") }
+                onQuickAction: { text in print("Quick action: \(text)") },
+                onSend: { text in print("Send: \(text)") }
             )
         }
         .padding()
