@@ -251,7 +251,8 @@ docs/
 ├── product-brief.md
 ├── v0.1-mvp-spec.md
 ├── v0.2-spec.md
-└── v0.2.1-release-notes.md
+├── v0.2.1-release-notes.md
+└── v0.3-duetui-design-goals-and-flow.md
 ```
 
 ## 架构说明
@@ -340,7 +341,8 @@ do {
 - [产品愿景与设计原则](docs/product-brief.md)
 - [MVP 技术规格 (v0.1)](docs/v0.1-mvp-spec.md)
 - [Live API 集成规格 (v0.2)](docs/v0.2-spec.md)
-- [最新版本说明 (v0.2.1)](docs/v0.2.1-release-notes.md)
+- [Duet UI 设计目标与流程 (v0.3)](docs/v0.3-duetui-design-goals-and-flow.md)
+- [最新版本说明 (v0.3.1)](#版本历史)
 
 ## License
 
