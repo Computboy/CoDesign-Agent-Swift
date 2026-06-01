@@ -53,7 +53,7 @@ struct CurrentClarificationCard: View {
     }
 
     private var questionFont: Font {
-        Font.system(.title3, design: .default).weight(.medium)
+        Font.system(.title3, design: .default)
     }
 
     private var relatedFields: [BriefField] {
@@ -200,17 +200,21 @@ struct CurrentClarificationCard: View {
                         .foregroundStyle(Color.textSecondary)
                 }
             } else {
-                if let attributed = try? AttributedString(markdown: streamingText) {
-                    Text(attributed)
-                        .font(questionFont)
-                        .foregroundStyle(Color.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text(streamingText)
-                        .font(questionFont)
-                        .foregroundStyle(Color.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
+                ScrollView(.vertical, showsIndicators: false) {
+                    if let attributed = try? AttributedString(markdown: streamingText) {
+                        Text(attributed)
+                            .font(questionFont)
+                            .foregroundStyle(Color.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text(streamingText)
+                            .font(questionFont)
+                            .foregroundStyle(Color.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .scrollIndicators(.hidden)
+                .frame(maxHeight: 220)
 
                 HStack(spacing: 4) {
                     ProgressView()
@@ -231,17 +235,21 @@ struct CurrentClarificationCard: View {
                     .foregroundStyle(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                if let attributed = try? AttributedString(markdown: latestAssistantText) {
-                    Text(attributed)
-                        .font(questionFont)
-                        .foregroundStyle(Color.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text(latestAssistantText)
-                        .font(questionFont)
-                        .foregroundStyle(Color.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
+                ScrollView(.vertical, showsIndicators: false) {
+                    if let attributed = try? AttributedString(markdown: latestAssistantText) {
+                        Text(attributed)
+                            .font(questionFont)
+                            .foregroundStyle(Color.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text(latestAssistantText)
+                            .font(questionFont)
+                            .foregroundStyle(Color.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .scrollIndicators(.hidden)
+                .frame(maxHeight: 220)
             }
         }
     }

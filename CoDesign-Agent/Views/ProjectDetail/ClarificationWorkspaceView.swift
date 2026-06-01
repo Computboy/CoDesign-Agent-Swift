@@ -31,52 +31,52 @@ struct ClarificationWorkspaceView: View {
         .background(Color.appBackground)
     }
 
-    // MARK: - Wide Layout (three-column)
+    // MARK: - Wide Layout (three-column, unified height)
 
     private var wideLayout: some View {
         GeometryReader { proxy in
             let availableWidth = proxy.size.width
             let sideWidth = clamp(availableWidth * 0.23, min: 240, max: 340)
 
-            VStack(spacing: AppTheme.spacingLarge) {
-                HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
+            HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
+                ScrollView(.vertical, showsIndicators: false) {
                     StageRailPanel(project: project)
-                        .frame(width: sideWidth)
-                        .frame(maxHeight: .infinity)
-
-                    ScrollView {
-                        CurrentWorkspaceColumn(
-                            project: project,
-                            chatViewModel: chatViewModel,
-                            onExportBrief: onExportBrief
-                        )
-                        .padding(.bottom, 40)
-                    }
-                    .scrollIndicators(.hidden)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                    ScrollView {
-                        InsightCardsPanel(project: project)
-                            .padding(.bottom, AppTheme.spacingLarge)
-                    }
-                    .scrollIndicators(.hidden)
-                    .frame(width: sideWidth)
-                    .frame(maxHeight: .infinity)
                 }
-                .frame(maxHeight: .infinity)
+                .scrollIndicators(.hidden)
+                .frame(width: sideWidth)
 
-                ProcessLogDisclosure(
-                    messages: project.messages,
-                    isStreaming: chatViewModel.isStreaming,
-                    streamingText: chatViewModel.currentStreamingText
-                )
+                ScrollView(.vertical, showsIndicators: false) {
+                    CurrentWorkspaceColumn(
+                        project: project,
+                        chatViewModel: chatViewModel,
+                        onExportBrief: onExportBrief
+                    )
+
+                    ProcessLogDisclosure(
+                        messages: project.messages,
+                        isStreaming: chatViewModel.isStreaming,
+                        streamingText: chatViewModel.currentStreamingText
+                    )
+                    .padding(.top, AppTheme.spacingLarge)
+                    .padding(.bottom, 40)
+                }
+                .scrollIndicators(.hidden)
+                .frame(maxWidth: .infinity)
+
+                ScrollView(.vertical, showsIndicators: false) {
+                    InsightCardsPanel(project: project)
+                        .padding(.bottom, AppTheme.spacingLarge)
+                }
+                .scrollIndicators(.hidden)
+                .frame(width: sideWidth)
             }
+            .frame(maxHeight: .infinity)
             .padding(AppTheme.spacingLarge)
         }
     }
 
     private var narrowLayout: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: AppTheme.spacingMedium) {
                 WorkspaceHeader(project: project)
                 StageRail(stages: project.stages)
@@ -89,12 +89,6 @@ struct ClarificationWorkspaceView: View {
                 )
 
                 InsightCardsPanel(project: project)
-
-                ProcessLogDisclosure(
-                    messages: project.messages,
-                    isStreaming: chatViewModel.isStreaming,
-                    streamingText: chatViewModel.currentStreamingText
-                )
             }
             .padding(.horizontal, AppTheme.spacingMedium)
             .padding(.vertical, AppTheme.spacingSmall)
@@ -183,6 +177,12 @@ private struct CurrentWorkspaceColumn: View {
                     }
                 }
             }
+
+            ProcessLogDisclosure(
+                messages: project.messages,
+                isStreaming: chatViewModel.isStreaming,
+                streamingText: chatViewModel.currentStreamingText
+            )
         }
     }
 

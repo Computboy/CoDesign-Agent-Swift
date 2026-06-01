@@ -43,7 +43,7 @@ struct AIContextNotice: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, AppTheme.spacingMedium)
+        .padding(.horizontal, AppTheme.Layout.cardPadding)
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)

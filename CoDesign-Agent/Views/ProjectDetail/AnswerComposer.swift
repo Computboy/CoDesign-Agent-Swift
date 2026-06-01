@@ -16,49 +16,46 @@ struct AnswerComposer: View {
     }
 
     var body: some View {
-        VStack(spacing: AppTheme.spacingSmall) {
-            // Input area
-            HStack(alignment: .bottom, spacing: AppTheme.spacingSmall) {
-                // Text field
-                TextField("输入你的想法...", text: $inputText, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .lineLimit(1...4)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
-                            .fill(Color.cardBackground)
-                    )
-                    .disabled(isStreaming)
-                    .onSubmit {
-                        send()
-                    }
+        HStack(alignment: .bottom, spacing: AppTheme.spacingSmall) {
+            TextField("输入你的想法...", text: $inputText, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(1...4)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                        .fill(Color.elevatedCardBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                        .strokeBorder(Color.primaryAccent.opacity(0.08), lineWidth: AppTheme.Border.thin)
+                )
+                .disabled(isStreaming)
+                .onSubmit { send() }
 
-                // Send button
-                Button {
-                    send()
-                } label: {
-                    Group {
-                        if isStreaming {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(.white)
-                        } else {
-                            Image(systemName: "arrow.up")
-                                .font(.system(size: 14, weight: .bold))
-                        }
+            Button {
+                send()
+            } label: {
+                Group {
+                    if isStreaming {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 14, weight: .bold))
                     }
-                    .foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
-                    .background(
-                        Circle()
-                            .fill(canSend ? Color.primaryAccent : Color.textTertiary)
-                    )
                 }
-                .disabled(!canSend)
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(
+                    Circle()
+                        .fill(canSend ? Color.primaryAccent : Color.textTertiary)
+                )
             }
-            .padding(.horizontal, AppTheme.spacingMedium)
+            .disabled(!canSend)
         }
+        .padding(.horizontal, AppTheme.Layout.cardPadding)
         .padding(.vertical, AppTheme.spacingSmall)
     }
 
