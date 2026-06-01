@@ -106,7 +106,6 @@ struct CurrentClarificationCard: View {
     var body: some View {
         CoDesignCard(style: .normal) {
             VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
-
                 stageHeader
 
                 switch cardState {
@@ -127,7 +126,9 @@ struct CurrentClarificationCard: View {
                 )
                 quickActionsSection
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Stage Header
