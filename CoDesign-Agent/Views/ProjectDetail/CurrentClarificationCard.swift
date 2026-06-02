@@ -281,27 +281,44 @@ struct CurrentClarificationCard: View {
     // MARK: - Context
 
     private var contextSection: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: AppTheme.spacingMedium) {
-                if !whyAsk.isEmpty {
-                    whyAskSection
+        VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: AppTheme.spacingMedium) {
+                    if !whyAsk.isEmpty {
+                        whyAskSection
+                    }
+
+                    if !relatedFields.isEmpty {
+                        relatedFieldsSection
+                    }
                 }
 
-                if !relatedFields.isEmpty {
-                    relatedFieldsSection
+                VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+                    if !whyAsk.isEmpty {
+                        whyAskSection
+                    }
+
+                    if !relatedFields.isEmpty {
+                        relatedFieldsSection
+                    }
                 }
             }
 
-            VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
-                if !whyAsk.isEmpty {
-                    whyAskSection
-                }
-
-                if !relatedFields.isEmpty {
-                    relatedFieldsSection
-                }
-            }
+            ResourceCardPanel(
+                project: project,
+                title: "前沿资源推荐",
+                subtitle: "联网检索论文，并结合当前阶段补充方法与案例。"
+            )
         }
+        .padding(AppTheme.spacingSmall)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .fill(Color.orange.opacity(0.035))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.82), lineWidth: AppTheme.Border.thick)
+        )
     }
 
     private var relatedFieldsSection: some View {

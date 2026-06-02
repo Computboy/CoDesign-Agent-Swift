@@ -52,6 +52,10 @@ struct ProjectDetailView: View {
                                 print("[WorkspaceGlobalBar] Export Brief tapped for project: \(project.name)")
                             }
                         )
+                    case .visualBoard:
+                        VisualBoardView(project: project)
+                    case .portfolio:
+                        VisualPortfolioView(project: project)
                     case .chat:
                         ChatPanel(
                             project: project,

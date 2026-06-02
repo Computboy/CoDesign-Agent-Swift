@@ -4,6 +4,7 @@ import SwiftData
 struct ProjectListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Project.updatedAt, order: .reverse) private var projects: [Project]
+    @Namespace private var projectTransitionNamespace
     @State private var viewModel = ProjectListViewModel()
     @State private var isShowingNewProject = false
     @State private var showingSettings = false
@@ -72,10 +73,18 @@ struct ProjectListView: View {
                 ForEach(filtered) { project in
                     NavigationLink {
                         ProjectDetailView(project: project)
+                            .projectLibraryNavigationTransition(
+                                id: project.id,
+                                namespace: projectTransitionNamespace
+                            )
                     } label: {
                         ProjectCard(project: project)
+                            .projectLibraryTransitionSource(
+                                id: project.id,
+                                namespace: projectTransitionNamespace
+                            )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ProjectCardNavigationButtonStyle())
                     .contextMenu {
                         Button(role: .destructive) {
                             deleteProject(project)
@@ -102,6 +111,45 @@ struct ProjectListView: View {
             modelContext.delete(project)
             try? modelContext.save()
         }
+    }
+}
+
+// MARK: - Project Library Navigation Transition
+
+private extension View {
+    @ViewBuilder
+    func projectLibraryNavigationTransition<ID: Hashable>(
+        id: ID,
+        namespace: Namespace.ID
+    ) -> some View {
+        #if os(iOS)
+        self.navigationTransition(.zoom(sourceID: id, in: namespace))
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
+    func projectLibraryTransitionSource<ID: Hashable>(
+        id: ID,
+        namespace: Namespace.ID
+    ) -> some View {
+        #if os(iOS)
+        self.matchedTransitionSource(id: id, in: namespace)
+        #else
+        self
+        #endif
+    }
+}
+
+// MARK: - Project Card Navigation Feedback
+
+private struct ProjectCardNavigationButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.985 : 1.0)
+            .brightness(configuration.isPressed ? -0.015 : 0)
+            .animation(AppTheme.Animation.quick, value: configuration.isPressed)
     }
 }
 

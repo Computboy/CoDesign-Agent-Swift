@@ -30,6 +30,8 @@ struct WorkspaceGlobalBar: View {
 
             autonomyControl
             contextLoopBadge
+            visualBoardButton
+            portfolioButton
             exportButton
             viewModeMenu
         }
@@ -43,6 +45,8 @@ struct WorkspaceGlobalBar: View {
             Spacer()
 
             contextLoopBadge
+            visualBoardButton
+            portfolioButton
             viewModeMenu
         }
     }
@@ -105,6 +109,52 @@ struct WorkspaceGlobalBar: View {
             Capsule(style: .continuous)
                 .fill(Color.primaryAccent.opacity(0.06))
         )
+    }
+
+    // MARK: - Visual Board
+
+    private var visualBoardButton: some View {
+        Button {
+            withAnimation(AppTheme.Animation.standard) {
+                selectedTab = .visualBoard
+            }
+        } label: {
+            Label("成果看板", systemImage: ProjectDetailTab.visualBoard.systemImage)
+                .font(AppTheme.Typography.caption.weight(.semibold))
+                .foregroundStyle(selectedTab == .visualBoard ? Color.white : Color.primaryAccent)
+                .padding(.horizontal, 12)
+                .frame(height: 32)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(selectedTab == .visualBoard
+                              ? Color.primaryAccent
+                              : Color.primaryAccent.opacity(0.08))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Portfolio
+
+    private var portfolioButton: some View {
+        Button {
+            withAnimation(AppTheme.Animation.standard) {
+                selectedTab = .portfolio
+            }
+        } label: {
+            Label("作品档案", systemImage: ProjectDetailTab.portfolio.systemImage)
+                .font(AppTheme.Typography.caption.weight(.semibold))
+                .foregroundStyle(selectedTab == .portfolio ? Color.white : Color.primaryAccent)
+                .padding(.horizontal, 12)
+                .frame(height: 32)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(selectedTab == .portfolio
+                              ? Color.primaryAccent
+                              : Color.primaryAccent.opacity(0.08))
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Export

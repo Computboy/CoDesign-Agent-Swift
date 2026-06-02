@@ -5,6 +5,8 @@ import Observation
 
 enum ProjectDetailTab: String, CaseIterable, Identifiable {
     case workspace
+    case visualBoard
+    case portfolio
     case chat
     case progress
     case insights
@@ -14,6 +16,8 @@ enum ProjectDetailTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .workspace: return "工作台"
+        case .visualBoard: return "成果"
+        case .portfolio: return "作品档案"
         case .chat: return "对话"
         case .progress: return "进度"
         case .insights: return "洞察"
@@ -23,6 +27,8 @@ enum ProjectDetailTab: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .workspace: return "square.grid.2x2"
+        case .visualBoard: return "chart.xyaxis.line"
+        case .portfolio: return "rectangle.stack"
         case .chat: return "bubble.left.and.bubble.right"
         case .progress: return "chart.line.uptrend.xyaxis"
         case .insights: return "sparkles"
