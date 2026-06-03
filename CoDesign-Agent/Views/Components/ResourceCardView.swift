@@ -64,11 +64,11 @@ struct ResourceCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.orange.opacity(0.055))
+                .fill(Color.elevatedCardBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.36), lineWidth: AppTheme.Border.thin)
+                .strokeBorder(Color.orange.opacity(0.28), lineWidth: AppTheme.Border.thin)
         )
         .scaleEffect(isExpanded ? 1.01 : 1.0)
         .coDesignShadow(.card)

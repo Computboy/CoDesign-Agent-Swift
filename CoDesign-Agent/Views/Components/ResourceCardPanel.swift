@@ -11,12 +11,13 @@ struct ResourceCardPanel: View {
     @State private var onlinePapers: [ResourceCard] = []
     @State private var isSearchingPapers = false
     @State private var paperSearchFailed = false
+    @State private var isExpanded = false
 
     private var recommendations: [ResourceCard] {
         let local = recommendationService.recommend(
             currentStageOrder: project.currentStageOrder,
             brief: project.brief,
-            recentMessage: project.latestConversationText
+            recentMessage: latestSearchContext
         )
         let combined = onlinePapers + local.filter { localResource in
             !onlinePapers.contains(where: { $0.id == localResource.id })
@@ -26,45 +27,58 @@ struct ResourceCardPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
-            HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
-                CoDesignSectionHeader(title: title, subtitle: subtitle)
-
-                Spacer(minLength: AppTheme.spacingSmall)
-
-                if isSearchingPapers {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(Color.orange)
-                } else {
-                    Image(systemName: onlinePapers.isEmpty ? "network" : "checkmark.circle.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(onlinePapers.isEmpty ? Color.orange : Color.success)
+            Button {
+                withAnimation(AppTheme.Animation.spring) {
+                    isExpanded.toggle()
                 }
-            }
-
-            if !onlinePapers.isEmpty {
-                Label("已联网检索前沿论文", systemImage: "globe.asia.australia")
-                    .font(AppTheme.Typography.caption.weight(.semibold))
-                    .foregroundStyle(Color.orange)
-            } else if paperSearchFailed {
-                Label("论文检索暂不可用，先显示本地课程资源", systemImage: "wifi.slash")
-                    .font(AppTheme.Typography.caption.weight(.semibold))
-                    .foregroundStyle(Color.textTertiary)
-            }
-
-            if recommendations.isEmpty {
-                Text("当前阶段暂无推荐资源。继续对话后，系统会补充更贴近项目的参考内容。")
-                    .font(AppTheme.Typography.caption)
-                    .foregroundStyle(Color.textTertiary)
-                    .padding(AppTheme.spacingMedium)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.elevatedCardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            } else {
-                VStack(spacing: AppTheme.spacingSmall) {
-                    ForEach(recommendations) { resource in
-                        ResourceCardView(resource: resource)
+            } label: {
+                HStack(alignment: .center, spacing: AppTheme.spacingSmall) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(title)
+                            .font(AppTheme.Typography.headline)
+                            .foregroundStyle(Color.textPrimary)
+                        Text(statusText)
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(Color.textTertiary)
                     }
+
+                    Spacer(minLength: AppTheme.spacingSmall)
+
+                    if isSearchingPapers {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(Color.orange)
+                    } else {
+                        Image(systemName: onlinePapers.isEmpty ? "network" : "checkmark.circle.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(onlinePapers.isEmpty ? Color.orange : Color.success)
+                    }
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.textTertiary)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                if recommendations.isEmpty {
+                    Text("当前阶段暂无推荐资源。继续对话后，系统会补充更贴近项目的参考内容。")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(Color.textTertiary)
+                        .padding(AppTheme.spacingMedium)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white.opacity(0.88))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                } else {
+                    VStack(spacing: AppTheme.spacingSmall) {
+                        ForEach(recommendations) { resource in
+                            ResourceCardView(resource: resource)
+                        }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
         }
@@ -72,16 +86,29 @@ struct ResourceCardPanel: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
-                .fill(Color.orange.opacity(0.045))
+                .fill(Color.elevatedCardBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.62), lineWidth: AppTheme.Border.medium)
+                .strokeBorder(Color.orange.opacity(0.52), lineWidth: AppTheme.Border.medium)
         )
         .coDesignShadow(.card)
-        .task(id: "\(project.currentStageOrder)-\(project.latestConversationText ?? "")") {
+        .task(id: "\(project.currentStageOrder)-\(latestSearchContext)") {
             await loadOnlinePapers()
         }
+    }
+
+    private var statusText: String {
+        if isSearchingPapers {
+            return "正在联网检索与你主题相关的论文..."
+        }
+        if !onlinePapers.isEmpty {
+            return "已联网找到 \(onlinePapers.count) 篇相关论文，点击展开"
+        }
+        if paperSearchFailed {
+            return "论文检索暂不可用，点击查看本地课程资源"
+        }
+        return subtitle
     }
 
     private func loadOnlinePapers() async {
@@ -91,7 +118,7 @@ struct ResourceCardPanel: View {
             onlinePapers = try await paperSearchService.searchPapers(
                 stageOrder: project.currentStageOrder,
                 brief: project.brief,
-                recentMessage: project.latestConversationText
+                recentMessage: latestSearchContext
             )
             paperSearchFailed = onlinePapers.isEmpty
         } catch {
@@ -99,6 +126,12 @@ struct ResourceCardPanel: View {
             paperSearchFailed = true
         }
         isSearchingPapers = false
+    }
+
+    private var latestSearchContext: String {
+        [project.name, project.briefDescription, project.latestConversationText]
+            .compactMap { $0 }
+            .joined(separator: " ")
     }
 }
 
