@@ -76,15 +76,22 @@ final class ChatViewModel {
 
         // ⑥ 结构化提取（失败不中断对话）
         do {
-            let extracted = try await extractor.extract(
+            let outcome = try await extractor.extract(
                 from: payloadMessages,
                 existing: briefSnapshot
             )
             if let brief = project.brief {
-                brief.applyExtracted(extracted, context: context)
+                brief.applyValidatedExtraction(outcome: outcome, context: context)
             }
         } catch {
-            // v0.1: 提取失败静默处理
+            if let brief = project.brief {
+                let outcome = ExtractionOutcome.failed(
+                    source: .live,
+                    message: "Structured extraction threw an error: \(error)",
+                    attemptCount: 1
+                )
+                brief.applyValidatedExtraction(outcome: outcome, context: context)
+            }
         }
 
         // ⑦ 进度分析

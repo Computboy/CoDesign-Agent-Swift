@@ -9,6 +9,7 @@ struct AnswerComposer: View {
     let onSend: (String) -> Void
 
     @State private var inputText: String = ""
+    @FocusState private var isInputFocused: Bool
 
     private var canSend: Bool {
         !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -20,6 +21,7 @@ struct AnswerComposer: View {
             TextField("输入你的想法...", text: $inputText, axis: .vertical)
                 .textFieldStyle(.plain)
                 .lineLimit(1...4)
+                .focused($isInputFocused)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .background(
@@ -58,13 +60,31 @@ struct AnswerComposer: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, AppTheme.spacingSmall)
+        .task {
+            refocusWhenReady()
+        }
+        .onChange(of: isStreaming) { _, streaming in
+            if !streaming {
+                refocusWhenReady()
+            }
+        }
     }
 
     private func send() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         inputText = ""
+        isInputFocused = false
         onSend(text)
+    }
+
+    private func refocusWhenReady() {
+        guard !isStreaming else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !isStreaming else { return }
+            isInputFocused = true
+        }
     }
 }
 

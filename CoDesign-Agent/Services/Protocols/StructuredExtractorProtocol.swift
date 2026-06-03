@@ -4,5 +4,5 @@ protocol StructuredExtractorProtocol {
     func extract(
         from messages: [ChatPayloadMessage],
         existing: DesignBriefSnapshot?
-    ) async throws -> ExtractedFields
+    ) async throws -> ExtractionOutcome
 }

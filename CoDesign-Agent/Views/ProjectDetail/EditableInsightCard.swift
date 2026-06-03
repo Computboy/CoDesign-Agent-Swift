@@ -11,6 +11,7 @@ struct EditableInsightCard: View {
     let brief: DesignBrief
     let isConfirmed: Bool
     let isRejected: Bool
+    let reliabilityLog: ExtractionAuditLog?
     let onEdit: () -> Void
     let onConfirm: () -> Void
     let onReject: () -> Void
@@ -18,6 +19,7 @@ struct EditableInsightCard: View {
     @Environment(\.modelContext) private var modelContext
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging: Bool = false
+    @State private var isEvidenceExpanded: Bool = false
 
     private let swipeThreshold: CGFloat = 80
 
@@ -70,6 +72,17 @@ struct EditableInsightCard: View {
     }
 
     private var statusBadge: (status: CoDesignStatusBadge.Status, text: String) {
+        if let reliabilityLog {
+            let percent = Int((reliabilityLog.confidence * 100).rounded())
+            switch reliabilityLog.levelValue {
+            case .confirmed:
+                return (.complete, "Confirmed · \(percent)%")
+            case .needsReview:
+                return (.warning, "Needs Review · \(percent)%")
+            case .rejected:
+                return (.locked, "Rejected · \(percent)%")
+            }
+        }
         if isConfirmed { return (.complete, "已确认") }
         if isRejected { return (.warning, "需修正") }
         if isFilled { return (.info, "已提取") }
@@ -225,6 +238,11 @@ struct EditableInsightCard: View {
                     .foregroundStyle(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .lineLimit(2)
+
+                if let quote = reliabilityLog?.evidenceQuote,
+                   !quote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    evidenceChip(quote)
+                }
             } else {
                 Text("暂未提取，后续对话中会逐步补全")
                     .font(AppTheme.Typography.caption)
@@ -284,6 +302,40 @@ struct EditableInsightCard: View {
         }
     }
 
+    private func evidenceChip(_ quote: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                withAnimation(AppTheme.Animation.quick) {
+                    isEvidenceExpanded.toggle()
+                }
+            } label: {
+                Label("Evidence", systemImage: "quote.bubble")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.primaryAccent)
+                    .padding(.horizontal, 8)
+                    .frame(height: 22)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.primaryAccent.opacity(0.08))
+                    )
+            }
+            .buttonStyle(.plain)
+
+            if isEvidenceExpanded {
+                Text(quote)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textSecondary)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                            .fill(Color.primaryAccent.opacity(0.06))
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     private func quietFieldButton(
         _ title: String,
         icon: String,
@@ -320,6 +372,7 @@ struct EditableInsightCard: View {
                 }(),
                 isConfirmed: false,
                 isRejected: false,
+                reliabilityLog: nil,
                 onEdit: {},
                 onConfirm: {},
                 onReject: {}
@@ -335,6 +388,7 @@ struct EditableInsightCard: View {
                 }(),
                 isConfirmed: true,
                 isRejected: false,
+                reliabilityLog: nil,
                 onEdit: {},
                 onConfirm: {},
                 onReject: {}
@@ -350,6 +404,7 @@ struct EditableInsightCard: View {
                 }(),
                 isConfirmed: false,
                 isRejected: true,
+                reliabilityLog: nil,
                 onEdit: {},
                 onConfirm: {},
                 onReject: {}
@@ -361,6 +416,7 @@ struct EditableInsightCard: View {
                 brief: DesignBrief(),
                 isConfirmed: false,
                 isRejected: false,
+                reliabilityLog: nil,
                 onEdit: {},
                 onConfirm: {},
                 onReject: {}

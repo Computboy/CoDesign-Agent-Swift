@@ -38,6 +38,9 @@ final class DesignBrief {
     @Relationship(deleteRule: .cascade, inverse: \RiskItem.brief)
     var risks: [RiskItem]
 
+    @Relationship(deleteRule: .cascade, inverse: \ExtractionAuditLog.brief)
+    var extractionAuditLogs: [ExtractionAuditLog]
+
     // ── 阶段 9：项目阶段拆分与排期 ──
     var milestones: String?
 
@@ -59,6 +62,7 @@ final class DesignBrief {
         hardConstraints: String? = nil,
         successMetrics: [SuccessMetric] = [],
         risks: [RiskItem] = [],
+        extractionAuditLogs: [ExtractionAuditLog] = [],
         milestones: String? = nil
     ) {
         self.id = id
@@ -76,6 +80,7 @@ final class DesignBrief {
         self.hardConstraints = hardConstraints
         self.successMetrics = successMetrics
         self.risks = risks
+        self.extractionAuditLogs = extractionAuditLogs
         self.milestones = milestones
     }
 

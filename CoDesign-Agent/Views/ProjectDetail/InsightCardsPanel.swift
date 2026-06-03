@@ -10,6 +10,7 @@ import SwiftData
 struct InsightCardsPanel: View {
     let project: Project
 
+    @Environment(\.modelContext) private var modelContext
     @State private var confirmedFields: Set<String> = []
     @State private var rejectedFields: Set<String> = []
     @State private var editingField: BriefField?
@@ -46,6 +47,17 @@ struct InsightCardsPanel: View {
             }
 
             if let brief = project.brief {
+                ExtractionReviewView(
+                    brief: brief,
+                    onToast: { message, type in
+                        showToast(message, type: type)
+                    }
+                )
+
+                if let failure = brief.latestExtractionFailureLog() {
+                    extractionFailureNotice(failure)
+                }
+
                 // Field cards
                 ForEach(displayFields, id: \.rawValue) { field in
                     EditableInsightCard(
@@ -53,6 +65,7 @@ struct InsightCardsPanel: View {
                         brief: brief,
                         isConfirmed: confirmedFields.contains(field.rawValue),
                         isRejected: rejectedFields.contains(field.rawValue),
+                        reliabilityLog: brief.latestReliabilityLog(for: field),
                         onEdit: {
                             editingField = field
                         },
@@ -76,6 +89,8 @@ struct InsightCardsPanel: View {
                     .scaleEffect(recentlyConfirmedField == field.rawValue ? 1.02 : 1.0)
                     .animation(AppTheme.Animation.spring, value: recentlyConfirmedField)
                 }
+
+                ExtractionAuditDisclosure(brief: brief)
             } else {
                 VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
                     Text("暂无设计简报数据")
@@ -163,6 +178,202 @@ struct InsightCardsPanel: View {
             rejectedFields.insert(key)
             confirmedFields.remove(key)
         }
+    }
+
+    private func extractionFailureNotice(_ log: ExtractionAuditLog) -> some View {
+        HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.warning)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("本轮未可靠提取，已保留原字段")
+                    .font(AppTheme.Typography.caption.weight(.semibold))
+                    .foregroundStyle(Color.warning)
+                if let value = log.candidateValue {
+                    Text(value)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.textTertiary)
+                        .lineLimit(2)
+                }
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                .fill(Color.warning.opacity(0.08))
+        )
+    }
+}
+
+// MARK: - ExtractionReviewView
+
+private struct ExtractionReviewView: View {
+    let brief: DesignBrief
+    let onToast: (String, InlineToast.ToastType) -> Void
+
+    @Environment(\.modelContext) private var modelContext
+    @State private var editingLogID: UUID?
+    @State private var draftText: String = ""
+
+    private var pendingLogs: [ExtractionAuditLog] {
+        brief.pendingExtractionReviewLogs()
+    }
+
+    var body: some View {
+        if !pendingLogs.isEmpty {
+            VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+                HStack(spacing: AppTheme.spacingXS) {
+                    Image(systemName: "checkmark.seal")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.primaryAccent)
+                    Text("AI 提取了 \(pendingLogs.count) 个需要确认的字段")
+                        .font(AppTheme.Typography.caption.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
+                }
+
+                ForEach(pendingLogs, id: \.id) { log in
+                    reviewRow(log)
+                }
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                    .fill(Color.primaryAccent.opacity(0.06))
+            )
+        }
+    }
+
+    private func reviewRow(_ log: ExtractionAuditLog) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(fieldTitle(log.fieldName))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Text("Needs Review · \(Int((log.confidence * 100).rounded()))%")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.warning)
+                Spacer()
+            }
+
+            if editingLogID == log.id {
+                TextField("编辑候选值", text: $draftText, axis: .vertical)
+                    .font(AppTheme.Typography.caption)
+                    .textFieldStyle(.roundedBorder)
+            } else {
+                Text(log.candidateValue ?? "")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(3)
+            }
+
+            if let quote = log.evidenceQuote, !quote.isEmpty {
+                Text("“\(quote)”")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textTertiary)
+                    .lineLimit(2)
+            }
+
+            HStack(spacing: AppTheme.spacingXS) {
+                reviewButton("接受", icon: "checkmark", tint: .success) {
+                    brief.acceptPendingExtraction(log, context: modelContext)
+                    try? modelContext.save()
+                    onToast("\(fieldTitle(log.fieldName)) 已接受", .success)
+                }
+
+                reviewButton(editingLogID == log.id ? "保存" : "编辑", icon: "pencil", tint: .primaryAccent) {
+                    if editingLogID == log.id {
+                        brief.editPendingExtraction(log, editedValue: draftText, context: modelContext)
+                        editingLogID = nil
+                        draftText = ""
+                        try? modelContext.save()
+                        onToast("\(fieldTitle(log.fieldName)) 已编辑并写入", .success)
+                    } else {
+                        editingLogID = log.id
+                        draftText = log.candidateValue ?? ""
+                    }
+                }
+
+                reviewButton("忽略", icon: "xmark", tint: .textTertiary) {
+                    brief.ignorePendingExtraction(log)
+                    try? modelContext.save()
+                    onToast("\(fieldTitle(log.fieldName)) 已忽略", .info)
+                }
+            }
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                .fill(Color.elevatedCardBackground)
+        )
+    }
+
+    private func reviewButton(
+        _ title: String,
+        icon: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(tint)
+                .padding(.horizontal, 7)
+                .frame(height: 24)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(tint.opacity(0.08))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func fieldTitle(_ fieldName: String) -> String {
+        BriefField(rawValue: fieldName)?.displayName ?? fieldName
+    }
+}
+
+// MARK: - ExtractionAuditDisclosure
+
+private struct ExtractionAuditDisclosure: View {
+    let brief: DesignBrief
+
+    private var rejectedLogs: [ExtractionAuditLog] {
+        brief.extractionAuditLogs
+            .filter { $0.decisionValue == .rejected && $0.fieldName != "extraction" }
+            .sorted { $0.timestamp > $1.timestamp }
+            .prefix(5)
+            .map { $0 }
+    }
+
+    var body: some View {
+        if !rejectedLogs.isEmpty {
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(rejectedLogs, id: \.id) { log in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(fieldTitle(log.fieldName)) · Rejected · \(Int((log.confidence * 100).rounded()))%")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Color.textSecondary)
+                            Text(log.validationNotes.isEmpty ? (log.candidateValue ?? "") : log.validationNotes)
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.textTertiary)
+                                .lineLimit(2)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            } label: {
+                Text("Extraction Audit")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.textTertiary)
+            }
+        }
+    }
+
+    private func fieldTitle(_ fieldName: String) -> String {
+        BriefField(rawValue: fieldName)?.displayName ?? fieldName
     }
 }
 

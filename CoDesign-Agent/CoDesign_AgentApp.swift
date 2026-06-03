@@ -62,6 +62,7 @@ struct CoDesign_AgentApp: App {
             RiskItem.self,
             SuccessMetric.self,
             LearningTrace.self,
+            ExtractionAuditLog.self,
         ])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

@@ -8,7 +8,7 @@ enum ExtractionPromptTemplates {
         """
         你是一个设计项目结构化信息提取器。
 
-        你的任务是从用户和 AI 的对话中提取设计项目信息。
+        你的任务是从用户和 AI 的对话中提取设计项目信息，并为每个候选字段提供用户原话证据。
 
         严格要求：
         - 只输出 JSON
@@ -17,44 +17,29 @@ enum ExtractionPromptTemplates {
         - 不要用 ```json 包裹
         - 你的最终输出必须是一个可被 JSONDecoder 直接解析的 JSON object
         - 不要补充用户没有表达过的信息
-        - 没有提取到的字段请使用 null
-        - 如果某个字段没有从对话中明确出现，请填 null，不要推测或编造
-        - 数组字段如果没有提取到，请填 null，不要填空数组
+        - evidence.quote 必须逐字来自用户原话，不允许改写
+        - 不允许使用 AI 自己的回复作为 evidence
+        - 如果某个字段没有明确用户证据，value 必须为 null，evidence 必须为空数组
+        - 不要编造用户没有说过的信息
+        - confidence 是你对字段提取的自评，范围 0...1；本地系统会重新校验
+        - shouldAutoCommit 固定输出 false，由本地可靠性层决定是否自动写入
 
-        JSON schema（字段与 ExtractedFields 对齐）：
+        JSON schema（每个字段都是 ExtractedFieldCandidate envelope）：
         {
-          "targetUser": "string | null",
-          "painPoint": "string | null",
-          "useScenario": "string | null",
-          "coreValue": "string | null",
-          "differentiation": "string | null",
-          "boundaryItems": [
-            {
-              "content": "string",
-              "isIncluded": "boolean"
-            }
-          ],
-          "mvpFeatures": "string | null",
-          "technicalModules": "string | null",
-          "interactionFlow": "string | null",
-          "operationLogic": "string | null",
-          "hardConstraints": "string | null",
-          "successMetrics": [
-            {
-              "metric": "string",
-              "target": "string",
-              "measurement": "string | null"
-            }
-          ],
-          "risks": [
-            {
-              "desc": "string",
-              "probability": "number",
-              "impact": "number",
-              "mitigation": "string | null"
-            }
-          ],
-          "milestones": "string | null"
+          "targetUser": { "value": "string | null", "confidence": 0.0, "evidence": [{ "role": "user", "quote": "用户原话", "turnIndex": 0 }], "validationNotes": [], "shouldAutoCommit": false },
+          "painPoint": { "value": "string | null", "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false },
+          "useScenario": { "value": "string | null", "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false },
+          "coreValue": { "value": "string | null", "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false },
+          "differentiation": { "value": "string | null", "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false },
+          "boundaryItems": { "value": [{ "content": "string", "isIncluded": true }], "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false },
+          "mvpFeatures": { "value": "string | null", "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false },
+          "technicalModules": { "value": "string | null", "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false },
+          "interactionFlow": { "value": "string | null", "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false },
+          "operationLogic": { "value": "string | null", "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false },
+          "hardConstraints": { "value": "string | null", "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false },
+          "successMetrics": { "value": [{ "metric": "string", "target": "string", "measurement": "string | null" }], "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false },
+          "risks": { "value": [{ "desc": "string", "probability": 1, "impact": 1, "mitigation": "string | null" }], "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false },
+          "milestones": { "value": "string | null", "confidence": 0.0, "evidence": [], "validationNotes": [], "shouldAutoCommit": false }
         }
 
         字段说明：
@@ -126,19 +111,60 @@ enum ExtractionPromptTemplates {
         // 最近对话
         lines.append("## 最近对话")
         lines.append("")
-        for msg in recentMessages {
+        for (offset, msg) in recentMessages.enumerated() {
             let roleLabel: String
             switch msg.role {
             case "user": roleLabel = "用户"
             case "assistant": roleLabel = "AI"
             default: roleLabel = msg.role
             }
-            lines.append("[\(roleLabel)] \(msg.content)")
+            lines.append("[turnIndex=\(offset) role=\(msg.role) \(roleLabel)] \(msg.content)")
         }
 
         lines.append("")
-        lines.append("请只基于以上最近对话提取新的字段信息。只返回 JSON，不要任何额外内容。")
+        lines.append("请只基于以上最近对话提取新的字段信息。evidence.quote 必须从 role=user 的消息中逐字截取；不能引用 AI 消息。只返回 JSON，不要任何额外内容。")
 
         return lines.joined(separator: "\n")
+    }
+
+    static func repairPrompt(rawJSON: String, errorDescription: String) -> String {
+        """
+        修复下面的 JSON，使它符合 ExtractionEnvelope schema。
+        只修 JSON 语法和字段结构，不要新增没有用户证据的信息。
+        如果字段没有可靠用户证据，保留该字段 object，但把 value 设为 null、evidence 设为空数组。
+        只返回修复后的 JSON object。
+
+        解码错误：
+        \(errorDescription)
+
+        原始输出：
+        \(rawJSON)
+        """
+    }
+
+    static func validationRepairPrompt(
+        messages: [ChatPayloadMessage],
+        existing: DesignBriefSnapshot?,
+        invalidFieldNames: [String],
+        validationErrors: [String],
+        previousEnvelopeJSON: String
+    ) -> String {
+        """
+        上一次 ExtractionEnvelope JSON 未通过本地校验。
+        只修复这些 invalid fields：\(invalidFieldNames.joined(separator: ", "))
+        不要修改其他字段。
+        evidence.quote 必须逐字来自 role=user 的消息；不能使用 AI 回复作为证据。
+        如果某个 invalid field 没有可靠用户证据，把它的 value 设为 null、evidence 设为空数组。
+        只返回完整的修复后 JSON object。
+
+        校验错误：
+        \(validationErrors.joined(separator: "\n"))
+
+        对话上下文：
+        \(userPrompt(messages: messages, existing: existing))
+
+        上一次 JSON：
+        \(previousEnvelopeJSON)
+        """
     }
 }

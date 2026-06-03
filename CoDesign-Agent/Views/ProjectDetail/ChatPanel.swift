@@ -6,6 +6,7 @@ struct ChatPanel: View {
     let chatViewModel: ChatViewModel
 
     @State private var inputText: String = ""
+    @FocusState private var isInputFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -123,6 +124,7 @@ struct ChatPanel: View {
             TextField("输入你的想法...", text: $inputText, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...4)
+                .focused($isInputFocused)
                 .disabled(chatViewModel.isStreaming)
                 .onSubmit {
                     if canSend {
@@ -149,10 +151,27 @@ struct ChatPanel: View {
         }
         .padding()
         .background(Color.appBackground)
+        .task {
+            refocusWhenReady()
+        }
+        .onChange(of: chatViewModel.isStreaming) { _, streaming in
+            if !streaming {
+                refocusWhenReady()
+            }
+        }
     }
 
     private var canSend: Bool {
         !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !chatViewModel.isStreaming
+    }
+
+    private func refocusWhenReady() {
+        guard !chatViewModel.isStreaming else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !chatViewModel.isStreaming else { return }
+            isInputFocused = true
+        }
     }
 }

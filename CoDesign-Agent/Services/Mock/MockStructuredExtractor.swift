@@ -4,13 +4,18 @@ final class MockStructuredExtractor: StructuredExtractorProtocol {
     func extract(
         from messages: [ChatPayloadMessage],
         existing: DesignBriefSnapshot?
-    ) async throws -> ExtractedFields {
+    ) async throws -> ExtractionOutcome {
         // 模拟异步处理延迟
         try await Task.sleep(for: .milliseconds(300))
 
         // 找到最后一条用户消息
         guard let lastUserMessage = messages.last(where: { $0.role == "user" }) else {
-            return ExtractedFields()
+            return ExtractionOutcome(
+                source: .mock,
+                status: .succeeded,
+                envelope: ExtractionEnvelope(),
+                attemptCount: 1
+            )
         }
 
         let text = lastUserMessage.content
@@ -166,7 +171,21 @@ final class MockStructuredExtractor: StructuredExtractorProtocol {
             break
         }
 
-        return fields
+        let envelope = buildEnvelope(
+            from: fields,
+            evidenceQuote: lastUserMessage.content,
+            turnIndex: messages.lastIndex(where: { $0.role == "user" }) ?? 0
+        )
+        let validator = ExtractionSchemaValidator()
+        let report = validator.validate(envelope: envelope, messages: messages)
+        let scored = ExtractionConfidenceScorer().score(envelope: envelope, validationReport: report)
+        return ExtractionOutcome(
+            source: .mock,
+            status: .succeeded,
+            envelope: scored,
+            validationReport: report,
+            attemptCount: 1
+        )
     }
 
     // MARK: - Helper
@@ -181,5 +200,43 @@ final class MockStructuredExtractor: StructuredExtractorProtocol {
         let endIdx = text.index(text.startIndex, offsetBy: end)
         return String(text[startIdx..<endIdx])
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func buildEnvelope(
+        from fields: ExtractedFields,
+        evidenceQuote: String,
+        turnIndex: Int
+    ) -> ExtractionEnvelope {
+        let evidence = [EvidenceSpan(role: "user", quote: evidenceQuote, turnIndex: turnIndex)]
+        return ExtractionEnvelope(
+            targetUser: candidate(fields.targetUser, evidence: evidence),
+            painPoint: candidate(fields.painPoint, evidence: evidence),
+            useScenario: candidate(fields.useScenario, evidence: evidence),
+            coreValue: candidate(fields.coreValue, evidence: evidence),
+            differentiation: candidate(fields.differentiation, evidence: evidence),
+            boundaryItems: candidate(fields.boundaryItems, evidence: evidence),
+            mvpFeatures: candidate(fields.mvpFeatures, evidence: evidence),
+            technicalModules: candidate(fields.technicalModules, evidence: evidence),
+            interactionFlow: candidate(fields.interactionFlow, evidence: evidence),
+            operationLogic: candidate(fields.operationLogic, evidence: evidence),
+            hardConstraints: candidate(fields.hardConstraints, evidence: evidence),
+            successMetrics: candidate(fields.successMetrics, evidence: evidence),
+            risks: candidate(fields.risks, evidence: evidence),
+            milestones: candidate(fields.milestones, evidence: evidence)
+        )
+    }
+
+    private func candidate<Value: Codable>(
+        _ value: Value?,
+        evidence: [EvidenceSpan]
+    ) -> ExtractedFieldCandidate<Value>? {
+        guard let value else { return nil }
+        return ExtractedFieldCandidate(
+            value: value,
+            confidence: 0.82,
+            evidence: evidence,
+            validationNotes: ["mock extraction"],
+            shouldAutoCommit: false
+        )
     }
 }
