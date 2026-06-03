@@ -213,23 +213,12 @@ struct CurrentClarificationCard: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: responseAreaHeight, alignment: .leading)
             } else {
-                ScrollView(.vertical, showsIndicators: false) {
-                    if let attributed = try? AttributedString(markdown: streamingText) {
-                        Text(attributed)
-                            .font(questionFont)
-                            .foregroundStyle(Color.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        Text(streamingText)
-                            .font(questionFont)
-                            .foregroundStyle(Color.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .coDesignHideScrollIndicators()
-                .frame(maxWidth: .infinity, minHeight: responseAreaHeight, maxHeight: responseAreaHeight, alignment: .topLeading)
+                AssistantResponseViewport(
+                    text: streamingText,
+                    isStreaming: true,
+                    font: questionFont,
+                    height: responseAreaHeight
+                )
 
                 HStack(spacing: 4) {
                     ProgressView()
@@ -252,23 +241,12 @@ struct CurrentClarificationCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, minHeight: responseAreaHeight, alignment: .leading)
             } else {
-                ScrollView(.vertical, showsIndicators: false) {
-                    if let attributed = try? AttributedString(markdown: latestAssistantText) {
-                        Text(attributed)
-                            .font(questionFont)
-                            .foregroundStyle(Color.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        Text(latestAssistantText)
-                            .font(questionFont)
-                            .foregroundStyle(Color.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .coDesignHideScrollIndicators()
-                .frame(maxWidth: .infinity, minHeight: responseAreaHeight, maxHeight: responseAreaHeight, alignment: .topLeading)
+                AssistantResponseViewport(
+                    text: latestAssistantText,
+                    isStreaming: false,
+                    font: questionFont,
+                    height: responseAreaHeight
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -403,6 +381,227 @@ private struct ClarificationQuickAction: Identifiable {
     let prompt: String
 
     var id: String { title }
+}
+
+// MARK: - AssistantResponseViewport
+
+private struct AssistantResponseViewport: View {
+    let text: String
+    let isStreaming: Bool
+    let font: Font
+    let height: CGFloat
+
+    private let bottomID = "assistant-response-bottom"
+
+    var body: some View {
+        GeometryReader { proxy in
+            ScrollViewReader { scrollProxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if isStreaming {
+                            StreamingPlainAssistantText(text: text, font: font)
+                                .frame(width: proxy.size.width, alignment: .topLeading)
+                        } else {
+                            StructuredAssistantText(text: text, font: font)
+                                .frame(width: proxy.size.width, alignment: .topLeading)
+                        }
+
+                        Color.clear
+                            .frame(height: 1)
+                            .id(bottomID)
+                    }
+                    .frame(width: proxy.size.width, alignment: .topLeading)
+                }
+                .coDesignHideScrollIndicators()
+                .onAppear {
+                    scrollToBottom(scrollProxy)
+                }
+                .onChange(of: text) { _, _ in
+                    scrollToBottom(scrollProxy)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .topLeading)
+    }
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(30))
+            withAnimation(.linear(duration: 0.08)) {
+                proxy.scrollTo(bottomID, anchor: .bottom)
+            }
+        }
+    }
+}
+
+private struct StreamingPlainAssistantText: View {
+    let text: String
+    let font: Font
+
+    @State private var displayedText = ""
+    @State private var revealTask: Task<Void, Never>?
+
+    var body: some View {
+        Text(displayedText)
+            .font(font)
+            .foregroundStyle(Color.textPrimary)
+            .lineSpacing(6)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .onAppear {
+                reveal(toward: text)
+            }
+            .onChange(of: text) { _, newValue in
+                reveal(toward: newValue)
+            }
+            .onDisappear {
+                revealTask?.cancel()
+            }
+    }
+
+    private func reveal(toward target: String) {
+        revealTask?.cancel()
+
+        guard target.hasPrefix(displayedText) else {
+            displayedText = target
+            return
+        }
+
+        let suffix = String(target.dropFirst(displayedText.count))
+        guard !suffix.isEmpty else { return }
+
+        revealTask = Task { @MainActor in
+            var buffer = displayedText
+            var index = suffix.startIndex
+
+            while index < suffix.endIndex && !Task.isCancelled {
+                let nextIndex = suffix.index(index, offsetBy: suffix.count > 80 ? 4 : 1, limitedBy: suffix.endIndex) ?? suffix.endIndex
+                buffer.append(contentsOf: suffix[index..<nextIndex])
+                displayedText = buffer
+                index = nextIndex
+                try? await Task.sleep(for: .milliseconds(suffix.count > 80 ? 6 : 10))
+            }
+        }
+    }
+}
+
+private struct StructuredAssistantText: View {
+    let text: String
+    let font: Font
+
+    var body: some View {
+        let lines = formattedLines
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                if line.isSpacer {
+                    Color.clear.frame(height: 2)
+                } else if let label = line.label {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(label)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(labelTint(for: label))
+                            .padding(.horizontal, 8)
+                            .frame(height: 24)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(labelTint(for: label).opacity(0.09))
+                            )
+
+                        Text(line.body)
+                            .font(font)
+                            .foregroundStyle(Color.textPrimary)
+                            .lineSpacing(5)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else if let attributed = try? AttributedString(markdown: line.body) {
+                    Text(attributed)
+                        .font(font)
+                        .foregroundStyle(Color.textPrimary)
+                        .lineSpacing(5)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text(line.body)
+                        .font(font)
+                        .foregroundStyle(Color.textPrimary)
+                        .lineSpacing(5)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private var formattedLines: [StructuredAssistantLine] {
+        let rawLines = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+
+        if rawLines.count <= 1 {
+            return splitLongParagraph(text)
+        }
+
+        return rawLines.map { raw in
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return StructuredAssistantLine(isSpacer: true) }
+            if let parsed = parseTaggedLine(trimmed) {
+                return parsed
+            } else {
+                return StructuredAssistantLine(body: trimmed)
+            }
+        }
+    }
+
+    private func splitLongParagraph(_ value: String) -> [StructuredAssistantLine] {
+        let separators = CharacterSet(charactersIn: "。？！；")
+        let chunks = value
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard chunks.count > 1 else {
+            return [StructuredAssistantLine(body: value)]
+        }
+
+        return chunks.prefix(6).map { StructuredAssistantLine(body: $0) }
+    }
+
+    private func parseTaggedLine(_ line: String) -> StructuredAssistantLine? {
+        let knownLabels = ["理解", "线索", "选项", "追问", "例子", "下一步"]
+        for separator in ["｜", "|", "：", ":"] {
+            guard let range = line.range(of: separator) else { continue }
+            let label = String(line[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let body = String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard knownLabels.contains(label), !body.isEmpty else { continue }
+            return StructuredAssistantLine(label: label, body: body)
+        }
+        return nil
+    }
+
+    private func labelTint(for label: String) -> Color {
+        switch label {
+        case "理解": return .primaryAccent
+        case "线索": return .warning
+        case "选项", "例子": return .secondaryAccent
+        case "追问": return .success
+        default: return .textSecondary
+        }
+    }
+}
+
+private struct StructuredAssistantLine {
+    var label: String?
+    var body: String
+    var isSpacer: Bool
+
+    init(label: String? = nil, body: String = "", isSpacer: Bool = false) {
+        self.label = label
+        self.body = body
+        self.isSpacer = isSpacer
+    }
 }
 
 // MARK: - Preview

@@ -49,19 +49,14 @@ struct ChatPanel: View {
                     // 正在生成的消息
                     if chatViewModel.isStreaming && !chatViewModel.currentStreamingText.isEmpty {
                         HStack {
-                            Group {
-                                if let attributed = try? AttributedString(markdown: chatViewModel.currentStreamingText) {
-                                    Text(attributed)
-                                } else {
-                                    Text(chatViewModel.currentStreamingText)
-                                }
-                            }
+                            Text(chatViewModel.currentStreamingText)
+                                .fixedSize(horizontal: false, vertical: true)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                             .background(Color.cardBackground)
                             .foregroundStyle(Color.textPrimary)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .frame(maxWidth: 280, alignment: .leading)
+                            .frame(width: 280, alignment: .leading)
                             Spacer()
                         }
                         .id("streaming")
