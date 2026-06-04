@@ -97,6 +97,26 @@ final class ChatViewModel {
             }
         }
 
+        // ⑥.5 思维片段记录：检测新填充的字段，生成 ThinkingMoment
+        let updatedBriefSnapshot = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
+        let preBrief = briefSnapshot ?? DesignBriefSnapshot()
+        for field in BriefField.allCases {
+            let wasEmpty = !field.isFilled(in: preBrief)
+            let isNowFilled = field.isFilled(in: updatedBriefSnapshot)
+            if wasEmpty && isNowFilled {
+                let stageOrder = StageDefinition.all
+                    .first { $0.briefFields.contains(field) }?.order ?? 1
+                let moment = ThinkingMoment(
+                    momType: "deepen",
+                    content: field.displayName,
+                    stageOrder: stageOrder,
+                    relatedField: field.rawValue
+                )
+                context.insert(moment)
+                project.thinkingMoments.append(moment)
+            }
+        }
+
         // ⑦ 进度分析
         let currentBriefSnapshot = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
         let stageSnapshots = sortedStages.map { $0.toSnapshot() }

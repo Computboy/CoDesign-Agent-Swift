@@ -30,6 +30,7 @@ struct WorkspaceGlobalBar: View {
 
             autonomyControl
             contextLoopBadge
+            mindTreeButton
             visualBoardButton
             portfolioButton
             exportButton
@@ -45,6 +46,7 @@ struct WorkspaceGlobalBar: View {
             Spacer()
 
             contextLoopBadge
+            mindTreeButton
             visualBoardButton
             portfolioButton
             viewModeMenu
@@ -109,6 +111,29 @@ struct WorkspaceGlobalBar: View {
             Capsule(style: .continuous)
                 .fill(Color.primaryAccent.opacity(0.06))
         )
+    }
+
+    // MARK: - Mind Tree
+
+    private var mindTreeButton: some View {
+        Button {
+            withAnimation(AppTheme.Animation.standard) {
+                selectedTab = .mindTree
+            }
+        } label: {
+            Label("思维树", systemImage: ProjectDetailTab.mindTree.systemImage)
+                .font(AppTheme.Typography.caption.weight(.semibold))
+                .foregroundStyle(selectedTab == .mindTree ? Color.white : Color.primaryAccent)
+                .padding(.horizontal, 12)
+                .frame(height: 32)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(selectedTab == .mindTree
+                              ? Color.primaryAccent
+                              : Color.primaryAccent.opacity(0.08))
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Visual Board

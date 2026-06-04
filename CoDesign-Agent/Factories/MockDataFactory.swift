@@ -118,6 +118,115 @@ struct MockDataFactory {
             project.learningTraces.append(trace)
         }
 
+        // 6. 创建模拟 ThinkingMoment（思维树种子节点）
+        let rootMoment = ThinkingMoment(
+            momType: "seed",
+            content: "项目想法诞生",
+            stageOrder: 0,
+            relatedField: nil
+        )
+        context.insert(rootMoment)
+        project.thinkingMoments.append(rootMoment)
+
+        let s1Branch = ThinkingMoment(
+            momType: "branch",
+            content: "开始探索痛点与场景",
+            stageOrder: 1,
+            relatedField: nil,
+            parentMomentID: rootMoment.id
+        )
+        context.insert(s1Branch)
+        project.thinkingMoments.append(s1Branch)
+
+        let s1Fields: [(BriefField, String)] = [
+            (.targetUser, "锚定目标用户: 大一新生"),
+            (.painPoint, "发现核心痛点: 校园导航困难"),
+            (.useScenario, "确定使用场景: 开学第一周赶课")
+        ]
+        for (field, desc) in s1Fields {
+            let m = ThinkingMoment(
+                momType: "deepen",
+                content: desc,
+                stageOrder: 1,
+                relatedField: field.rawValue,
+                parentMomentID: s1Branch.id
+            )
+            context.insert(m)
+            project.thinkingMoments.append(m)
+        }
+
+        let s2Branch = ThinkingMoment(
+            momType: "branch",
+            content: "开始提炼差异化价值",
+            stageOrder: 2,
+            relatedField: nil,
+            parentMomentID: rootMoment.id
+        )
+        context.insert(s2Branch)
+        project.thinkingMoments.append(s2Branch)
+
+        let s2Fields: [(BriefField, String)] = [
+            (.coreValue, "明确核心价值: AR 室内导航"),
+            (.differentiation, "找到差异化点: 专注校园场景")
+        ]
+        for (field, desc) in s2Fields {
+            let m = ThinkingMoment(
+                momType: "deepen",
+                content: desc,
+                stageOrder: 2,
+                relatedField: field.rawValue,
+                parentMomentID: s2Branch.id
+            )
+            context.insert(m)
+            project.thinkingMoments.append(m)
+        }
+
+        let s3Branch = ThinkingMoment(
+            momType: "converge",
+            content: "收缩项目边界",
+            stageOrder: 3,
+            relatedField: nil,
+            parentMomentID: rootMoment.id
+        )
+        context.insert(s3Branch)
+        project.thinkingMoments.append(s3Branch)
+
+        let s3Field = ThinkingMoment(
+            momType: "deepen",
+            content: "划定边界: 聚焦核心导航功能",
+            stageOrder: 3,
+            relatedField: BriefField.boundaryItems.rawValue,
+            parentMomentID: s3Branch.id
+        )
+        context.insert(s3Field)
+        project.thinkingMoments.append(s3Field)
+
+        let s4Branch = ThinkingMoment(
+            momType: "branch",
+            content: "拆解功能与技术方案",
+            stageOrder: 4,
+            relatedField: nil,
+            parentMomentID: rootMoment.id
+        )
+        context.insert(s4Branch)
+        project.thinkingMoments.append(s4Branch)
+
+        let s4Fields: [(BriefField, String)] = [
+            (.mvpFeatures, "确定 MVP: AR 导航 + POI 搜索 + 课表"),
+            (.technicalModules, "选型技术: ARKit + CoreLocation + SQLite")
+        ]
+        for (field, desc) in s4Fields {
+            let m = ThinkingMoment(
+                momType: "deepen",
+                content: desc,
+                stageOrder: 4,
+                relatedField: field.rawValue,
+                parentMomentID: s4Branch.id
+            )
+            context.insert(m)
+            project.thinkingMoments.append(m)
+        }
+
         return project
     }
 }
