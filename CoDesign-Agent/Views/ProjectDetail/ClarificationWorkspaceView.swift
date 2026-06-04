@@ -10,6 +10,8 @@ import SwiftUI
 struct ClarificationWorkspaceView: View {
     let project: Project
     let chatViewModel: ChatViewModel
+    var onReviewBrief: () -> Void = {}
+    var onRevisitPreviousStage: () -> Void = {}
     var onExportBrief: () -> Void = {}
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -46,6 +48,8 @@ struct ClarificationWorkspaceView: View {
                     CurrentWorkspaceColumn(
                         project: project,
                         chatViewModel: chatViewModel,
+                        onReviewBrief: onReviewBrief,
+                        onRevisitPreviousStage: onRevisitPreviousStage,
                         onExportBrief: onExportBrief
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -70,6 +74,8 @@ struct ClarificationWorkspaceView: View {
                     project: project,
                     chatViewModel: chatViewModel,
                     includesHeader: false,
+                    onReviewBrief: onReviewBrief,
+                    onRevisitPreviousStage: onRevisitPreviousStage,
                     onExportBrief: onExportBrief
                 )
 
@@ -89,6 +95,8 @@ private struct CurrentWorkspaceColumn: View {
     let project: Project
     let chatViewModel: ChatViewModel
     var includesHeader: Bool = true
+    var onReviewBrief: () -> Void = {}
+    var onRevisitPreviousStage: () -> Void = {}
     var onExportBrief: () -> Void = {}
 
     // MARK: - Completion Detection
@@ -128,7 +136,9 @@ private struct CurrentWorkspaceColumn: View {
                 DesignCompletionReviewCard(
                     project: project,
                     onSend: send,
-                    onExport: onExportBrief
+                    onExport: onExportBrief,
+                    onReviewBrief: onReviewBrief,
+                    onRevisitPreviousStage: onRevisitPreviousStage
                 )
             } else {
                 CurrentClarificationCard(

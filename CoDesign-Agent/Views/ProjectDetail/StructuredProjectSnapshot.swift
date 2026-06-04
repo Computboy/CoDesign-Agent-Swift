@@ -41,13 +41,13 @@ struct StructuredProjectSnapshot: View {
 
                 Spacer()
 
-                // Edit All — visual placeholder, not wired yet
                 if onEditField != nil {
                     Button {
-                        // TODO: open bulk edit
-                        print("[StructuredProjectSnapshot] Edit All tapped")
+                        if let field = displayFields.first {
+                            onEditField?(field)
+                        }
                     } label: {
-                        Label("编辑全部", systemImage: "pencil.line")
+                        Label("编辑快照", systemImage: "pencil.line")
                             .font(AppTheme.Typography.caption.weight(.medium))
                             .foregroundStyle(Color.primaryAccent)
                             .padding(.horizontal, 10)

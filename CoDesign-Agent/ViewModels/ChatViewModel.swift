@@ -75,9 +75,12 @@ final class ChatViewModel {
         isStreaming = false
 
         // ⑥ 结构化提取（失败不中断对话）
+        let extractionMessages = project.messages
+            .sorted { $0.timestamp < $1.timestamp }
+            .map { $0.toPayload() }
         do {
             let outcome = try await extractor.extract(
-                from: payloadMessages,
+                from: extractionMessages,
                 existing: briefSnapshot
             )
             if let brief = project.brief {

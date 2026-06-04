@@ -18,40 +18,12 @@ struct DesignPortfolioCanvasView: View {
         VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
             CoDesignSectionHeader(title: "设计过程图谱", subtitle: "把项目从模糊想法到方案证据的推进关系可视化")
 
-            GeometryReader { proxy in
-                let width = proxy.size.width
-                let height = proxy.size.height
-                let center = CGPoint(x: width * 0.5, y: height * 0.44)
-                let nodes = evidenceNodes(in: proxy.size)
+            graphLayer
+                .frame(height: 360)
 
-                ZStack {
-                    Canvas { context, _ in
-                        for node in nodes {
-                            var path = Path()
-                            path.move(to: center)
-                            path.addLine(to: node.point)
-                            context.stroke(
-                                path,
-                                with: .color(node.color.opacity(node.isFilled ? 0.58 : 0.18)),
-                                style: StrokeStyle(lineWidth: node.isFilled ? 2.5 : 1.5, dash: node.isFilled ? [] : [5, 5])
-                            )
-                        }
-                    }
-
-                    ForEach(nodes) { node in
-                        visualNode(node)
-                            .position(node.point)
-                    }
-
-                    centerNode
-                        .position(center)
-
-                    stageTrack
-                        .frame(width: max(width - 32, 0))
-                        .position(x: width * 0.5, y: height - 34)
-                }
-            }
-            .frame(minHeight: 300)
+            stageTrack
+                .padding(.horizontal, AppTheme.spacingSmall)
+                .padding(.top, AppTheme.spacingSmall)
         }
         .padding(AppTheme.spacingLarge)
         .background(
@@ -101,6 +73,39 @@ struct DesignPortfolioCanvasView: View {
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(index + 1 == project.currentStageOrder ? Color.primaryAccent : Color.textTertiary)
                 }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private var graphLayer: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let height = proxy.size.height
+            let center = CGPoint(x: width * 0.5, y: height * 0.48)
+            let nodes = evidenceNodes(in: proxy.size)
+
+            ZStack {
+                Canvas { context, _ in
+                    for node in nodes {
+                        var path = Path()
+                        path.move(to: center)
+                        path.addLine(to: node.point)
+                        context.stroke(
+                            path,
+                            with: .color(node.color.opacity(node.isFilled ? 0.58 : 0.18)),
+                            style: StrokeStyle(lineWidth: node.isFilled ? 2.5 : 1.5, dash: node.isFilled ? [] : [5, 5])
+                        )
+                    }
+                }
+
+                ForEach(nodes) { node in
+                    visualNode(node)
+                        .position(node.point)
+                }
+
+                centerNode
+                    .position(center)
             }
         }
     }
@@ -143,28 +148,28 @@ struct DesignPortfolioCanvasView: View {
                 value: filled(snapshot.targetUser),
                 icon: "person.2",
                 color: .success,
-                point: CGPoint(x: size.width * 0.20, y: size.height * 0.18)
+                point: CGPoint(x: size.width * 0.20, y: size.height * 0.20)
             ),
             EvidenceNode(
                 title: "痛点场景",
                 value: filled(snapshot.painPoint ?? snapshot.useScenario),
                 icon: "scope",
                 color: .warning,
-                point: CGPoint(x: size.width * 0.80, y: size.height * 0.18)
+                point: CGPoint(x: size.width * 0.80, y: size.height * 0.20)
             ),
             EvidenceNode(
                 title: "核心价值",
                 value: filled(snapshot.coreValue),
                 icon: "sparkles",
                 color: .primaryAccent,
-                point: CGPoint(x: size.width * 0.20, y: size.height * 0.70)
+                point: CGPoint(x: size.width * 0.20, y: size.height * 0.78)
             ),
             EvidenceNode(
                 title: "风险假设",
                 value: snapshot.risks.first?.desc ?? "尚未明确，继续通过对话澄清。",
                 icon: "exclamationmark.triangle",
                 color: .danger,
-                point: CGPoint(x: size.width * 0.80, y: size.height * 0.70)
+                point: CGPoint(x: size.width * 0.80, y: size.height * 0.78)
             )
         ]
     }

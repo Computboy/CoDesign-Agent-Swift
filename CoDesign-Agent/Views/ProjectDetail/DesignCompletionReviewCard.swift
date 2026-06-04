@@ -11,6 +11,8 @@ struct DesignCompletionReviewCard: View {
     let project: Project
     let onSend: (String) -> Void
     let onExport: () -> Void
+    var onReviewBrief: () -> Void = {}
+    var onRevisitPreviousStage: () -> Void = {}
 
     // MARK: - Key fields
 
@@ -174,8 +176,7 @@ struct DesignCompletionReviewCard: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    // TODO: integrate tab switch to Insights
-                    print("[DesignCompletionReviewCard] Review Brief tapped – switch to Insights tab")
+                    onReviewBrief()
                 } label: {
                     Label("查看简报", systemImage: "doc.text.magnifyingglass")
                         .secondaryCompletionButtonStyle(tint: .primaryAccent)
@@ -186,8 +187,7 @@ struct DesignCompletionReviewCard: View {
             // Secondary row
             HStack(spacing: AppTheme.spacingSmall) {
                 Button {
-                    // TODO: implement stage navigation
-                    print("[DesignCompletionReviewCard] Revisit Previous Stage tapped")
+                    onRevisitPreviousStage()
                 } label: {
                     Label("回到上一阶段", systemImage: "arrow.counterclockwise")
                         .secondaryCompletionButtonStyle(tint: .textSecondary)

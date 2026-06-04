@@ -48,6 +48,16 @@ struct ProjectDetailView: View {
                         ClarificationWorkspaceView(
                             project: project,
                             chatViewModel: chatVM,
+                            onReviewBrief: {
+                                withAnimation(AppTheme.Animation.standard) {
+                                    viewModel.selectedTab = .insights
+                                }
+                            },
+                            onRevisitPreviousStage: {
+                                withAnimation(AppTheme.Animation.standard) {
+                                    viewModel.selectedTab = .progress
+                                }
+                            },
                             onExportBrief: {
                                 print("[WorkspaceGlobalBar] Export Brief tapped for project: \(project.name)")
                             }

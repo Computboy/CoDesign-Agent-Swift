@@ -2,6 +2,7 @@ import Foundation
 
 final class LiveStructuredExtractor: StructuredExtractorProtocol {
     private let apiClient = LLMAPIClient()
+    private let fallback = MockStructuredExtractor()
     private let validator = ExtractionSchemaValidator()
     private let scorer = ExtractionConfidenceScorer()
 
@@ -54,12 +55,8 @@ final class LiveStructuredExtractor: StructuredExtractorProtocol {
                 attemptCount: decodedAttemptCount
             )
         } catch {
-            print("[LiveStructuredExtractor] Live extraction failed without fallback: \(error)")
-            return ExtractionOutcome.failed(
-                source: .live,
-                message: "Live extraction failed: \(error)",
-                attemptCount: 1
-            )
+            print("[LiveStructuredExtractor] Live extraction failed, fallback to Mock: \(error)")
+            return try await fallback.extract(from: messages, existing: existing)
         }
     }
 
