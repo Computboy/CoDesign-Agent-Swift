@@ -138,12 +138,40 @@ struct MockDataFactory {
         context.insert(s1Branch)
         project.thinkingMoments.append(s1Branch)
 
-        let s1Fields: [(BriefField, String)] = [
-            (.targetUser, "锚定目标用户: 大一新生"),
+        // ── 演示分支编辑：旧版 targetUser（已归档）──
+        let oldTargetUser = ThinkingMoment(
+            momType: "deepen",
+            content: "锚定目标用户: 所有大学生",
+            stageOrder: 1,
+            relatedField: BriefField.targetUser.rawValue,
+            parentMomentID: s1Branch.id,
+            timestamp: Date().addingTimeInterval(-600),
+            isActiveBranch: false,
+            branchVersion: 1,
+            archivedAt: Date().addingTimeInterval(-300)
+        )
+        context.insert(oldTargetUser)
+        project.thinkingMoments.append(oldTargetUser)
+
+        // ── 新版 targetUser（活跃分支，基于旧版编辑后创建）──
+        let newTargetUser = ThinkingMoment(
+            momType: "deepen",
+            content: "锚定目标用户: 大一新生",
+            stageOrder: 1,
+            relatedField: BriefField.targetUser.rawValue,
+            parentMomentID: s1Branch.id,
+            timestamp: Date().addingTimeInterval(-200),
+            isActiveBranch: true,
+            branchVersion: 2
+        )
+        context.insert(newTargetUser)
+        project.thinkingMoments.append(newTargetUser)
+
+        let s1OtherFields: [(BriefField, String)] = [
             (.painPoint, "发现核心痛点: 校园导航困难"),
             (.useScenario, "确定使用场景: 开学第一周赶课")
         ]
-        for (field, desc) in s1Fields {
+        for (field, desc) in s1OtherFields {
             let m = ThinkingMoment(
                 momType: "deepen",
                 content: desc,

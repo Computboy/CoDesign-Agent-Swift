@@ -2,12 +2,18 @@ import SwiftUI
 import SwiftData
 
 /// The main thinking tree visualization.
-/// Renders an organic radial tree showing the growth of the user's design thinking.
+/// Renders an upward-growing tree showing the evolution of design thinking.
 struct ThinkingTreeView: View {
     let project: Project
+    @Environment(\.modelContext) private var modelContext
 
     // Layout
-    private let engine = TreeLayoutEngine(stageRadius: 170, fieldRadius: 310, stageFanDegrees: 24)
+    private let engine = TreeLayoutEngine(
+        stageHeight: 140,
+        branchSpacing: 100,
+        rootNodeHeight: 120,
+        topPadding: 80
+    )
     private let builder = TreeBuilder()
 
     // Interaction state
@@ -16,12 +22,13 @@ struct ThinkingTreeView: View {
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
     @State private var selectedNode: TreeNode?
-    @State private var highlightStage: Int?
+    @State private var editingNode: TreeNode?
 
     var body: some View {
         GeometryReader { geo in
             let treeData = builder.build(project: project)
-            let layoutData = engine.layout(treeData, in: engine.minimumContentSize())
+            let maxStage = project.stages.map { $0.order }.max() ?? 9
+            let layoutData = engine.layout(treeData, in: engine.minimumContentSize(maxStage: maxStage))
 
             ZStack {
                 Color.appBackground
@@ -30,26 +37,26 @@ struct ThinkingTreeView: View {
                 // Scrollable / zoomable tree content
                 ZStack {
                     Canvas { context, size in
-                        drawConnections(context: context, data: layoutData)
+                        drawEdges(context: context, data: layoutData)
                         drawDecorations(context: context, data: layoutData)
                     }
                     .frame(
-                        width: engine.minimumContentSize().width,
-                        height: engine.minimumContentSize().height
+                        width: engine.minimumContentSize(maxStage: maxStage).width,
+                        height: engine.minimumContentSize(maxStage: maxStage).height
                     )
 
-                    ForEach(visibleNodes(layoutData)) { node in
-                        TreeNodeView(node: node) {
-                            withAnimation(AppTheme.Animation.standard) {
-                                selectedNode = node
-                            }
-                        }
+                    ForEach(layoutData.nodes) { node in
+                        TreeNodeView(
+                            node: node,
+                            onTap: { selectedNode = node },
+                            onEdit: { editingNode = node }
+                        )
                         .position(node.position)
                     }
                 }
                 .frame(
-                    width: engine.minimumContentSize().width,
-                    height: engine.minimumContentSize().height
+                    width: engine.minimumContentSize(maxStage: maxStage).width,
+                    height: engine.minimumContentSize(maxStage: maxStage).height
                 )
                 .scaleEffect(scale)
                 .offset(offset)
@@ -59,9 +66,17 @@ struct ThinkingTreeView: View {
                 .gesture(magnificationGesture)
                 .simultaneousGesture(panGesture)
 
-                // Overlay controls
+                // Stage level indicators
+                VStack(alignment: .leading, spacing: 0) {
+                    Spacer()
+                    ForEach((1...maxStage).reversed(), id: \.self) { stageOrder in
+                        stageLevelIndicator(stageOrder: stageOrder, geo: geo)
+                    }
+                }
+                .padding(.leading, AppTheme.spacingMedium)
+
+                // Legend
                 VStack {
-                    filterBar(data: layoutData)
                     Spacer()
                     TreeLegendView()
                         .padding(.trailing, AppTheme.spacingLarge)
@@ -70,12 +85,13 @@ struct ThinkingTreeView: View {
                 }
             }
             .onAppear {
-                let contentSize = engine.minimumContentSize()
+                // Auto-fit: scale to fit viewport
+                let contentSize = engine.minimumContentSize(maxStage: maxStage)
                 let fitScale = min(
                     geo.size.width / contentSize.width,
                     geo.size.height / contentSize.height
-                ) * 0.92
-                scale = max(fitScale, 0.4)
+                ) * 0.85
+                scale = max(fitScale, 0.3)
                 lastScale = scale
             }
         }
@@ -84,109 +100,99 @@ struct ThinkingTreeView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
-    }
-
-    // MARK: - Visible Nodes (with optional stage filter)
-
-    private func visibleNodes(_ data: TreeData) -> [TreeNode] {
-        guard let filter = highlightStage else { return data.nodes }
-        return data.nodes.filter { node in
-            node.kind == .root || node.stageOrder == filter || node.stageOrder == nil
+        .sheet(item: $editingNode) { node in
+            NodeEditSheet(node: node, project: project)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
     }
 
-    private func visibleEdges(_ data: TreeData) -> [TreeEdge] {
-        guard highlightStage != nil else { return data.edges }
-        let visibleIDs = Set(visibleNodes(data).map { $0.id })
-        return data.edges.filter { visibleIDs.contains($0.fromID) && visibleIDs.contains($0.toID) }
+    // MARK: - Stage Level Indicator
+
+    private func stageLevelIndicator(stageOrder: Int, geo: GeometryProxy) -> some View {
+        let stage = project.stages.first { $0.order == stageOrder }
+        let statusColor: Color = {
+            switch stage?.stageStatusValue ?? .notStarted {
+            case .completed: return .success
+            case .active: return .primaryAccent
+            case .needsReview: return .warning
+            case .notStarted: return .stageNotStarted
+            }
+        }()
+
+        return HStack(spacing: AppTheme.spacingSmall) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 8, height: 8)
+            Text("阶段 \(stageOrder)")
+                .font(AppTheme.Typography.caption)
+                .foregroundStyle(Color.textTertiary)
+        }
+        .padding(.vertical, 4)
     }
 
     // MARK: - Canvas Drawing
 
-    private func drawConnections(context: GraphicsContext, data: TreeData) {
-        let edges = visibleEdges(data)
-        for edge in edges {
+    private func drawEdges(context: GraphicsContext, data: TreeData) {
+        for edge in data.edges {
             guard let fromNode = data.node(for: edge.fromID),
                   let toNode = data.node(for: edge.toID) else { continue }
 
-            let path = bezierPath(from: fromNode.position, to: toNode.position)
+            let path = curvePath(from: fromNode.position, to: toNode.position)
 
             switch edge.style {
-            case .branch:
+            case .active:
                 context.stroke(
                     path,
-                    with: .color(Color.textTertiary.opacity(0.35)),
+                    with: .color(Color.primaryAccent.opacity(0.6)),
                     style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
                 )
-            case .twig:
+            case .archived:
                 context.stroke(
                     path,
-                    with: .color(Color.textTertiary.opacity(0.25)),
-                    style: StrokeStyle(lineWidth: 1.5, lineCap: .round)
+                    with: .color(Color(red: 0.6, green: 0.55, blue: 0.5).opacity(0.4)),
+                    style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [6, 4])
                 )
-            case .ghost:
+            case .transition:
                 context.stroke(
                     path,
-                    with: .color(Color.stageNotStarted.opacity(0.20)),
-                    style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [5, 4])
+                    with: .color(Color.warning.opacity(0.7)),
+                    style: StrokeStyle(lineWidth: 2, lineCap: .round)
                 )
             }
         }
     }
 
     private func drawDecorations(context: GraphicsContext, data: TreeData) {
-        guard let root = data.nodes.first(where: { $0.kind == .root }) else { return }
-        let glowRect = CGRect(
-            x: root.position.x - 50,
-            y: root.position.y - 50,
-            width: 100, height: 100
-        )
-        context.fill(
-            Circle().path(in: glowRect),
-            with: .radialGradient(
-                Gradient(colors: [Color.primaryAccent.opacity(0.08), .clear]),
-                center: root.position,
-                startRadius: 0,
-                endRadius: 50
-            )
-        )
-
-        for node in data.nodes where node.kind == .stage && node.nodeColor == .primaryAccent {
-            let pulseRect = CGRect(
-                x: node.position.x - 35,
-                y: node.position.y - 35,
-                width: 70, height: 70
+        // Glow on active nodes
+        for node in data.nodes where node.isActiveBranch && node.kind == .root {
+            let glowRect = CGRect(
+                x: node.position.x - 45,
+                y: node.position.y - 45,
+                width: 90, height: 90
             )
             context.fill(
-                Circle().path(in: pulseRect),
+                Circle().path(in: glowRect),
                 with: .radialGradient(
-                    Gradient(colors: [Color.primaryAccent.opacity(0.10), .clear]),
+                    Gradient(colors: [Color.primaryAccent.opacity(0.12), .clear]),
                     center: node.position,
                     startRadius: 0,
-                    endRadius: 35
+                    endRadius: 45
                 )
             )
         }
     }
 
-    private func bezierPath(from: CGPoint, to: CGPoint) -> Path {
+    private func curvePath(from: CGPoint, to: CGPoint) -> Path {
         var path = Path()
         path.move(to: from)
 
-        let midX = (from.x + to.x) / 2
+        // Vertical curve (tree grows upward)
         let midY = (from.y + to.y) / 2
-        let dx = to.x - from.x
-        let dy = to.y - from.y
-        let dist = sqrt(dx * dx + dy * dy)
-        let curvature = min(dist * 0.3, 60)
+        let controlPoint1 = CGPoint(x: from.x, y: midY)
+        let controlPoint2 = CGPoint(x: to.x, y: midY)
 
-        let nx = -dy / max(dist, 1)
-        let ny = dx / max(dist, 1)
-
-        let cp1 = CGPoint(x: midX + nx * curvature * 0.3, y: midY + ny * curvature * 0.3)
-        let cp2 = CGPoint(x: midX - nx * curvature * 0.1, y: midY - ny * curvature * 0.1)
-
-        path.addCurve(to: to, control1: cp1, control2: cp2)
+        path.addCurve(to: to, control1: controlPoint1, control2: controlPoint2)
         return path
     }
 
@@ -214,47 +220,6 @@ struct ThinkingTreeView: View {
                 lastOffset = offset
             }
     }
-
-    // MARK: - Filter Bar
-
-    private func filterBar(data: TreeData) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: AppTheme.spacingSmall) {
-                filterChip(label: "全部", stage: nil)
-
-                ForEach(StageDefinition.all, id: \.order) { def in
-                    let hasFilledFields = def.briefFields.contains { field in
-                        data.nodes.contains { $0.field == field && !$0.isGhost }
-                    }
-                    filterChip(label: "\(def.order). \(def.shortSubtitle)", stage: def.order)
-                        .opacity(hasFilledFields ? 1.0 : 0.5)
-                }
-            }
-            .padding(.horizontal, AppTheme.spacingLarge)
-            .padding(.vertical, AppTheme.spacingSmall)
-        }
-        .background(.ultraThinMaterial)
-    }
-
-    private func filterChip(label: String, stage: Int?) -> some View {
-        let isSelected = highlightStage == stage
-        return Button {
-            withAnimation(AppTheme.Animation.standard) {
-                highlightStage = (highlightStage == stage) ? nil : stage
-            }
-        } label: {
-            Text(label)
-                .font(AppTheme.Typography.caption.weight(.medium))
-                .foregroundStyle(isSelected ? .white : Color.textSecondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(isSelected ? Color.primaryAccent : Color.primaryAccent.opacity(0.08))
-                )
-        }
-        .buttonStyle(.plain)
-    }
 }
 
 #Preview {
@@ -272,19 +237,6 @@ struct ThinkingTreeView: View {
         technicalModules: "ARKit + CoreLocation + 本地 SQLite POI 数据库"
     )
     project.brief = brief
-
-    brief.boundaryItems = [
-        BoundaryItem(content: "AR 实时导航箭头", isIncluded: true),
-        BoundaryItem(content: "校园 POI 搜索", isIncluded: true),
-        BoundaryItem(content: "社交功能（找同学）", isIncluded: false)
-    ]
-    brief.successMetrics = [
-        SuccessMetric(metric: "首次导航成功率", target: "≥ 90%"),
-        SuccessMetric(metric: "平均找到目的地时间", target: "≤ 5 分钟")
-    ]
-    brief.risks = [
-        RiskItem(desc: "AR 弱光识别不稳定", probability: 4, impact: 4, mitigation: "2D 地图备选")
-    ]
 
     let stages = StageDefinition.all.map { def in
         ProgressStage(order: def.order, name: def.name)

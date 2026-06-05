@@ -1,97 +1,87 @@
 import SwiftUI
 import CoreGraphics
 
-/// Computes positions for all nodes in a radial tree layout.
+/// Computes positions for all nodes in an upward-growing tree layout.
 ///
 /// Layout structure:
-///   - Root node: center of canvas
-///   - Stage nodes (1-9): ring around root at `stageRadius`
-///   - Field nodes: fan outward from parent stage at `fieldRadius`
+///   - Root node: bottom center
+///   - Tree grows upward (negative Y)
+///   - Stages are horizontal levels (stage 1 = lowest, stage 9 = highest)
+///   - Branches spread horizontally as they grow
 struct TreeLayoutEngine {
 
     // MARK: - Configuration
 
-    let stageRadius: CGFloat
-    let fieldRadius: CGFloat
-    let stageFanDegrees: CGFloat
+    let stageHeight: CGFloat      // vertical spacing between stages
+    let branchSpacing: CGFloat    // horizontal spacing between sibling branches
+    let rootNodeHeight: CGFloat   // height of root node area
+    let topPadding: CGFloat       // padding above highest node
 
     init(
-        stageRadius: CGFloat = 160,
-        fieldRadius: CGFloat = 300,
-        stageFanDegrees: CGFloat = 22
+        stageHeight: CGFloat = 120,
+        branchSpacing: CGFloat = 80,
+        rootNodeHeight: CGFloat = 100,
+        topPadding: CGFloat = 60
     ) {
-        self.stageRadius = stageRadius
-        self.fieldRadius = fieldRadius
-        self.stageFanDegrees = stageFanDegrees
+        self.stageHeight = stageHeight
+        self.branchSpacing = branchSpacing
+        self.rootNodeHeight = rootNodeHeight
+        self.topPadding = topPadding
     }
 
     // MARK: - Layout
 
-    /// Computes positions for all nodes. Returns a new `TreeData` with positions filled in.
+    /// Computes positions for all nodes. Returns a new TreeData with positions filled in.
     func layout(_ data: TreeData, in size: CGSize) -> TreeData {
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let stageCount = 9
+        let centerX = size.width / 2
+        let bottomY = size.height - rootNodeHeight
 
-        var stagePositions: [Int: CGPoint] = [:]
-        var stageAngles: [Int: CGFloat] = [:]
-
-        for i in 0..<stageCount {
-            let order = i + 1
-            let angle = -90.0 + CGFloat(i) * (360.0 / CGFloat(stageCount))
-            let rad = angle * .pi / 180
-            let pos = CGPoint(
-                x: center.x + stageRadius * cos(rad),
-                y: center.y + stageRadius * sin(rad)
-            )
-            stagePositions[order] = pos
-            stageAngles[order] = angle
-        }
-
-        // Group field nodes by their parent stage
-        var fieldNodesByStage: [Int: [(index: Int, node: TreeNode)]] = [:]
-        for (idx, node) in data.nodes.enumerated() {
-            if node.kind == .field, let stageOrder = node.stageOrder {
-                fieldNodesByStage[stageOrder, default: []].append((idx, node))
+        // Group moments by stageOrder
+        var momentsByStage: [Int: [TreeNode]] = [:]
+        for node in data.nodes {
+            if let stageOrder = node.stageOrder {
+                momentsByStage[stageOrder, default: []].append(node)
             }
         }
 
-        // Apply positions
+        // Sort moments within each stage by branchVersion (active first)
+        for stage in momentsByStage.keys {
+            momentsByStage[stage]?.sort { a, b in
+                if a.isActiveBranch != b.isActiveBranch {
+                    return a.isActiveBranch  // active branches first
+                }
+                return a.branchVersion < b.branchVersion
+            }
+        }
+
+        // Assign positions
         var updatedNodes = data.nodes
 
         for (idx, node) in updatedNodes.enumerated() {
             switch node.kind {
             case .root:
-                updatedNodes[idx].position = center
+                updatedNodes[idx].position = CGPoint(x: centerX, y: bottomY)
 
-            case .stage:
-                if let order = node.stageOrder, let pos = stagePositions[order] {
-                    updatedNodes[idx].position = pos
-                }
+            case .stage, .field:
+                guard let stageOrder = node.stageOrder else { continue }
 
-            case .field:
-                guard let stageOrder = node.stageOrder,
-                      let parentAngle = stageAngles[stageOrder],
-                      let siblings = fieldNodesByStage[stageOrder] else {
-                    continue
-                }
+                // Y position based on stage (grows upward)
+                let y = bottomY - CGFloat(stageOrder) * stageHeight
 
-                let siblingIndex = siblings.firstIndex { $0.index == idx } ?? 0
+                // X position: spread siblings horizontally
+                let siblings = momentsByStage[stageOrder] ?? []
+                let siblingIndex = siblings.firstIndex { $0.id == node.id } ?? 0
                 let totalSiblings = siblings.count
 
-                let fanRange = stageFanDegrees * 2
-                let fieldAngle: CGFloat
-                if totalSiblings == 1 {
-                    fieldAngle = parentAngle
-                } else {
-                    let t = CGFloat(siblingIndex) / CGFloat(totalSiblings - 1)
-                    fieldAngle = parentAngle - stageFanDegrees + t * fanRange
-                }
+                // Center the group horizontally
+                let totalWidth = CGFloat(totalSiblings - 1) * branchSpacing
+                let startX = centerX - totalWidth / 2
+                let x = startX + CGFloat(siblingIndex) * branchSpacing
 
-                let rad = fieldAngle * .pi / 180
-                updatedNodes[idx].position = CGPoint(
-                    x: center.x + fieldRadius * cos(rad),
-                    y: center.y + fieldRadius * sin(rad)
-                )
+                // Offset archived branches slightly to the right
+                let xOffset = node.isArchived ? 20.0 : 0.0
+
+                updatedNodes[idx].position = CGPoint(x: x + xOffset, y: y)
             }
         }
 
@@ -100,9 +90,9 @@ struct TreeLayoutEngine {
 
     // MARK: - Canvas Size
 
-    func minimumContentSize() -> CGSize {
-        let maxRadius = fieldRadius + 60
-        let diameter = maxRadius * 2
-        return CGSize(width: diameter, height: diameter)
+    func minimumContentSize(maxStage: Int) -> CGSize {
+        let height = rootNodeHeight + CGFloat(maxStage) * stageHeight + topPadding
+        let width: CGFloat = 800  // generous width for horizontal spreading
+        return CGSize(width: width, height: height)
     }
 }

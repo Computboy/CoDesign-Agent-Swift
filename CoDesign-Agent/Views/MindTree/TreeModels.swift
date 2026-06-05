@@ -11,7 +11,6 @@ enum TreeNodeKind {
 // MARK: - Tree Node
 
 /// A single node in the thinking tree visualization.
-/// Pure value type — NOT a SwiftData model.
 struct TreeNode: Identifiable {
     let id: String
     let kind: TreeNodeKind
@@ -19,10 +18,13 @@ struct TreeNode: Identifiable {
     let subContent: String?       // secondary text (e.g. field value)
     let stageOrder: Int?          // 1-9 for stage/field nodes
     let field: BriefField?        // only for field nodes
+    let momentID: UUID?           // link to ThinkingMoment (nil for root)
     var position: CGPoint         // computed by layout engine
     let nodeColor: Color
-    let isGhost: Bool             // unfilled / unexplored
-    let richness: CGFloat         // 0...1, drives node size & opacity
+    let isActiveBranch: Bool      // true = current branch, false = archived
+    let branchVersion: Int
+    let richness: CGFloat         // 0...1, drives node size
+    let isGhost: Bool             // true = unfilled / unexplored placeholder
 
     var iconSystemName: String? {
         switch kind {
@@ -33,19 +35,20 @@ struct TreeNode: Identifiable {
         case .field: return nil
         }
     }
+
+    var isArchived: Bool { !isActiveBranch }
 }
 
 // MARK: - Edge Style
 
 enum TreeEdgeStyle {
-    case branch     // solid, medium width — root → stage or stage → filled field
-    case twig       // solid, thin — stage → field
-    case ghost      // dashed, thin — root → ghost stage or stage → ghost field
+    case active      // solid, active branch
+    case archived    // dashed, archived branch
+    case transition  // solid, connecting archived to active (edit point)
 }
 
 // MARK: - Tree Edge
 
-/// A connection between two nodes in the tree.
 struct TreeEdge: Identifiable {
     let id: String
     let fromID: String
@@ -55,7 +58,6 @@ struct TreeEdge: Identifiable {
 
 // MARK: - Tree Data
 
-/// The complete data for rendering a thinking tree.
 struct TreeData {
     let nodes: [TreeNode]
     let edges: [TreeEdge]
@@ -67,133 +69,98 @@ struct TreeData {
 
 // MARK: - Tree Builder
 
-/// Builds a `TreeData` from a Project's current state.
+/// Builds a TreeData from Project's ThinkingMoments.
 struct TreeBuilder {
 
     func build(project: Project) -> TreeData {
+        let moments = project.thinkingMoments.sorted { $0.timestamp < $1.timestamp }
         let brief = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
-        let stages = project.stages.sorted { $0.order < $1.order }
 
         var nodes: [TreeNode] = []
         var edges: [TreeEdge] = []
 
-        // Root node
+        // Root node (project idea)
         let rootID = "root"
-        let root = TreeNode(
+        let rootNode = TreeNode(
             id: rootID,
             kind: .root,
             content: project.name,
-            subContent: nil,
+            subContent: project.briefDescription.isEmpty ? nil : project.briefDescription,
             stageOrder: nil,
             field: nil,
+            momentID: nil,
             position: .zero,
             nodeColor: Color.primaryAccent,
-            isGhost: false,
-            richness: 1.0
+            isActiveBranch: true,
+            branchVersion: 1,
+            richness: 1.0,
+            isGhost: false
         )
-        nodes.append(root)
+        nodes.append(rootNode)
 
-        // Determine first uncompleted stage for ghost display
-        let firstIncomplete = stages.first {
-            $0.stageStatusValue == .notStarted || $0.stageStatusValue == .active
-        }?.order
+        // Build moment-based nodes
+        for moment in moments {
+            let nodeID = "moment-\(moment.id)"
+            let isStageNode = moment.relatedField == nil
+            let field = moment.relatedField.flatMap { BriefField(rawValue: $0) }
 
-        // Stage + field nodes
-        for def in StageDefinition.all {
-            let stage = stages.first { $0.order == def.order }
-            let status = stage?.stageStatusValue ?? .notStarted
-            let completionRatio = stage?.completionRatio ?? 0
-
-            let isGhost = status == .notStarted && completionRatio == 0
-            let stageID = "stage-\(def.order)"
-
-            // Stage color based on status
-            let color: Color = {
-                switch status {
-                case .completed: return .success
-                case .active: return .primaryAccent
-                case .needsReview: return .warning
-                case .notStarted: return Color.stageNotStarted
+            let color: Color
+            if moment.isActiveBranch {
+                // Active branch: use stage status colors
+                let stage = project.stages.first { $0.order == moment.stageOrder }
+                switch stage?.stageStatusValue ?? .notStarted {
+                case .completed: color = .success
+                case .active: color = .primaryAccent
+                case .needsReview: color = .warning
+                case .notStarted: color = .stageNotStarted
                 }
-            }()
+            } else {
+                // Archived branch: muted sepia/grey
+                color = Color(red: 0.6, green: 0.55, blue: 0.5)
+            }
 
-            let stageNode = TreeNode(
-                id: stageID,
-                kind: .stage,
-                content: "\(def.order)",
-                subContent: def.shortSubtitle,
-                stageOrder: def.order,
-                field: nil,
+            let fieldValue: String? = field.flatMap { fieldDisplayValue($0, brief: brief) }
+
+            let node = TreeNode(
+                id: nodeID,
+                kind: isStageNode ? .stage : .field,
+                content: moment.content,
+                subContent: fieldValue,
+                stageOrder: moment.stageOrder,
+                field: field,
+                momentID: moment.id,
                 position: .zero,
                 nodeColor: color,
-                isGhost: isGhost,
-                richness: max(completionRatio, 0.15)
+                isActiveBranch: moment.isActiveBranch,
+                branchVersion: moment.branchVersion,
+                richness: moment.isActiveBranch ? 0.8 : 0.5,
+                isGhost: false
             )
-            nodes.append(stageNode)
+            nodes.append(node)
 
-            // Edge: root → stage
+            // Edge from parent
+            let parentID: String
+            if let parentMomentID = moment.parentMomentID {
+                parentID = "moment-\(parentMomentID)"
+            } else {
+                parentID = rootID  // root is parent if no parentMomentID
+            }
+
+            let edgeStyle: TreeEdgeStyle
+            if moment.isActiveBranch {
+                edgeStyle = .active
+            } else {
+                // Check if parent is active (this is the edit point)
+                let parentMoment = moments.first { $0.id == moment.parentMomentID }
+                edgeStyle = parentMoment?.isActiveBranch == true ? .transition : .archived
+            }
+
             edges.append(TreeEdge(
-                id: "\(rootID)-\(stageID)",
-                fromID: rootID,
-                toID: stageID,
-                style: isGhost ? .ghost : .branch
+                id: "\(parentID)-\(nodeID)",
+                fromID: parentID,
+                toID: nodeID,
+                style: edgeStyle
             ))
-
-            // Field nodes for this stage
-            let filledFields = def.briefFields.filter { $0.isFilled(in: brief) }
-            let unfilledFields = def.briefFields.filter { !$0.isFilled(in: brief) }
-
-            // Show filled fields as real nodes
-            for (i, field) in filledFields.enumerated() {
-                let fieldID = "field-\(field.rawValue)"
-                let fieldValue = fieldDisplayValue(field, brief: brief)
-                let fieldNode = TreeNode(
-                    id: fieldID,
-                    kind: .field,
-                    content: field.displayName,
-                    subContent: fieldValue,
-                    stageOrder: def.order,
-                    field: field,
-                    position: .zero,
-                    nodeColor: color,
-                    isGhost: false,
-                    richness: 0.6 + 0.4 * CGFloat(i + 1) / CGFloat(def.briefFields.count)
-                )
-                nodes.append(fieldNode)
-                edges.append(TreeEdge(
-                    id: "\(stageID)-\(fieldID)",
-                    fromID: stageID,
-                    toID: fieldID,
-                    style: .twig
-                ))
-            }
-
-            // Show unfilled fields as ghost nodes (only if stage is active or next)
-            let showGhosts = status == .active || def.order == firstIncomplete
-            if showGhosts {
-                for field in unfilledFields {
-                    let fieldID = "ghost-\(field.rawValue)"
-                    let fieldNode = TreeNode(
-                        id: fieldID,
-                        kind: .field,
-                        content: field.displayName,
-                        subContent: nil,
-                        stageOrder: def.order,
-                        field: field,
-                        position: .zero,
-                        nodeColor: Color.stageNotStarted,
-                        isGhost: true,
-                        richness: 0.2
-                    )
-                    nodes.append(fieldNode)
-                    edges.append(TreeEdge(
-                        id: "\(stageID)-\(fieldID)",
-                        fromID: stageID,
-                        toID: fieldID,
-                        style: .ghost
-                    ))
-                }
-            }
         }
 
         return TreeData(nodes: nodes, edges: edges)

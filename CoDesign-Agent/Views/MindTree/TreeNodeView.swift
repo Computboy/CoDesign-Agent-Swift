@@ -4,18 +4,38 @@ import SwiftUI
 struct TreeNodeView: View {
     let node: TreeNode
     var onTap: () -> Void = {}
+    var onEdit: () -> Void = {}
 
     var body: some View {
-        Button(action: onTap) {
-            switch node.kind {
-            case .root:   rootContent
-            case .stage:  stageContent
-            case .field:  fieldContent
+        ZStack(alignment: .topTrailing) {
+            Button(action: onTap) {
+                switch node.kind {
+                case .root:   rootContent
+                case .stage:  stageContent
+                case .field:  fieldContent
+                }
+            }
+            .buttonStyle(.plain)
+            .opacity(node.isGhost ? 0.45 : (node.isArchived ? 0.6 : 1.0))
+            .animation(AppTheme.Animation.standard, value: node.richness)
+
+            // Edit button (non-ghost nodes only)
+            if !node.isGhost {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .background(
+                            Circle()
+                                .fill(Color.primaryAccent)
+                                .frame(width: 20, height: 20)
+                        )
+                        .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                }
+                .buttonStyle(.plain)
+                .offset(x: 6, y: -6)
             }
         }
-        .buttonStyle(.plain)
-        .opacity(node.isGhost ? 0.45 : 1.0)
-        .animation(AppTheme.Animation.spring, value: node.richness)
     }
 
     // MARK: - Root Node
@@ -59,6 +79,13 @@ struct TreeNodeView: View {
                             style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])
                         )
                         .frame(width: size, height: size)
+                } else if node.isArchived {
+                    Circle()
+                        .strokeBorder(
+                            node.nodeColor.opacity(0.4),
+                            style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
+                        )
+                        .frame(width: size, height: size)
                 } else {
                     Circle()
                         .strokeBorder(node.nodeColor.opacity(0.5), lineWidth: 1.5)
@@ -76,6 +103,12 @@ struct TreeNodeView: View {
                     .foregroundStyle(Color.textTertiary)
                     .lineLimit(1)
                     .fixedSize()
+            }
+
+            if node.isArchived {
+                Text("v\(node.branchVersion) 旧版")
+                    .font(.system(size: 8))
+                    .foregroundStyle(Color.textTertiary.opacity(0.7))
             }
         }
     }
@@ -99,8 +132,8 @@ struct TreeNodeView: View {
                 .overlay(
                     Capsule(style: .continuous)
                         .strokeBorder(
-                            node.nodeColor.opacity(node.isGhost ? 0.25 : 0.40),
-                            style: node.isGhost
+                            node.nodeColor.opacity(node.isGhost ? 0.25 : (node.isArchived ? 0.30 : 0.40)),
+                            style: node.isGhost || node.isArchived
                                 ? StrokeStyle(lineWidth: 1, dash: [3, 2])
                                 : StrokeStyle(lineWidth: 1)
                         )
@@ -113,6 +146,12 @@ struct TreeNodeView: View {
                     .foregroundStyle(Color.textTertiary)
                     .lineLimit(1)
                     .frame(maxWidth: maxWidth)
+            }
+
+            if node.isArchived {
+                Text("旧版")
+                    .font(.system(size: 8))
+                    .foregroundStyle(Color.textTertiary.opacity(0.7))
             }
         }
     }
