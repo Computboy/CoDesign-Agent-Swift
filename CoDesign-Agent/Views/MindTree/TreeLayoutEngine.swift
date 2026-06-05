@@ -88,7 +88,7 @@ struct TreeLayoutEngine {
 
                 // Add organic jitter per node
                 let horizontalJitter = jitter(for: node.id, range: 22)
-                let verticalJitter = verticalJitter(for: node.id, range: 14)
+                let nodeVerticalJitter = verticalJitter(for: node.id, range: 14)
 
                 // Archived nodes offset slightly more
                 let archiveOffset = node.isArchived ? 18.0 : 0.0
@@ -98,7 +98,7 @@ struct TreeLayoutEngine {
 
                 updatedNodes[idx].position = CGPoint(
                     x: baseX + horizontalJitter + archiveOffset,
-                    y: baseY + verticalJitter + fieldBonus
+                    y: baseY + nodeVerticalJitter + fieldBonus
                 )
             }
         }
