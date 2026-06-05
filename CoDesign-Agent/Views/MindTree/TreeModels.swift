@@ -121,11 +121,20 @@ struct TreeBuilder {
 
             let fieldValue: String? = field.flatMap { fieldDisplayValue($0, brief: brief) }
 
+            // For stage nodes, use the stage definition name as subContent
+            let subContent: String?
+            if isStageNode {
+                subContent = StageDefinition.all
+                    .first { $0.order == moment.stageOrder }?.name
+            } else {
+                subContent = fieldValue
+            }
+
             let node = TreeNode(
                 id: nodeID,
                 kind: isStageNode ? .stage : .field,
                 content: moment.content,
-                subContent: fieldValue,
+                subContent: subContent,
                 stageOrder: moment.stageOrder,
                 field: field,
                 momentID: moment.id,

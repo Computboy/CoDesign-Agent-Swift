@@ -9,10 +9,11 @@ struct ThinkingTreeView: View {
 
     // Layout
     private let engine = TreeLayoutEngine(
-        stageHeight: 140,
-        branchSpacing: 100,
+        stageHeight: 200,
+        branchSpacing: 180,
         rootNodeHeight: 120,
-        topPadding: 80
+        topPadding: 100,
+        contentWidth: 2000
     )
     private let builder = TreeBuilder()
 
@@ -31,8 +32,16 @@ struct ThinkingTreeView: View {
             let layoutData = engine.layout(treeData, in: engine.minimumContentSize(maxStage: maxStage))
 
             ZStack {
-                Color.appBackground
-                    .ignoresSafeArea()
+                // Premium background with subtle gradient
+                LinearGradient(
+                    colors: [
+                        Color.appBackground,
+                        Color(red: 0.96, green: 0.97, blue: 0.99)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
                 // Scrollable / zoomable tree content
                 ZStack {
@@ -66,14 +75,14 @@ struct ThinkingTreeView: View {
                 .gesture(magnificationGesture)
                 .simultaneousGesture(panGesture)
 
-                // Stage level indicators
-                VStack(alignment: .leading, spacing: 0) {
+                // Stage level indicators (floating left panel)
+                VStack(alignment: .leading, spacing: 3) {
                     Spacer()
                     ForEach((1...maxStage).reversed(), id: \.self) { stageOrder in
                         stageLevelIndicator(stageOrder: stageOrder, geo: geo)
                     }
                 }
-                .padding(.leading, AppTheme.spacingMedium)
+                .padding(.leading, 16)
 
                 // Legend
                 VStack {
@@ -107,7 +116,7 @@ struct ThinkingTreeView: View {
         }
         .sheet(item: $editingNode) { node in
             NodeEditSheet(node: node, project: project)
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
     }
@@ -125,15 +134,43 @@ struct ThinkingTreeView: View {
             }
         }()
 
-        return HStack(spacing: AppTheme.spacingSmall) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
+        return HStack(spacing: 10) {
+            // Gradient dot with subtle glow
+            ZStack {
+                Circle()
+                    .fill(statusColor.opacity(0.3))
+                    .frame(width: 12, height: 12)
+                    .blur(radius: 3)
+
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [statusColor, statusColor.opacity(0.75)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 9, height: 9)
+                    .overlay(
+                        Circle()
+                            .strokeBorder(.white.opacity(0.5), lineWidth: 0.5)
+                    )
+            }
+
             Text("阶段 \(stageOrder)")
-                .font(AppTheme.Typography.caption)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(Color.textTertiary)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.cardBackground.opacity(0.5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.3), lineWidth: 0.5)
+                )
+        )
     }
 
     // MARK: - Canvas Drawing
@@ -147,42 +184,86 @@ struct ThinkingTreeView: View {
 
             switch edge.style {
             case .active:
+                // Gradient stroke for active branches
                 context.stroke(
                     path,
-                    with: .color(Color.primaryAccent.opacity(0.6)),
-                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                    with: .linearGradient(
+                        Gradient(colors: [
+                            Color.primaryAccent.opacity(0.6),
+                            Color.secondaryAccent.opacity(0.5)
+                        ]),
+                        startPoint: fromNode.position,
+                        endPoint: toNode.position
+                    ),
+                    style: StrokeStyle(lineWidth: 2.8, lineCap: .round)
                 )
+
             case .archived:
+                // Muted dashed lines for archived branches
                 context.stroke(
                     path,
-                    with: .color(Color(red: 0.6, green: 0.55, blue: 0.5).opacity(0.4)),
-                    style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [6, 4])
+                    with: .color(Color(red: 0.58, green: 0.53, blue: 0.48).opacity(0.3)),
+                    style: StrokeStyle(lineWidth: 1.8, lineCap: .round, dash: [6, 6])
                 )
+
             case .transition:
+                // Warm transition edge (edit point)
                 context.stroke(
                     path,
-                    with: .color(Color.warning.opacity(0.7)),
-                    style: StrokeStyle(lineWidth: 2, lineCap: .round)
+                    with: .linearGradient(
+                        Gradient(colors: [
+                            Color.warning.opacity(0.65),
+                            Color(red: 0.92, green: 0.68, blue: 0.32).opacity(0.5)
+                        ]),
+                        startPoint: fromNode.position,
+                        endPoint: toNode.position
+                    ),
+                    style: StrokeStyle(lineWidth: 2.2, lineCap: .round)
                 )
             }
         }
     }
 
     private func drawDecorations(context: GraphicsContext, data: TreeData) {
-        // Glow on active nodes
+        // Soft glow on active root node
         for node in data.nodes where node.isActiveBranch && node.kind == .root {
             let glowRect = CGRect(
-                x: node.position.x - 45,
-                y: node.position.y - 45,
-                width: 90, height: 90
+                x: node.position.x - 65,
+                y: node.position.y - 65,
+                width: 130, height: 130
             )
             context.fill(
                 Circle().path(in: glowRect),
                 with: .radialGradient(
-                    Gradient(colors: [Color.primaryAccent.opacity(0.12), .clear]),
+                    Gradient(colors: [
+                        Color.primaryAccent.opacity(0.2),
+                        Color.secondaryAccent.opacity(0.1),
+                        .clear
+                    ]),
                     center: node.position,
                     startRadius: 0,
-                    endRadius: 45
+                    endRadius: 65
+                )
+            )
+        }
+
+        // Subtle highlight on active stage nodes
+        for node in data.nodes where node.isActiveBranch && node.kind == .stage {
+            let glowRect = CGRect(
+                x: node.position.x - 30,
+                y: node.position.y - 30,
+                width: 60, height: 60
+            )
+            context.fill(
+                Circle().path(in: glowRect),
+                with: .radialGradient(
+                    Gradient(colors: [
+                        node.nodeColor.opacity(0.12),
+                        .clear
+                    ]),
+                    center: node.position,
+                    startRadius: 0,
+                    endRadius: 30
                 )
             )
         }
@@ -192,10 +273,23 @@ struct ThinkingTreeView: View {
         var path = Path()
         path.move(to: from)
 
-        // Vertical curve (tree grows upward)
-        let midY = (from.y + to.y) / 2
-        let controlPoint1 = CGPoint(x: from.x, y: midY)
-        let controlPoint2 = CGPoint(x: to.x, y: midY)
+        // Organic S-curve with variable curvature
+        let dy = abs(from.y - to.y)
+        let dx = abs(from.x - to.x)
+        let distance = sqrt(dx * dx + dy * dy)
+
+        // Curve strength scales with distance for more natural flow
+        let curveStrength = min(distance * 0.35, 80)
+
+        // Vertical-biased control points (tree grows upward)
+        let controlPoint1 = CGPoint(
+            x: from.x + (dx > 50 ? (to.x > from.x ? 10 : -10) : 0),
+            y: from.y - curveStrength * 0.7
+        )
+        let controlPoint2 = CGPoint(
+            x: to.x + (dx > 50 ? (from.x > to.x ? 10 : -10) : 0),
+            y: to.y + curveStrength * 0.7
+        )
 
         path.addCurve(to: to, control1: controlPoint1, control2: controlPoint2)
         return path
@@ -251,6 +345,46 @@ struct ThinkingTreeView: View {
     stages[2].status = "completed"; stages[2].completionRatio = 1.0
     stages[3].status = "active"; stages[3].completionRatio = 0.67
     project.stages = stages
+
+    // Add thinking moments for preview
+    let root = ThinkingMoment(momType: "seed", content: "项目想法诞生", stageOrder: 0)
+    project.thinkingMoments.append(root)
+
+    let s1 = ThinkingMoment(momType: "branch", content: "探索痛点", stageOrder: 1, parentMomentID: root.id)
+    project.thinkingMoments.append(s1)
+
+    let f1 = ThinkingMoment(momType: "deepen", content: "目标用户", stageOrder: 1,
+                            relatedField: BriefField.targetUser.rawValue, parentMomentID: s1.id)
+    let f2 = ThinkingMoment(momType: "deepen", content: "核心痛点", stageOrder: 1,
+                            relatedField: BriefField.painPoint.rawValue, parentMomentID: s1.id)
+    let f3 = ThinkingMoment(momType: "deepen", content: "使用场景", stageOrder: 1,
+                            relatedField: BriefField.useScenario.rawValue, parentMomentID: s1.id)
+    project.thinkingMoments.append(f1)
+    project.thinkingMoments.append(f2)
+    project.thinkingMoments.append(f3)
+
+    let s2 = ThinkingMoment(momType: "branch", content: "差异化价值", stageOrder: 2, parentMomentID: root.id)
+    project.thinkingMoments.append(s2)
+
+    let f4 = ThinkingMoment(momType: "deepen", content: "核心价值", stageOrder: 2,
+                            relatedField: BriefField.coreValue.rawValue, parentMomentID: s2.id)
+    let f5 = ThinkingMoment(momType: "deepen", content: "差异化", stageOrder: 2,
+                            relatedField: BriefField.differentiation.rawValue, parentMomentID: s2.id)
+    project.thinkingMoments.append(f4)
+    project.thinkingMoments.append(f5)
+
+    let s3 = ThinkingMoment(momType: "converge", content: "划定边界", stageOrder: 3, parentMomentID: root.id)
+    project.thinkingMoments.append(s3)
+
+    let s4 = ThinkingMoment(momType: "branch", content: "功能拆解", stageOrder: 4, parentMomentID: root.id)
+    project.thinkingMoments.append(s4)
+
+    let f6 = ThinkingMoment(momType: "deepen", content: "MVP", stageOrder: 4,
+                            relatedField: BriefField.mvpFeatures.rawValue, parentMomentID: s4.id)
+    let f7 = ThinkingMoment(momType: "deepen", content: "技术选型", stageOrder: 4,
+                            relatedField: BriefField.technicalModules.rawValue, parentMomentID: s4.id)
+    project.thinkingMoments.append(f6)
+    project.thinkingMoments.append(f7)
 
     return ThinkingTreeView(project: project)
 }

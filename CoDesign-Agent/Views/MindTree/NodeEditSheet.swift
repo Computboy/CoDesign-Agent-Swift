@@ -3,40 +3,75 @@ import SwiftData
 
 /// Sheet for editing a thinking tree node.
 /// Archives the old branch and creates a new active branch from the edited node.
+///
+/// For field nodes:
+///   - "Node Label" is the brief display name (e.g. "目标用户")
+///   - "Field Value" is the actual content saved to DesignBrief
+///
+/// For stage/root nodes:
+///   - Only "Node Label" is editable (no linked Brief field)
 struct NodeEditSheet: View {
     let node: TreeNode
     let project: Project
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
-    @State private var editContent: String = ""
+    @State private var editLabel: String = ""
     @State private var editDetail: String = ""
+
+    private var isFieldNode: Bool {
+        node.kind == .field && node.field != nil
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    nodeInfo
+                    nodeInfoRow
                 } header: {
-                    Text("编辑节点")
+                    Text("当前节点")
                 }
 
                 Section {
-                    TextField("节点标题", text: $editContent, axis: .vertical)
-                        .lineLimit(1...3)
-                        .font(AppTheme.Typography.body)
+                    HStack {
+                        Text("标签")
+                            .foregroundStyle(Color.textSecondary)
+                            .frame(width: 56, alignment: .leading)
+                        TextField("节点标签", text: $editLabel, axis: .vertical)
+                            .lineLimit(1...2)
+                            .font(AppTheme.Typography.body)
+                    }
 
-                    if node.kind == .field {
-                        TextField("详细内容（可选）", text: $editDetail, axis: .vertical)
-                            .lineLimit(3...6)
-                            .font(AppTheme.Typography.subheadline)
+                    if isFieldNode {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("内容")
+                                    .foregroundStyle(Color.textSecondary)
+                                Spacer()
+                                Text(node.field?.displayName ?? "")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(Color.primaryAccent)
+                            }
+                            TextField("输入新值，保存后同步到设计简报", text: $editDetail, axis: .vertical)
+                                .lineLimit(4...10)
+                                .font(AppTheme.Typography.body)
+                                .padding(8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color.softAccentBackground)
+                                )
+                        }
                     }
                 } header: {
-                    Text("内容")
+                    Text("编辑")
                 } footer: {
-                    Text("保存后，旧分支将变为灰色存档状态，新分支将从此节点重新生长。")
-                        .font(AppTheme.Typography.caption)
-                        .foregroundStyle(Color.textTertiary)
+                    if isFieldNode {
+                        Text("保存后，旧分支变为灰色存档，新分支从此节点重新生长。内容变更会同步到工作台的设计简报。")
+                            .font(AppTheme.Typography.caption)
+                    } else {
+                        Text("保存后，旧分支变为灰色存档，新分支从此节点重新生长。")
+                            .font(AppTheme.Typography.caption)
+                    }
                 }
 
                 if node.isArchived {
@@ -60,20 +95,31 @@ struct NodeEditSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
-                        .disabled(editContent.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(!canSave)
                         .fontWeight(.semibold)
                 }
             }
             .onAppear {
-                editContent = node.content
-                editDetail = node.subContent ?? ""
+                editLabel = node.content
+                if isFieldNode {
+                    editDetail = node.subContent ?? ""
+                }
             }
         }
     }
 
-    // MARK: - Node Info
+    private var canSave: Bool {
+        if isFieldNode {
+            // For field nodes, require at least the detail value to be non-empty
+            return !editDetail.trimmingCharacters(in: .whitespaces).isEmpty
+        } else {
+            return !editLabel.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+    }
 
-    private var nodeInfo: some View {
+    // MARK: - Node Info Row
+
+    private var nodeInfoRow: some View {
         HStack(spacing: AppTheme.spacingMedium) {
             Circle()
                 .fill(node.nodeColor.opacity(0.2))
@@ -105,15 +151,15 @@ struct NodeEditSheet: View {
 
     private func save() {
         guard let context = project.modelContext else { return }
-        let trimmedContent = editContent.trimmingCharacters(in: .whitespaces)
-        guard !trimmedContent.isEmpty else { return }
+        let trimmedLabel = editLabel.trimmingCharacters(in: .whitespaces)
+        let trimmedDetail = editDetail.trimmingCharacters(in: .whitespaces)
+        guard !trimmedLabel.isEmpty else { return }
 
         let moments = project.thinkingMoments
 
         // 1. Find the moment being edited
         guard let editedMomentID = node.momentID,
               let editedMoment = moments.first(where: { $0.id == editedMomentID }) else {
-            // No moment linked — just dismiss (shouldn't happen)
             dismiss()
             return
         }
@@ -127,9 +173,11 @@ struct NodeEditSheet: View {
         }
 
         // 3. Create new active moment branching from the same parent
+        //    For field nodes: content = label (e.g. "目标用户"), value goes to DesignBrief
+        //    For stage/root: content = label
         let newMoment = ThinkingMoment(
             momType: editedMoment.momType == "seed" ? "revise" : editedMoment.momType,
-            content: trimmedContent,
+            content: trimmedLabel,
             stageOrder: editedMoment.stageOrder,
             relatedField: editedMoment.relatedField,
             parentMomentID: editedMoment.parentMomentID,
@@ -140,11 +188,11 @@ struct NodeEditSheet: View {
         context.insert(newMoment)
         project.thinkingMoments.append(newMoment)
 
-        // 4. Sync field changes to DesignBrief
-        if let fieldRaw = editedMoment.relatedField,
-           let field = BriefField(rawValue: fieldRaw),
+        // 4. For field nodes: sync the edited detail value to DesignBrief
+        if isFieldNode,
+           let field = node.field,
            let brief = project.brief {
-            syncBriefField(field, value: trimmedContent, brief: brief, context: context)
+            syncBriefField(field, value: trimmedDetail, brief: brief, context: context)
         }
 
         // 5. Save
@@ -180,7 +228,6 @@ struct NodeEditSheet: View {
         case .milestones:      brief.milestones = value
 
         case .boundaryItems:
-            // Replace with simple list parsed from lines
             brief.boundaryItems.forEach { context.delete($0) }
             brief.boundaryItems = value.components(separatedBy: .newlines)
                 .map { $0.trimmingCharacters(in: .whitespaces) }

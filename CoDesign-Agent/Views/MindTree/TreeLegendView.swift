@@ -1,95 +1,130 @@
 import SwiftUI
 
-/// Small legend overlay for the thinking tree view.
+/// Premium legend overlay with refined styling.
 struct TreeLegendView: View {
     @State private var isExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .trailing, spacing: 0) {
             Button {
-                withAnimation(AppTheme.Animation.standard) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     isExpanded.toggle()
                 }
             } label: {
-                HStack(spacing: AppTheme.spacingXS) {
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 12))
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 11, weight: .semibold))
                     Text("图例")
-                        .font(AppTheme.Typography.caption.weight(.medium))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
                 }
-                .foregroundStyle(Color.textTertiary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .foregroundStyle(Color.textSecondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(Color.cardBackground.opacity(0.85))
+                        .fill(.ultraThinMaterial)
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.4), lineWidth: 0.5)
                 )
             }
             .buttonStyle(.plain)
 
             if isExpanded {
                 legendContent
-                    .padding(AppTheme.spacingMedium)
+                    .padding(16)
                     .background(
-                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                            .fill(Color.cardBackground.opacity(0.92))
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(.ultraThinMaterial)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                            .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.3), lineWidth: 0.5)
                     )
-                    .padding(.top, 4)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
+                    .padding(.top, 6)
+                    .transition(.opacity.combined(with: .move(edge: .bottom).combined(with: .scale(scale: 0.95))))
             }
         }
     }
 
     private var legendContent: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-            legendRow(color: .success, label: "已完成")
-            legendRow(color: .primaryAccent, label: "进行中")
-            legendRow(color: .warning, label: "待修正")
-            legendRow(color: .stageNotStarted, label: "未探索", dashed: true)
+        VStack(alignment: .leading, spacing: 10) {
+            // Status colors
+            VStack(alignment: .leading, spacing: 8) {
+                Text("状态")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.textTertiary)
+                    .textCase(.uppercase)
+
+                legendRow(color: .success, label: "已完成")
+                legendRow(color: .primaryAccent, label: "进行中")
+                legendRow(color: .warning, label: "待修正")
+                legendRow(color: .stageNotStarted, label: "未开始", dashed: true)
+                legendRow(color: Color(red: 0.58, green: 0.53, blue: 0.48), label: "旧版(已归档)", dashed: true)
+            }
 
             Divider()
-                .padding(.vertical, 2)
+                .opacity(0.3)
 
-            HStack(spacing: AppTheme.spacingSmall) {
-                Image(systemName: "hand.draw")
-                    .font(.system(size: 10))
+            // Interaction hints
+            VStack(alignment: .leading, spacing: 6) {
+                Text("操作")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.textTertiary)
-                Text("捏合缩放 · 拖动平移")
-                    .font(AppTheme.Typography.caption)
-                    .foregroundStyle(Color.textTertiary)
-            }
-            HStack(spacing: AppTheme.spacingSmall) {
-                Image(systemName: "hand.tap")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textTertiary)
-                Text("点击节点查看详情")
-                    .font(AppTheme.Typography.caption)
-                    .foregroundStyle(Color.textTertiary)
+                    .textCase(.uppercase)
+
+                hintRow(icon: "hand.draw.fill", text: "捏合缩放 · 拖动平移")
+                hintRow(icon: "hand.tap.fill", text: "点击节点查看详情")
+                hintRow(icon: "pencil.circle.fill", text: "编辑按钮修改节点")
             }
         }
     }
 
     private func legendRow(color: Color, label: String, dashed: Bool = false) -> some View {
-        HStack(spacing: AppTheme.spacingSmall) {
-            Circle()
-                .fill(color.opacity(dashed ? 0.15 : 0.25))
-                .frame(width: 14, height: 14)
-                .overlay(
-                    Circle()
-                        .strokeBorder(
-                            color.opacity(0.6),
-                            style: dashed
-                                ? StrokeStyle(lineWidth: 1, dash: [2, 2])
-                                : StrokeStyle(lineWidth: 1)
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(dashed ? 0.15 : 0.25))
+                    .frame(width: 14, height: 14)
+
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [color.opacity(0.8), color.opacity(0.5)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         )
-                )
+                    )
+                    .frame(width: 12, height: 12)
+                    .overlay(
+                        Circle()
+                            .strokeBorder(
+                                color.opacity(0.6),
+                                style: dashed
+                                    ? StrokeStyle(lineWidth: 1, dash: [2, 2])
+                                    : StrokeStyle(lineWidth: 1)
+                            )
+                    )
+            }
+
             Text(label)
-                .font(AppTheme.Typography.caption)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(Color.textSecondary)
+        }
+    }
+
+    private func hintRow(icon: String, text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.primaryAccent.opacity(0.7))
+                .frame(width: 16)
+
+            Text(text)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(Color.textTertiary)
         }
     }
 }
