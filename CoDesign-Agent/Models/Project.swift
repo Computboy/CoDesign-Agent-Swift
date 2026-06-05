@@ -51,4 +51,58 @@ final class Project {
         let total = stages.reduce(0.0) { $0 + $1.completionRatio }
         return total / Double(stages.count)
     }
+
+    // MARK: - Thinking Moments Auto-Generation
+
+    /// Ensures the project has at least a root ThinkingMoment.
+    /// If thinkingMoments is empty (e.g. project was created before the
+    /// ThinkingMoment model existed), generates a seed moment + moments
+    /// from any already-filled BriefFields.
+    func ensureThinkingMoments(context: ModelContext) {
+        guard thinkingMoments.isEmpty else { return }
+
+        // 1. Root seed
+        let root = ThinkingMoment(
+            momType: "seed",
+            content: "项目想法诞生",
+            stageOrder: 0
+        )
+        context.insert(root)
+        thinkingMoments.append(root)
+
+        // 2. Build moments from filled brief fields
+        let brief = self.brief?.toSnapshot() ?? DesignBriefSnapshot()
+        let stagesSorted = stages.sorted { $0.order < $1.order }
+
+        for stage in stagesSorted {
+            guard let def = StageDefinition.all.first(where: { $0.order == stage.order }) else { continue }
+            let filledFields = def.briefFields.filter { $0.isFilled(in: brief) }
+            guard !filledFields.isEmpty || stage.stageStatusValue != .notStarted else { continue }
+
+            // Stage branch moment
+            let branch = ThinkingMoment(
+                momType: "branch",
+                content: "探索: \(def.name)",
+                stageOrder: stage.order,
+                parentMomentID: root.id
+            )
+            context.insert(branch)
+            thinkingMoments.append(branch)
+
+            // Field deepen moments
+            for field in filledFields {
+                let deepen = ThinkingMoment(
+                    momType: "deepen",
+                    content: field.displayName,
+                    stageOrder: stage.order,
+                    relatedField: field.rawValue,
+                    parentMomentID: branch.id
+                )
+                context.insert(deepen)
+                thinkingMoments.append(deepen)
+            }
+        }
+
+        try? context.save()
+    }
 }

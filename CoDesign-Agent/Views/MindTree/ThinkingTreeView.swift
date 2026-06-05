@@ -85,6 +85,11 @@ struct ThinkingTreeView: View {
                 }
             }
             .onAppear {
+                // Auto-generate thinking moments if missing (e.g. DB upgrade)
+                if project.thinkingMoments.isEmpty, let ctx = project.modelContext {
+                    project.ensureThinkingMoments(context: ctx)
+                }
+
                 // Auto-fit: scale to fit viewport
                 let contentSize = engine.minimumContentSize(maxStage: maxStage)
                 let fitScale = min(
