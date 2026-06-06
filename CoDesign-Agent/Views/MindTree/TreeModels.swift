@@ -6,6 +6,9 @@ enum TreeNodeKind {
     case root
     case stage
     case field
+    case process
+    case evidence
+    case revision
 }
 
 // MARK: - Tree Node
@@ -14,37 +17,52 @@ enum TreeNodeKind {
 struct TreeNode: Identifiable {
     let id: String
     let kind: TreeNodeKind
-    let content: String           // primary label
-    let subContent: String?       // secondary text (e.g. field value)
-    let stageOrder: Int?          // 1-9 for stage/field nodes
-    let field: BriefField?        // only for field nodes
-    let momentID: UUID?           // link to ThinkingMoment (nil for root)
-    var position: CGPoint         // computed by layout engine
+    let content: String
+    let subContent: String?
+    let stageOrder: Int?
+    let field: BriefField?
+    let momentID: UUID?
+    var position: CGPoint
     let nodeColor: Color
-    let isActiveBranch: Bool      // true = current branch, false = archived
+    let isActiveBranch: Bool
     let branchVersion: Int
-    let richness: CGFloat         // 0...1, drives node size
-    let isGhost: Bool             // true = unfilled / unexplored placeholder
+    let richness: CGFloat
+    let isGhost: Bool
+    let processLabel: String?
+    let processIcon: String?
+    let statusText: String?
+    let resource: ResourceCard?
 
     var iconSystemName: String? {
         switch kind {
-        case .root: return nil
+        case .root:
+            return "lightbulb.fill"
         case .stage:
             guard let order = stageOrder else { return nil }
             return StageDefinition.all.first { $0.order == order }?.iconName
-        case .field: return nil
+        case .field:
+            return processIcon ?? "checkmark.seal"
+        case .process:
+            return processIcon ?? "bubble.left"
+        case .evidence:
+            return "doc.text.magnifyingglass"
+        case .revision:
+            return "arrow.uturn.backward"
         }
     }
 
     var isArchived: Bool { !isActiveBranch }
+    var isEditable: Bool { momentID != nil && !isGhost }
 }
 
 // MARK: - Edge Style
 
 enum TreeEdgeStyle {
-    case active      // solid, active branch
-    case archived    // dashed, archived branch
-    case transition  // solid, connecting archived to active (edit point)
+    case active
+    case archived
+    case transition
+    case ghost
+    case evidence
 }
 
 // MARK: - Tree Edge
@@ -54,6 +72,21 @@ struct TreeEdge: Identifiable {
     let fromID: String
     let toID: String
     let style: TreeEdgeStyle
+    let togglesStageOrder: Int?
+
+    init(
+        id: String,
+        fromID: String,
+        toID: String,
+        style: TreeEdgeStyle,
+        togglesStageOrder: Int? = nil
+    ) {
+        self.id = id
+        self.fromID = fromID
+        self.toID = toID
+        self.style = style
+        self.togglesStageOrder = togglesStageOrder
+    }
 }
 
 // MARK: - Tree Data
@@ -61,6 +94,7 @@ struct TreeEdge: Identifiable {
 struct TreeData {
     let nodes: [TreeNode]
     let edges: [TreeEdge]
+    let contentSize: CGSize
 
     func node(for id: String) -> TreeNode? {
         nodes.first { $0.id == id }
@@ -69,23 +103,183 @@ struct TreeData {
 
 // MARK: - Tree Builder
 
-/// Builds a TreeData from Project's ThinkingMoments.
+/// Builds a persistent process projection from Project state.
 struct TreeBuilder {
 
     func build(project: Project) -> TreeData {
-        let moments = project.thinkingMoments.sorted { $0.timestamp < $1.timestamp }
+        build(project: project, expandedStageOrders: [], evidenceResourcesByStage: [:])
+    }
+
+    func build(
+        project: Project,
+        expandedStageOrders: Set<Int>,
+        evidenceResourcesByStage: [Int: [ResourceCard]] = [:]
+    ) -> TreeData {
         let brief = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
+        let stageByOrder = Dictionary(uniqueKeysWithValues: project.stages.map { ($0.order, $0) })
+        let activeOrder = project.currentStageOrder
 
         var nodes: [TreeNode] = []
         var edges: [TreeEdge] = []
 
-        // Root node (project idea)
-        let rootID = "root"
-        let rootNode = TreeNode(
-            id: rootID,
+        nodes.append(rootNode(project: project))
+
+        for definition in StageDefinition.all {
+            let stage = stageByOrder[definition.order]
+            let status = stage?.stageStatusValue ?? (definition.order == activeOrder ? .active : .notStarted)
+            let stageID = Self.stageNodeID(definition.order)
+
+            nodes.append(
+                TreeNode(
+                    id: stageID,
+                    kind: .stage,
+                    content: "Stage \(definition.order)",
+                    subContent: definition.name,
+                    stageOrder: definition.order,
+                    field: nil,
+                    momentID: nil,
+                    position: .zero,
+                    nodeColor: stageColor(for: status),
+                    isActiveBranch: true,
+                    branchVersion: 1,
+                    richness: stage?.completionRatio ?? 0,
+                    isGhost: status == .notStarted,
+                    processLabel: nil,
+                    processIcon: definition.iconName,
+                    statusText: stageStatusText(status),
+                    resource: nil
+                )
+            )
+
+            let parentID = definition.order == 1 ? Self.rootID : Self.stageNodeID(definition.order - 1)
+            edges.append(
+                TreeEdge(
+                    id: "\(parentID)-\(stageID)",
+                    fromID: parentID,
+                    toID: stageID,
+                    style: edgeStyle(for: status),
+                    togglesStageOrder: definition.order
+                )
+            )
+        }
+
+        let visibleMoments = project.thinkingMoments
+            .filter { expandedStageOrders.contains($0.stageOrder) }
+            .sorted { lhs, rhs in
+                if lhs.stageOrder == rhs.stageOrder {
+                    return lhs.timestamp < rhs.timestamp
+                }
+                return lhs.stageOrder < rhs.stageOrder
+            }
+
+        for moment in visibleMoments where (1...9).contains(moment.stageOrder) {
+            let node = momentNode(moment, brief: brief, project: project)
+            nodes.append(node)
+
+            let parentID = parentID(for: moment, visibleMomentIDs: Set(visibleMoments.map(\.id)))
+            edges.append(
+                TreeEdge(
+                    id: "\(parentID)-\(node.id)",
+                    fromID: parentID,
+                    toID: node.id,
+                    style: moment.isActiveBranch ? (node.kind == .evidence ? .evidence : .active) : .archived
+                )
+            )
+        }
+
+        for trace in project.learningTraces
+            .filter({ expandedStageOrders.contains($0.stageOrder) })
+            .sorted(by: { $0.timestamp < $1.timestamp }) {
+            let nodeID = "trace-\(trace.id)"
+            nodes.append(
+                TreeNode(
+                    id: nodeID,
+                    kind: .process,
+                    content: trace.title,
+                    subContent: trace.detail,
+                    stageOrder: trace.stageOrder,
+                    field: nil,
+                    momentID: nil,
+                    position: .zero,
+                    nodeColor: Color.secondaryAccent,
+                    isActiveBranch: true,
+                    branchVersion: 1,
+                    richness: 0.62,
+                    isGhost: false,
+                    processLabel: traceLabel(trace.actionType),
+                    processIcon: traceIcon(trace.actionType),
+                    statusText: "学习轨迹",
+                    resource: nil
+                )
+            )
+            edges.append(
+                TreeEdge(
+                    id: "\(Self.stageNodeID(trace.stageOrder))-\(nodeID)",
+                    fromID: Self.stageNodeID(trace.stageOrder),
+                    toID: nodeID,
+                    style: .transition
+                )
+            )
+        }
+
+        for (stageOrder, resources) in evidenceResourcesByStage where expandedStageOrders.contains(stageOrder) {
+            let adoptedTitles = Set(
+                project.thinkingMoments
+                    .filter { $0.stageOrder == stageOrder && $0.momType == "evidence" && $0.isActiveBranch }
+                    .map(\.content)
+            )
+
+            for resource in resources where !adoptedTitles.contains(resource.title) {
+                let nodeID = "evidence-\(stageOrder)-\(resource.id)"
+                nodes.append(
+                    TreeNode(
+                        id: nodeID,
+                        kind: .evidence,
+                        content: resource.title,
+                        subContent: resource.summary,
+                        stageOrder: stageOrder,
+                        field: nil,
+                        momentID: nil,
+                        position: .zero,
+                        nodeColor: Color.secondaryAccent,
+                        isActiveBranch: true,
+                        branchVersion: 1,
+                        richness: 0.45,
+                        isGhost: true,
+                        processLabel: "Evidence",
+                        processIcon: "doc.text.magnifyingglass",
+                        statusText: "推荐依据",
+                        resource: resource
+                    )
+                )
+                edges.append(
+                    TreeEdge(
+                        id: "\(Self.stageNodeID(stageOrder))-\(nodeID)",
+                        fromID: Self.stageNodeID(stageOrder),
+                        toID: nodeID,
+                        style: .evidence
+                    )
+                )
+            }
+        }
+
+        return TreeData(nodes: nodes, edges: edges, contentSize: .zero)
+    }
+
+    static let rootID = "root"
+
+    static func stageNodeID(_ order: Int) -> String {
+        "stage-\(order)"
+    }
+
+    // MARK: - Helpers
+
+    private func rootNode(project: Project) -> TreeNode {
+        TreeNode(
+            id: Self.rootID,
             kind: .root,
             content: project.name,
-            subContent: project.briefDescription.isEmpty ? nil : project.briefDescription,
+            subContent: project.briefDescription.isEmpty ? "最初模糊主题" : project.briefDescription,
             stageOrder: nil,
             field: nil,
             momentID: nil,
@@ -93,89 +287,126 @@ struct TreeBuilder {
             nodeColor: Color.primaryAccent,
             isActiveBranch: true,
             branchVersion: 1,
-            richness: 1.0,
-            isGhost: false
+            richness: CGFloat(project.completionRate),
+            isGhost: false,
+            processLabel: nil,
+            processIcon: "lightbulb.fill",
+            statusText: "项目主题",
+            resource: nil
         )
-        nodes.append(rootNode)
-
-        // Build moment-based nodes
-        for moment in moments {
-            let nodeID = "moment-\(moment.id)"
-            let isStageNode = moment.relatedField == nil
-            let field = moment.relatedField.flatMap { BriefField(rawValue: $0) }
-
-            let color: Color
-            if moment.isActiveBranch {
-                // Active branch: use stage status colors
-                let stage = project.stages.first { $0.order == moment.stageOrder }
-                switch stage?.stageStatusValue ?? .notStarted {
-                case .completed: color = .success
-                case .active: color = .primaryAccent
-                case .needsReview: color = .warning
-                case .notStarted: color = .stageNotStarted
-                }
-            } else {
-                // Archived branch: muted sepia/grey
-                color = Color(red: 0.6, green: 0.55, blue: 0.5)
-            }
-
-            let fieldValue: String? = field.flatMap { fieldDisplayValue($0, brief: brief) }
-
-            // For stage nodes, use the stage definition name as subContent
-            let subContent: String?
-            if isStageNode {
-                subContent = StageDefinition.all
-                    .first { $0.order == moment.stageOrder }?.name
-            } else {
-                subContent = fieldValue
-            }
-
-            let node = TreeNode(
-                id: nodeID,
-                kind: isStageNode ? .stage : .field,
-                content: moment.content,
-                subContent: subContent,
-                stageOrder: moment.stageOrder,
-                field: field,
-                momentID: moment.id,
-                position: .zero,
-                nodeColor: color,
-                isActiveBranch: moment.isActiveBranch,
-                branchVersion: moment.branchVersion,
-                richness: moment.isActiveBranch ? 0.8 : 0.5,
-                isGhost: false
-            )
-            nodes.append(node)
-
-            // Edge from parent
-            let parentID: String
-            if let parentMomentID = moment.parentMomentID {
-                parentID = "moment-\(parentMomentID)"
-            } else {
-                parentID = rootID  // root is parent if no parentMomentID
-            }
-
-            let edgeStyle: TreeEdgeStyle
-            if moment.isActiveBranch {
-                edgeStyle = .active
-            } else {
-                // Check if parent is active (this is the edit point)
-                let parentMoment = moments.first { $0.id == moment.parentMomentID }
-                edgeStyle = parentMoment?.isActiveBranch == true ? .transition : .archived
-            }
-
-            edges.append(TreeEdge(
-                id: "\(parentID)-\(nodeID)",
-                fromID: parentID,
-                toID: nodeID,
-                style: edgeStyle
-            ))
-        }
-
-        return TreeData(nodes: nodes, edges: edges)
     }
 
-    // MARK: - Helpers
+    private func momentNode(_ moment: ThinkingMoment, brief: DesignBriefSnapshot, project: Project) -> TreeNode {
+        let field = moment.relatedField.flatMap { BriefField(rawValue: $0) }
+        let kind = nodeKind(for: moment, field: field)
+        let status = project.stages.first { $0.order == moment.stageOrder }?.stageStatusValue ?? .notStarted
+        let color = moment.isActiveBranch ? colorForMoment(moment, status: status) : Color(red: 0.58, green: 0.53, blue: 0.48)
+        let content = momentContent(moment, field: field)
+        let subContent = field.flatMap { fieldDisplayValue($0, brief: brief) } ?? momentSubContent(moment)
+
+        return TreeNode(
+            id: "moment-\(moment.id)",
+            kind: kind,
+            content: content,
+            subContent: subContent,
+            stageOrder: moment.stageOrder,
+            field: field,
+            momentID: moment.id,
+            position: .zero,
+            nodeColor: color,
+            isActiveBranch: moment.isActiveBranch,
+            branchVersion: moment.branchVersion,
+            richness: moment.isActiveBranch ? 0.72 : 0.42,
+            isGhost: false,
+            processLabel: processLabel(for: moment),
+            processIcon: processIcon(for: moment),
+            statusText: momentStatusText(moment),
+            resource: nil
+        )
+    }
+
+    private func nodeKind(for moment: ThinkingMoment, field: BriefField?) -> TreeNodeKind {
+        if !moment.isActiveBranch { return .revision }
+        if moment.momType == "evidence" { return .evidence }
+        if moment.momType == "revise" { return .revision }
+        if field != nil || moment.momType == "decision" || moment.momType == "deepen" {
+            return .field
+        }
+        return .process
+    }
+
+    private func momentContent(_ moment: ThinkingMoment, field: BriefField?) -> String {
+        if let field, moment.momType == "decision" || moment.momType == "deepen" {
+            return moment.content.isEmpty ? "确认：\(field.displayName)" : moment.content
+        }
+        return moment.content
+    }
+
+    private func momentSubContent(_ moment: ThinkingMoment) -> String? {
+        switch moment.momType {
+        case "question": return "AI 追问"
+        case "answer": return "用户回答"
+        case "decision", "deepen": return "结构化判断"
+        case "evidence": return "已采纳为依据"
+        case "revise": return "回溯修改"
+        case "branch": return "阶段探索"
+        default: return nil
+        }
+    }
+
+    private func colorForMoment(_ moment: ThinkingMoment, status: StageStatus) -> Color {
+        switch moment.momType {
+        case "answer": return Color.success
+        case "question": return Color.primaryAccent
+        case "decision", "deepen": return Color.warning
+        case "evidence": return Color.secondaryAccent
+        case "revise": return Color(red: 0.58, green: 0.53, blue: 0.48)
+        default: return stageColor(for: status)
+        }
+    }
+
+    private func processLabel(for moment: ThinkingMoment) -> String {
+        switch moment.momType {
+        case "question": return "Q"
+        case "answer": return "A"
+        case "decision", "deepen": return "Decision"
+        case "evidence": return "Evidence"
+        case "revise": return "Revision"
+        case "branch": return "Stage"
+        default: return moment.momType.isEmpty ? "Process" : moment.momType
+        }
+    }
+
+    private func processIcon(for moment: ThinkingMoment) -> String {
+        switch moment.momType {
+        case "question": return "questionmark.circle"
+        case "answer": return "bubble.left"
+        case "decision", "deepen": return "checkmark.seal"
+        case "evidence": return "doc.text.magnifyingglass"
+        case "revise": return "arrow.uturn.backward"
+        case "branch": return "square.stack.3d.up"
+        default: return "sparkles"
+        }
+    }
+
+    private func momentStatusText(_ moment: ThinkingMoment) -> String {
+        if !moment.isActiveBranch { return "旧分支 v\(moment.branchVersion)" }
+        switch moment.momType {
+        case "question": return "问题"
+        case "answer": return "回答"
+        case "decision", "deepen": return "判断"
+        case "evidence": return "依据"
+        case "revise": return "回溯"
+        default: return "过程"
+        }
+    }
+
+    private func parentID(for moment: ThinkingMoment, visibleMomentIDs: Set<UUID>) -> String {
+        if let parentMomentID = moment.parentMomentID, visibleMomentIDs.contains(parentMomentID) {
+            return "moment-\(parentMomentID)"
+        }
+        return Self.stageNodeID(moment.stageOrder)
+    }
 
     private func fieldDisplayValue(_ field: BriefField, brief: DesignBriefSnapshot) -> String? {
         switch field {
@@ -186,7 +417,7 @@ struct TreeBuilder {
         case .differentiation: return brief.differentiation
         case .boundaryItems:
             let included = brief.boundaryItems.filter { $0.isIncluded }
-            return included.isEmpty ? nil : "\(included.count) 项核心功能"
+            return included.isEmpty ? nil : "\(included.count) 项边界"
         case .mvpFeatures: return brief.mvpFeatures
         case .technicalModules: return brief.technicalModules
         case .interactionFlow: return brief.interactionFlow
@@ -197,6 +428,53 @@ struct TreeBuilder {
         case .risks:
             return brief.risks.isEmpty ? nil : "\(brief.risks.count) 项风险"
         case .milestones: return brief.milestones
+        }
+    }
+
+    private func traceLabel(_ actionType: String) -> String {
+        switch actionType {
+        case "reframe": return "Reframe"
+        case "converge": return "Converge"
+        case "boundaryShrink": return "Boundary"
+        default: return "Trace"
+        }
+    }
+
+    private func traceIcon(_ actionType: String) -> String {
+        switch actionType {
+        case "reframe": return "arrow.triangle.2.circlepath"
+        case "converge": return "arrow.down.right.and.arrow.up.left"
+        case "boundaryShrink": return "rectangle.compress.vertical"
+        default: return "sparkles"
+        }
+    }
+
+    private func stageColor(for status: StageStatus) -> Color {
+        switch status {
+        case .completed: return .success
+        case .active: return .primaryAccent
+        case .needsReview: return .warning
+        case .notStarted: return .stageNotStarted
+        }
+    }
+
+    private func edgeStyle(for status: StageStatus) -> TreeEdgeStyle {
+        switch status {
+        case .completed, .active:
+            return .active
+        case .needsReview:
+            return .transition
+        case .notStarted:
+            return .ghost
+        }
+    }
+
+    private func stageStatusText(_ status: StageStatus) -> String {
+        switch status {
+        case .completed: return "已完成"
+        case .active: return "进行中"
+        case .needsReview: return "待复核"
+        case .notStarted: return "未开始"
         }
     }
 }

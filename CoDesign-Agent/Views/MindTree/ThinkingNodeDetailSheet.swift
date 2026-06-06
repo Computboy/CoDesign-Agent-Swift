@@ -4,6 +4,8 @@ import SwiftUI
 struct ThinkingNodeDetailSheet: View {
     let node: TreeNode
     let project: Project
+    var onAdoptEvidence: (ResourceCard, Int) -> Void = { _, _ in }
+
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -14,9 +16,18 @@ struct ThinkingNodeDetailSheet: View {
                     Divider()
 
                     switch node.kind {
-                    case .root:   rootContent
-                    case .stage:  stageContent
-                    case .field:  fieldContent
+                    case .root:
+                        rootContent
+                    case .stage:
+                        stageContent
+                    case .field:
+                        fieldContent
+                    case .process:
+                        processContent
+                    case .evidence:
+                        evidenceContent
+                    case .revision:
+                        revisionContent
                     }
 
                     relatedTraces
@@ -41,49 +52,52 @@ struct ThinkingNodeDetailSheet: View {
     private var header: some View {
         HStack(spacing: AppTheme.spacingMedium) {
             nodeIcon
-            VStack(alignment: .leading, spacing: 2) {
+
+            VStack(alignment: .leading, spacing: 3) {
                 Text(nodeTitle)
                     .font(AppTheme.Typography.title)
                     .foregroundStyle(Color.textPrimary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+
                 if let subtitle = nodeSubtitle {
                     Text(subtitle)
                         .font(AppTheme.Typography.subheadline)
                         .foregroundStyle(Color.textTertiary)
+                        .lineLimit(2)
                 }
             }
+
             Spacer()
             statusBadge
         }
     }
 
     private var nodeIcon: some View {
-        let icon: String = {
-            switch node.kind {
-            case .root: return "lightbulb.fill"
-            case .stage: return node.iconSystemName ?? "number.circle.fill"
-            case .field: return "leaf.fill"
-            }
-        }()
-        return Image(systemName: icon)
-            .font(.system(size: 28, weight: .semibold))
+        Image(systemName: node.iconSystemName ?? "sparkles")
+            .font(.system(size: 24, weight: .semibold))
             .foregroundStyle(node.nodeColor)
             .frame(width: 44, height: 44)
-            .background(
-                Circle().fill(node.nodeColor.opacity(0.12))
-            )
+            .background(Circle().fill(node.nodeColor.opacity(0.12)))
     }
 
     private var statusBadge: some View {
-        let (text, style): (String, CoDesignStatusBadge.Status) = {
-            if node.isGhost { return ("未探索", .locked) }
-            switch node.nodeColor {
-            case .success: return ("已完成", .complete)
-            case .primaryAccent: return ("进行中", .active)
-            case .warning: return ("待修正", .warning)
-            default: return ("未探索", .locked)
-            }
-        }()
-        return CoDesignStatusBadge(status: style, text: text)
+        let style: CoDesignStatusBadge.Status
+        if node.isGhost {
+            style = .locked
+        } else if node.kind == .revision || node.isArchived {
+            style = .warning
+        } else if node.kind == .stage && node.statusText == "已完成" {
+            style = .complete
+        } else if node.kind == .stage && node.statusText == "进行中" {
+            style = .active
+        } else if node.kind == .stage && node.statusText == "待复核" {
+            style = .warning
+        } else {
+            style = .active
+        }
+
+        return CoDesignStatusBadge(status: style, text: node.statusText ?? "过程")
     }
 
     // MARK: - Root Content
@@ -112,27 +126,47 @@ struct ThinkingNodeDetailSheet: View {
     private var stageContent: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
             if let order = node.stageOrder,
-               let def = StageDefinition.all.first(where: { $0.order == order }) {
-
+               let definition = StageDefinition.all.first(where: { $0.order == order }) {
                 CoDesignSectionHeader(title: "阶段描述")
                 CoDesignCard {
-                    Text(def.description)
+                    Text(definition.description)
                         .font(AppTheme.Typography.body)
                         .foregroundStyle(Color.textPrimary)
                 }
 
                 CoDesignSectionHeader(title: "设计产物字段")
                 let brief = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
-                ForEach(def.briefFields, id: \.rawValue) { field in
+                ForEach(definition.briefFields, id: \.rawValue) { field in
                     fieldRow(field, brief: brief)
                 }
 
                 CoDesignSectionHeader(title: "思考引导")
-                ForEach(def.thinkingQuestions, id: \.self) { q in
+                ForEach(definition.thinkingQuestions, id: \.self) { question in
                     HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
                         Image(systemName: "questionmark.circle")
-                            .foregroundStyle(Color.primaryAccent.opacity(0.6))
-                        Text(q)
+                            .foregroundStyle(Color.primaryAccent.opacity(0.65))
+                        Text(question)
+                            .font(AppTheme.Typography.body)
+                            .foregroundStyle(Color.textSecondary)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Process Content
+
+    private var processContent: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+            CoDesignSectionHeader(title: node.processLabel ?? "过程节点")
+            CoDesignCard {
+                VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+                    Text(node.content)
+                        .font(AppTheme.Typography.body.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
+
+                    if let subContent = node.subContent {
+                        Text(subContent)
                             .font(AppTheme.Typography.body)
                             .foregroundStyle(Color.textSecondary)
                     }
@@ -145,22 +179,102 @@ struct ThinkingNodeDetailSheet: View {
 
     private var fieldContent: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
-            if let sub = node.subContent {
-                CoDesignSectionHeader(title: "提取内容")
-                CoDesignCard {
-                    Text(sub)
-                        .font(AppTheme.Typography.body)
+            CoDesignSectionHeader(title: "结构化判断")
+            CoDesignCard {
+                VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+                    Text(node.content)
+                        .font(AppTheme.Typography.body.weight(.semibold))
                         .foregroundStyle(Color.textPrimary)
-                }
-            } else if node.isGhost {
-                CoDesignCard(style: .bordered) {
-                    VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-                        Image(systemName: "eye.slash")
-                            .foregroundStyle(Color.textTertiary)
-                        Text("此字段尚未从对话中提取。继续与 AI 对话，系统将自动识别并填充。")
+
+                    if let subContent = node.subContent {
+                        Text(subContent)
+                            .font(AppTheme.Typography.body)
+                            .foregroundStyle(Color.textSecondary)
+                    } else {
+                        Text("该字段仍需在工作台中继续澄清。")
                             .font(AppTheme.Typography.body)
                             .foregroundStyle(Color.textTertiary)
                     }
+                }
+            }
+        }
+    }
+
+    // MARK: - Evidence Content
+
+    private var evidenceContent: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+            if let resource = node.resource {
+                CoDesignSectionHeader(title: "推荐依据")
+
+                CoDesignCard {
+                    VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+                        HStack(spacing: AppTheme.spacingSmall) {
+                            CoDesignStatusBadge(status: .active, text: resource.type.displayName)
+                            if let year = resource.year {
+                                Text("\(year)")
+                                    .font(AppTheme.Typography.captionMono)
+                                    .foregroundStyle(Color.textTertiary)
+                            }
+                            Spacer()
+                        }
+
+                        Text(resource.title)
+                            .font(AppTheme.Typography.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.textPrimary)
+
+                        resourceBlock("摘要", resource.summary)
+                        resourceBlock("为什么相关", resource.whyRelevant)
+                        resourceBlock("如何使用", resource.howToUse)
+
+                        Button {
+                            if let stageOrder = node.stageOrder {
+                                onAdoptEvidence(resource, stageOrder)
+                                dismiss()
+                            }
+                        } label: {
+                            Label("采纳为依据", systemImage: "checkmark.seal")
+                                .font(AppTheme.Typography.caption.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(Color.secondaryAccent)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            } else {
+                CoDesignSectionHeader(title: "已采纳依据")
+                CoDesignCard {
+                    VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+                        Text(node.content)
+                            .font(AppTheme.Typography.body.weight(.semibold))
+                            .foregroundStyle(Color.textPrimary)
+
+                        Text(node.subContent ?? "此依据已进入项目过程记录。")
+                            .font(AppTheme.Typography.body)
+                            .foregroundStyle(Color.textSecondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private var revisionContent: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+            CoDesignSectionHeader(title: "回溯记录")
+            CoDesignCard(style: .highlighted(.warning)) {
+                VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+                    Text(node.content)
+                        .font(AppTheme.Typography.body.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
+
+                    Text("旧路径已归档，新路径会继续作为当前分支生长。")
+                        .font(AppTheme.Typography.body)
+                        .foregroundStyle(Color.textSecondary)
                 }
             }
         }
@@ -177,7 +291,7 @@ struct ThinkingNodeDetailSheet: View {
             }
             .sorted { $0.timestamp < $1.timestamp }
 
-        if !traces.isEmpty {
+        if !traces.isEmpty && node.kind != .process {
             CoDesignSectionHeader(title: "学习轨迹")
             VStack(spacing: AppTheme.spacingSmall) {
                 ForEach(traces) { trace in
@@ -191,22 +305,33 @@ struct ThinkingNodeDetailSheet: View {
 
     private var nodeTitle: String {
         switch node.kind {
-        case .root: return "项目想法"
+        case .root:
+            return "项目想法"
         case .stage:
             if let order = node.stageOrder,
-               let def = StageDefinition.all.first(where: { $0.order == order }) {
-                return "阶段 \(order): \(def.name)"
+               let definition = StageDefinition.all.first(where: { $0.order == order }) {
+                return "阶段 \(order): \(definition.name)"
             }
             return "阶段"
-        case .field: return node.content
+        case .field:
+            return node.field?.displayName ?? node.content
+        case .process:
+            return node.processLabel ?? "过程"
+        case .evidence:
+            return "Evidence"
+        case .revision:
+            return "回溯记录"
         }
     }
 
     private var nodeSubtitle: String? {
         switch node.kind {
-        case .root: return project.name
-        case .stage: return node.subContent
-        case .field: return node.subContent
+        case .root:
+            return project.name
+        case .stage:
+            return node.subContent
+        case .field, .process, .evidence, .revision:
+            return node.content
         }
     }
 
@@ -220,17 +345,22 @@ struct ThinkingNodeDetailSheet: View {
                 .font(AppTheme.Typography.body)
                 .foregroundStyle(Color.textPrimary)
             Spacer()
-            if filled {
-                Text("已填充")
-                    .font(AppTheme.Typography.caption)
-                    .foregroundStyle(Color.success)
-            } else {
-                Text("未填充")
-                    .font(AppTheme.Typography.caption)
-                    .foregroundStyle(Color.textTertiary)
-            }
+            Text(filled ? "已填充" : "未填充")
+                .font(AppTheme.Typography.caption)
+                .foregroundStyle(filled ? Color.success : Color.textTertiary)
         }
         .padding(.vertical, 2)
+    }
+
+    private func resourceBlock(_ title: String, _ content: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(AppTheme.Typography.caption.weight(.semibold))
+                .foregroundStyle(Color.textTertiary)
+            Text(content)
+                .font(AppTheme.Typography.body)
+                .foregroundStyle(Color.textSecondary)
+        }
     }
 
     private func statItem(value: String, label: String) -> some View {

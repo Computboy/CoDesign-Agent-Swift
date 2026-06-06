@@ -23,6 +23,10 @@ struct NodeEditSheet: View {
         node.kind == .field && node.field != nil
     }
 
+    private var canEditNode: Bool {
+        node.momentID != nil
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -82,6 +86,15 @@ struct NodeEditSheet: View {
                             .foregroundStyle(Color.warning)
                     }
                 }
+
+                if !canEditNode {
+                    Section {
+                        Label("主干阶段由工作台进度驱动，请在右侧工作台继续澄清。",
+                              systemImage: "lock")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(Color.textTertiary)
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Color.appBackground)
@@ -95,7 +108,7 @@ struct NodeEditSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
-                        .disabled(!canSave)
+                        .disabled(!canSave || !canEditNode)
                         .fontWeight(.semibold)
                 }
             }
@@ -188,14 +201,22 @@ struct NodeEditSheet: View {
         context.insert(newMoment)
         project.thinkingMoments.append(newMoment)
 
-        // 4. For field nodes: sync the edited detail value to DesignBrief
+        // 4. Mark the related stage as needing review so the workspace can
+        // continue from this point without pretending the old path is final.
+        if let stage = project.stages.first(where: { $0.order == editedMoment.stageOrder }) {
+            stage.status = "needsReview"
+            stage.lastUpdated = Date()
+        }
+
+        // 5. For field nodes: sync the edited detail value to DesignBrief
         if isFieldNode,
            let field = node.field,
            let brief = project.brief {
             syncBriefField(field, value: trimmedDetail, brief: brief, context: context)
         }
 
-        // 5. Save
+        // 6. Save
+        project.updatedAt = Date()
         try? context.save()
         dismiss()
     }
@@ -268,6 +289,9 @@ struct NodeEditSheet: View {
         case .root: return "根节点"
         case .stage: return "阶段节点"
         case .field: return "字段节点"
+        case .process: return "过程节点"
+        case .evidence: return "依据节点"
+        case .revision: return "回溯节点"
         }
     }
 
@@ -276,6 +300,9 @@ struct NodeEditSheet: View {
         case .root: return "lightbulb.fill"
         case .stage: return node.iconSystemName ?? "number.circle.fill"
         case .field: return "leaf.fill"
+        case .process: return node.iconSystemName ?? "bubble.left"
+        case .evidence: return "doc.text.magnifyingglass"
+        case .revision: return "arrow.uturn.backward"
         }
     }
 }

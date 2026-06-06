@@ -33,59 +33,127 @@ struct ClarificationWorkspaceView: View {
         .background(Color.appBackground)
     }
 
-    // MARK: - Wide Layout (three-column, unified height)
+    // MARK: - Wide Layout (thinking tree + workspace)
 
     private var wideLayout: some View {
         GeometryReader { proxy in
             let availableWidth = proxy.size.width
-            let sideWidth = clamp(availableWidth * 0.23, min: 240, max: 340)
+            let treeWidth = clamp(availableWidth * 0.44, min: 360, max: 620)
 
-            ScrollView(.vertical, showsIndicators: false) {
-                HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
-                    StageRailPanel(project: project)
-                        .frame(width: sideWidth)
+            HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
+                ThinkingTreeView(project: project, mode: .embedded)
+                    .frame(width: treeWidth)
+                    .frame(maxHeight: .infinity)
 
-                    CurrentWorkspaceColumn(
-                        project: project,
-                        chatViewModel: chatViewModel,
-                        onReviewBrief: onReviewBrief,
-                        onRevisitPreviousStage: onRevisitPreviousStage,
-                        onExportBrief: onExportBrief
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: AppTheme.spacingMedium) {
+                        CurrentWorkspaceColumn(
+                            project: project,
+                            chatViewModel: chatViewModel,
+                            onReviewBrief: onReviewBrief,
+                            onRevisitPreviousStage: onRevisitPreviousStage,
+                            onExportBrief: onExportBrief
+                        )
+
+                        DesignBriefDisclosurePanel(project: project)
+                    }
+                    .frame(
+                        minHeight: max(proxy.size.height - AppTheme.spacingLarge * 2, 0),
+                        alignment: .top
                     )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-
-                    InsightCardsPanel(project: project)
-                        .frame(width: sideWidth)
                 }
-                .frame(minHeight: max(proxy.size.height - AppTheme.spacingLarge * 2, 0), alignment: .top)
-                .padding(AppTheme.spacingLarge)
+                .coDesignHideScrollIndicators()
             }
-            .coDesignHideScrollIndicators()
+            .padding(AppTheme.spacingLarge)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 
     private var narrowLayout: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: AppTheme.spacingMedium) {
-                WorkspaceHeader(project: project)
-                StageRail(stages: project.stages)
+                ThinkingTreeView(project: project, mode: .embedded)
+                    .frame(height: 430)
 
                 CurrentWorkspaceColumn(
                     project: project,
                     chatViewModel: chatViewModel,
-                    includesHeader: false,
+                    includesHeader: true,
                     onReviewBrief: onReviewBrief,
                     onRevisitPreviousStage: onRevisitPreviousStage,
                     onExportBrief: onExportBrief
                 )
 
-                InsightCardsPanel(project: project)
+                DesignBriefDisclosurePanel(project: project)
             }
             .padding(.horizontal, AppTheme.spacingMedium)
             .padding(.vertical, AppTheme.spacingSmall)
             .padding(.bottom, 40)
         }
         .coDesignHideScrollIndicators()
+    }
+}
+
+// MARK: - DesignBriefDisclosurePanel
+
+private struct DesignBriefDisclosurePanel: View {
+    let project: Project
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            InsightCardsPanel(
+                project: project,
+                showsPanelChrome: false,
+                showsSectionHeader: false
+            )
+            .padding(.top, AppTheme.spacingMedium)
+        } label: {
+            HStack(spacing: AppTheme.spacingSmall) {
+                Image(systemName: "rectangle.stack")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.primaryAccent)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("设计产物 / Design Brief")
+                        .font(AppTheme.Typography.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
+
+                    Text(summaryText)
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(Color.textTertiary)
+                }
+
+                Spacer()
+            }
+        }
+        .tint(Color.primaryAccent)
+        .padding(AppTheme.Layout.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                .fill(Color.panelBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
+        )
+        .coDesignShadow(.card)
+    }
+
+    private var summaryText: String {
+        guard let brief = project.brief else { return "暂无结构化字段" }
+        let snapshot = brief.toSnapshot()
+        let fields: [BriefField] = [
+            .targetUser,
+            .painPoint,
+            .useScenario,
+            .coreValue,
+            .mvpFeatures,
+            .successMetrics,
+        ]
+        let filled = fields.filter { $0.isFilled(in: snapshot) }.count
+        return "\(filled)/\(fields.count) 已提取，展开查看和编辑"
     }
 }
 
@@ -126,10 +194,20 @@ private struct CurrentWorkspaceColumn: View {
         return false
     }
 
+    private var needsReviewStage: ProgressStage? {
+        project.stages
+            .sorted { $0.order < $1.order }
+            .first { $0.status == "needsReview" }
+    }
+
     var body: some View {
         VStack(spacing: AppTheme.spacingMedium) {
             if includesHeader {
                 WorkspaceHeader(project: project)
+            }
+
+            if let needsReviewStage {
+                reviewContinuationNotice(stage: needsReviewStage)
             }
 
             if isProjectComplete {
@@ -176,6 +254,28 @@ private struct CurrentWorkspaceColumn: View {
     private func send(_ text: String) {
         Task {
             await chatViewModel.sendMessage(text)
+        }
+    }
+
+    private func reviewContinuationNotice(stage: ProgressStage) -> some View {
+        CoDesignCard(style: .highlighted(.warning)) {
+            HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
+                Image(systemName: "arrow.uturn.backward.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.warning)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("已回溯到 Stage \(stage.order)，请从该阶段继续澄清。")
+                        .font(AppTheme.Typography.caption.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
+
+                    Text(stage.name)
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(Color.textSecondary)
+                }
+
+                Spacer(minLength: 0)
+            }
         }
     }
 }

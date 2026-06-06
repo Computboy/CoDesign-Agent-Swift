@@ -41,10 +41,20 @@ final class ChatViewModel {
             .map { $0.toPayload() }
         let briefSnapshot = project.brief?.toSnapshot()
         let sortedStages = project.stages.sorted { $0.order < $1.order }
-        let activeStage = sortedStages.first {
-            $0.stageStatusValue == .active || $0.stageStatusValue == .notStarted
-        }
+        let activeStage = sortedStages.first { $0.stageStatusValue == .needsReview }
+            ?? sortedStages.first { $0.stageStatusValue == .active }
+            ?? sortedStages.first { $0.stageStatusValue == .notStarted }
         let stageSnapshot = activeStage?.toSnapshot()
+        let activeStageOrder = activeStage?.order ?? project.currentStageOrder
+
+        recordThinkingMoment(
+            momType: "answer",
+            content: truncatedMomentText(text),
+            stageOrder: activeStageOrder,
+            relatedField: nil,
+            context: context
+        )
+        try? context.save()
 
         // ④ 流式调用 LLM
         isStreaming = true
@@ -71,6 +81,13 @@ final class ChatViewModel {
         let assistantMsg = ChatMessage(role: "assistant", content: currentStreamingText)
         context.insert(assistantMsg)
         project.messages.append(assistantMsg)
+        recordThinkingMoment(
+            momType: "question",
+            content: questionMomentText(from: assistantMsg.content),
+            stageOrder: activeStageOrder,
+            relatedField: nil,
+            context: context
+        )
         currentStreamingText = ""
         isStreaming = false
 
@@ -103,17 +120,17 @@ final class ChatViewModel {
         for field in BriefField.allCases {
             let wasEmpty = !field.isFilled(in: preBrief)
             let isNowFilled = field.isFilled(in: updatedBriefSnapshot)
-            if wasEmpty && isNowFilled {
+            let changedMeaningfully = fieldFingerprint(field, in: preBrief) != fieldFingerprint(field, in: updatedBriefSnapshot)
+            if isNowFilled && (wasEmpty || changedMeaningfully) {
                 let stageOrder = StageDefinition.all
                     .first { $0.briefFields.contains(field) }?.order ?? 1
-                let moment = ThinkingMoment(
-                    momType: "deepen",
-                    content: field.displayName,
+                recordThinkingMoment(
+                    momType: "decision",
+                    content: "确认：\(field.displayName)",
                     stageOrder: stageOrder,
-                    relatedField: field.rawValue
+                    relatedField: field.rawValue,
+                    context: context
                 )
-                context.insert(moment)
-                project.thinkingMoments.append(moment)
             }
         }
 
@@ -152,5 +169,126 @@ final class ChatViewModel {
 
         // ⑨ 保存
         try? context.save()
+    }
+
+    // MARK: - Thinking Moment Recording
+
+    private func recordThinkingMoment(
+        momType: String,
+        content: String,
+        stageOrder: Int,
+        relatedField: String?,
+        context: ModelContext
+    ) {
+        let normalized = truncatedMomentText(content)
+        guard !normalized.isEmpty else { return }
+
+        let now = Date()
+        let isDuplicate = project.thinkingMoments.contains { moment in
+            moment.momType == momType &&
+            moment.content == normalized &&
+            moment.stageOrder == stageOrder &&
+            moment.relatedField == relatedField &&
+            abs(moment.timestamp.timeIntervalSince(now)) < 4
+        }
+        guard !isDuplicate else { return }
+
+        let moment = ThinkingMoment(
+            momType: momType,
+            content: normalized,
+            stageOrder: stageOrder,
+            relatedField: relatedField,
+            timestamp: now,
+            isActiveBranch: true
+        )
+        context.insert(moment)
+        project.thinkingMoments.append(moment)
+    }
+
+    private func truncatedMomentText(_ text: String, limit: Int = 60) -> String {
+        let flattened = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+        guard flattened.count > limit else { return flattened }
+        return String(flattened.prefix(limit)) + "..."
+    }
+
+    private func questionMomentText(from text: String) -> String {
+        let separators = CharacterSet(charactersIn: "。！？!?\n")
+        let fragments = text
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if let question = fragments.first(where: { fragment in
+            text.contains(fragment + "？") || text.contains(fragment + "?")
+        }) {
+            return truncatedMomentText(question)
+        }
+
+        return truncatedMomentText(fragments.first ?? text)
+    }
+
+    private func fieldFingerprint(_ field: BriefField, in snapshot: DesignBriefSnapshot) -> String {
+        switch field {
+        case .targetUser:
+            return normalizedFingerprint(snapshot.targetUser)
+        case .painPoint:
+            return normalizedFingerprint(snapshot.painPoint)
+        case .useScenario:
+            return normalizedFingerprint(snapshot.useScenario)
+        case .coreValue:
+            return normalizedFingerprint(snapshot.coreValue)
+        case .differentiation:
+            return normalizedFingerprint(snapshot.differentiation)
+        case .mvpFeatures:
+            return normalizedFingerprint(snapshot.mvpFeatures)
+        case .technicalModules:
+            return normalizedFingerprint(snapshot.technicalModules)
+        case .interactionFlow:
+            return normalizedFingerprint(snapshot.interactionFlow)
+        case .operationLogic:
+            return normalizedFingerprint(snapshot.operationLogic)
+        case .hardConstraints:
+            return normalizedFingerprint(snapshot.hardConstraints)
+        case .milestones:
+            return normalizedFingerprint(snapshot.milestones)
+        case .boundaryItems:
+            return snapshot.boundaryItems
+                .map { "\($0.isIncluded ? "in" : "out"):\(normalizedFingerprint($0.content))" }
+                .sorted()
+                .joined(separator: "|")
+        case .successMetrics:
+            return snapshot.successMetrics
+                .map {
+                    [
+                        normalizedFingerprint($0.metric),
+                        normalizedFingerprint($0.target),
+                        normalizedFingerprint($0.measurement)
+                    ].joined(separator: ":")
+                }
+                .sorted()
+                .joined(separator: "|")
+        case .risks:
+            return snapshot.risks
+                .map {
+                    [
+                        normalizedFingerprint($0.desc),
+                        "\($0.probability)",
+                        "\($0.impact)",
+                        normalizedFingerprint($0.mitigation)
+                    ].joined(separator: ":")
+                }
+                .sorted()
+                .joined(separator: "|")
+        }
+    }
+
+    private func normalizedFingerprint(_ value: String?) -> String {
+        (value ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .lowercased()
     }
 }

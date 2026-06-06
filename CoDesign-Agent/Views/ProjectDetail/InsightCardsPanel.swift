@@ -9,6 +9,8 @@ import SwiftData
 /// Supports swipe gestures on cards and shows toast notifications for actions.
 struct InsightCardsPanel: View {
     let project: Project
+    var showsPanelChrome: Bool = true
+    var showsSectionHeader: Bool = true
 
     @Environment(\.modelContext) private var modelContext
     @State private var confirmedFields: Set<String> = []
@@ -30,13 +32,51 @@ struct InsightCardsPanel: View {
     ]
 
     var body: some View {
+        Group {
+            if showsPanelChrome {
+                panelContent
+                    .padding(AppTheme.Layout.cardPadding)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(
+                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                            .fill(Color.panelBackground)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                            .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
+                    )
+                    .coDesignShadow(.card)
+            } else {
+                panelContent
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        }
+        .sheet(item: $editingField) { field in
+            if let brief = project.brief {
+                InsightFieldEditSheet(
+                    field: field,
+                    brief: brief,
+                    onSaveSuccess: {
+                        confirmedFields.remove(field.rawValue)
+                        rejectedFields.remove(field.rawValue)
+                        showToast("\(field.displayName) 编辑已保存", type: .success)
+                    }
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var panelContent: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
 
             // Section header
-            CoDesignSectionHeader(
-                title: "设计产物",
-                subtitle: briefSummaryText
-            )
+            if showsSectionHeader {
+                CoDesignSectionHeader(
+                    title: "设计产物",
+                    subtitle: briefSummaryText
+                )
+            }
 
             // Toast notification
             if let message = toastMessage {
@@ -103,30 +143,6 @@ struct InsightCardsPanel: View {
                 }
             }
 
-        }
-        .padding(AppTheme.Layout.cardPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
-                .fill(Color.panelBackground)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
-                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
-        )
-        .coDesignShadow(.card)
-        .sheet(item: $editingField) { field in
-            if let brief = project.brief {
-                InsightFieldEditSheet(
-                    field: field,
-                    brief: brief,
-                    onSaveSuccess: {
-                        confirmedFields.remove(field.rawValue)
-                        rejectedFields.remove(field.rawValue)
-                        showToast("\(field.displayName) 编辑已保存", type: .success)
-                    }
-                )
-            }
         }
     }
 

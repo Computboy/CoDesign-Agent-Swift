@@ -1,260 +1,259 @@
 import SwiftUI
 
-/// Renders a single node in the thinking tree with premium visual treatment.
+/// Renders a single node in the thinking tree with compact semantic styles.
 struct TreeNodeView: View {
     let node: TreeNode
     var onTap: () -> Void = {}
-    var onEdit: () -> Void = {}
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Button(action: onTap) {
-                switch node.kind {
-                case .root:   rootContent
-                case .stage:  stageContent
-                case .field:  fieldContent
-                }
-            }
-            .buttonStyle(.plain)
-            .opacity(node.isGhost ? 0.4 : (node.isArchived ? 0.55 : 1.0))
-            .animation(.spring(response: 0.35, dampingFraction: 0.75), value: node.richness)
+        Button(action: onTap) {
+            content
+        }
+        .buttonStyle(.plain)
+        .opacity(nodeOpacity)
+        .animation(AppTheme.Animation.spring, value: node.position.x)
+        .animation(AppTheme.Animation.spring, value: node.position.y)
+    }
 
-            // Edit button with glass morphism effect
-            if !node.isGhost {
-                Button(action: onEdit) {
-                    ZStack {
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                            .frame(width: 22, height: 22)
-
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.primaryAccent.opacity(0.9), Color.secondaryAccent.opacity(0.9)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 20, height: 20)
-
-                        Image(systemName: "pencil")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                    .shadow(color: Color.primaryAccent.opacity(0.3), radius: 4, y: 2)
-                }
-                .buttonStyle(.plain)
-                .offset(x: 10, y: -10)
-            }
+    @ViewBuilder
+    private var content: some View {
+        switch node.kind {
+        case .root:
+            rootContent
+        case .stage:
+            stageContent
+        case .field:
+            processContent(width: 174)
+        case .process:
+            processContent(width: 166)
+        case .evidence:
+            evidenceContent
+        case .revision:
+            processContent(width: 164)
         }
     }
 
-    // MARK: - Root Node (Large gradient circle with depth)
+    // MARK: - Root Node
 
     private var rootContent: some View {
         ZStack {
-            // Outer glow
             Circle()
-                .fill(Color.primaryAccent.opacity(0.15))
-                .frame(width: 100, height: 100)
-                .blur(radius: 12)
+                .fill(Color.primaryAccent.opacity(0.13 + node.richness * 0.08))
+                .frame(width: 116, height: 116)
+                .blur(radius: 10)
 
-            // Main circle with gradient
             Circle()
                 .fill(
                     LinearGradient(
                         colors: [
                             Color.primaryAccent,
                             Color.secondaryAccent,
-                            Color(red: 0.65, green: 0.52, blue: 0.88)
+                            Color(red: 0.38, green: 0.66, blue: 0.86)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
-                .frame(width: 88, height: 88)
+                .frame(width: 94, height: 94)
                 .overlay(
                     Circle()
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [.white.opacity(0.4), .white.opacity(0.1)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 2
-                        )
+                        .strokeBorder(.white.opacity(0.46), lineWidth: 1.4)
                 )
-                .shadow(color: Color.primaryAccent.opacity(0.35), radius: 16, y: 6)
-                .shadow(color: Color.secondaryAccent.opacity(0.25), radius: 8, y: 3)
+                .shadow(color: Color.primaryAccent.opacity(0.25), radius: 18, y: 7)
 
-            // Project name
-            Text(truncate(node.content, maxLen: 8))
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .padding(.horizontal, 12)
-                .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+            VStack(spacing: 3) {
+                Image(systemName: "lightbulb.fill")
+                    .font(.system(size: 15, weight: .bold))
+                Text(truncate(node.content, maxLen: 8))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 12)
         }
     }
 
-    // MARK: - Stage Node (Polished card with gradient border)
+    // MARK: - Stage Node
 
     private var stageContent: some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 8) {
-                // Stage number badge with gradient
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [node.nodeColor, node.nodeColor.opacity(0.7)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 26, height: 26)
+        HStack(spacing: 9) {
+            ZStack {
+                Circle()
+                    .fill(node.nodeColor.opacity(node.isGhost ? 0.12 : 0.18))
+                    .frame(width: 34, height: 34)
 
-                    Text("\(node.stageOrder ?? 0)")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                Image(systemName: node.iconSystemName ?? "circle.grid.3x3")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(node.isGhost ? Color.textTertiary : node.nodeColor)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(node.content)
+                        .font(AppTheme.Typography.captionMono)
+                        .foregroundStyle(node.isGhost ? Color.textTertiary : node.nodeColor)
+                    if let statusText = node.statusText {
+                        Text(statusText)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(node.isGhost ? Color.textTertiary : node.nodeColor)
+                    }
                 }
-                .shadow(color: node.nodeColor.opacity(0.3), radius: 3, y: 1)
 
-                // Stage name
                 Text(node.subContent ?? "")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.textPrimary)
+                    .foregroundStyle(node.isGhost ? Color.textSecondary : Color.textPrimary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.78)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.cardBackground,
-                                Color.cardBackground.opacity(0.95)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                node.nodeColor.opacity(node.isArchived ? 0.25 : 0.5),
-                                node.nodeColor.opacity(node.isArchived ? 0.15 : 0.3)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        style: node.isArchived
-                            ? StrokeStyle(lineWidth: 1.5, dash: [5, 3])
-                            : StrokeStyle(lineWidth: 1.5)
-                    )
-            )
-            .shadow(color: .black.opacity(0.06), radius: 8, y: 3)
-            .shadow(color: node.nodeColor.opacity(0.08), radius: 4, y: 1)
-            .frame(maxWidth: 180)
 
-            // Archived label with pill style
-            if node.isArchived {
-                Text("v\(node.branchVersion) 旧版")
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color(red: 0.55, green: 0.5, blue: 0.45))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(
-                        Capsule()
-                            .fill(Color(red: 0.6, green: 0.55, blue: 0.5).opacity(0.15))
-                    )
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(
-                                Color(red: 0.6, green: 0.55, blue: 0.5).opacity(0.25),
-                                lineWidth: 0.5
-                            )
-                    )
-            }
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(width: 214, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(stageBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(
+                    node.nodeColor.opacity(node.isGhost ? 0.13 : 0.34),
+                    style: node.isGhost
+                        ? StrokeStyle(lineWidth: 1, dash: [5, 5])
+                        : StrokeStyle(lineWidth: 1.2)
+                )
+        )
+        .shadow(
+            color: node.kind == .stage && node.statusText == "进行中"
+                ? node.nodeColor.opacity(0.18)
+                : .black.opacity(0.045),
+            radius: node.statusText == "进行中" ? 14 : 10,
+            y: 5
+        )
     }
 
-    // MARK: - Field Node (Elegant card with content preview)
+    private var stageBackground: Color {
+        if node.isGhost {
+            return Color.cardBackground.opacity(0.56)
+        }
+        return Color.cardBackground.opacity(0.96)
+    }
 
-    private var fieldContent: some View {
-        let maxWidth: CGFloat = 180
-        return VStack(spacing: 5) {
-            // Field name label with icon hint
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(node.nodeColor)
-                    .frame(width: 4, height: 4)
+    // MARK: - Process Nodes
 
-                Text(node.content)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+    private func processContent(width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Image(systemName: node.iconSystemName ?? "sparkles")
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(node.nodeColor)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: maxWidth)
+                    .frame(width: 18, height: 18)
+                    .background(Circle().fill(node.nodeColor.opacity(0.12)))
 
-            // Value content card
-            if let sub = node.subContent {
-                Text(sub)
-                    .font(.system(size: 11, design: .rounded))
-                    .foregroundStyle(Color.textSecondary)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: maxWidth, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.cardBackground,
-                                        Color.cardBackground.opacity(0.96)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [
-                                        node.nodeColor.opacity(node.isArchived ? 0.2 : 0.35),
-                                        node.nodeColor.opacity(node.isArchived ? 0.12 : 0.2)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                style: node.isArchived
-                                    ? StrokeStyle(lineWidth: 1, dash: [4, 3])
-                                    : StrokeStyle(lineWidth: 1)
-                            )
-                    )
-                    .shadow(color: .black.opacity(0.05), radius: 6, y: 2)
-                    .frame(maxWidth: maxWidth)
+                Text(node.processLabel ?? "Process")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(node.nodeColor)
+
+                Spacer(minLength: 0)
             }
 
-            // Archived label
-            if node.isArchived {
-                Text("旧版 v\(node.branchVersion)")
-                    .font(.system(size: 8, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color(red: 0.55, green: 0.5, blue: 0.45))
+            Text(node.content)
+                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.textPrimary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let subContent = node.subContent {
+                Text(subContent)
+                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.textTertiary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .frame(width: width, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(node.isArchived ? Color(red: 0.95, green: 0.93, blue: 0.90).opacity(0.78) : Color.cardBackground.opacity(0.95))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(
+                    node.nodeColor.opacity(node.isArchived ? 0.28 : 0.22),
+                    style: node.isArchived
+                        ? StrokeStyle(lineWidth: 1, dash: [4, 4])
+                        : StrokeStyle(lineWidth: 1)
+                )
+        )
+        .shadow(color: .black.opacity(0.04), radius: 7, y: 3)
     }
 
-    private func truncate(_ s: String, maxLen: Int) -> String {
-        s.count > maxLen ? String(s.prefix(maxLen)) + "…" : s
+    private var evidenceContent: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.secondaryAccent)
+                    .frame(width: 18, height: 18)
+                    .background(Circle().fill(Color.secondaryAccent.opacity(0.12)))
+
+                Text("Evidence")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.secondaryAccent)
+
+                Spacer(minLength: 0)
+
+                if node.isGhost {
+                    Text("推荐")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Color.textTertiary)
+                }
+            }
+
+            Text(node.content)
+                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.textPrimary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let subContent = node.subContent {
+                Text(subContent)
+                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.textTertiary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .frame(width: 178, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.secondaryAccent.opacity(node.isGhost ? 0.055 : 0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(
+                    Color.secondaryAccent.opacity(node.isGhost ? 0.18 : 0.34),
+                    style: node.isGhost
+                        ? StrokeStyle(lineWidth: 1, dash: [5, 5])
+                        : StrokeStyle(lineWidth: 1)
+                )
+        )
+    }
+
+    private var nodeOpacity: Double {
+        if node.isArchived { return 0.55 }
+        if node.isGhost { return 0.64 }
+        return 1.0
+    }
+
+    private func truncate(_ string: String, maxLen: Int) -> String {
+        string.count > maxLen ? String(string.prefix(maxLen)) + "..." : string
     }
 }
