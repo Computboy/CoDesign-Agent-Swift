@@ -113,18 +113,20 @@ struct TreeBuilder {
     func build(
         project: Project,
         expandedStageOrders: Set<Int>,
-        evidenceResourcesByStage: [Int: [ResourceCard]] = [:]
+        evidenceResourcesByStage: [Int: [ResourceCard]] = [:],
+        visibleStageLimit: Int = 9
     ) -> TreeData {
         let brief = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
         let stageByOrder = Dictionary(uniqueKeysWithValues: project.stages.map { ($0.order, $0) })
         let activeOrder = project.currentStageOrder
+        let visibleLimit = min(max(visibleStageLimit, 1), 9)
 
         var nodes: [TreeNode] = []
         var edges: [TreeEdge] = []
 
         nodes.append(rootNode(project: project))
 
-        for definition in StageDefinition.all {
+        for definition in StageDefinition.all where definition.order <= visibleLimit {
             let stage = stageByOrder[definition.order]
             let status = stage?.stageStatusValue ?? (definition.order == activeOrder ? .active : .notStarted)
             let stageID = Self.stageNodeID(definition.order)
@@ -164,7 +166,7 @@ struct TreeBuilder {
         }
 
         let visibleMoments = project.thinkingMoments
-            .filter { expandedStageOrders.contains($0.stageOrder) }
+            .filter { expandedStageOrders.contains($0.stageOrder) && $0.stageOrder <= visibleLimit }
             .sorted { lhs, rhs in
                 if lhs.stageOrder == rhs.stageOrder {
                     return lhs.timestamp < rhs.timestamp
@@ -188,7 +190,7 @@ struct TreeBuilder {
         }
 
         for trace in project.learningTraces
-            .filter({ expandedStageOrders.contains($0.stageOrder) })
+            .filter({ expandedStageOrders.contains($0.stageOrder) && $0.stageOrder <= visibleLimit })
             .sorted(by: { $0.timestamp < $1.timestamp }) {
             let nodeID = "trace-\(trace.id)"
             nodes.append(
@@ -222,7 +224,7 @@ struct TreeBuilder {
             )
         }
 
-        for (stageOrder, resources) in evidenceResourcesByStage where expandedStageOrders.contains(stageOrder) {
+        for (stageOrder, resources) in evidenceResourcesByStage where expandedStageOrders.contains(stageOrder) && stageOrder <= visibleLimit {
             let adoptedTitles = Set(
                 project.thinkingMoments
                     .filter { $0.stageOrder == stageOrder && $0.momType == "evidence" && $0.isActiveBranch }

@@ -42,6 +42,27 @@ final class NewProjectViewModel {
             context.insert(stage)
         }
         project.stages = stages
+        if let firstStage = stages.first {
+            firstStage.status = "active"
+            firstStage.lastUpdated = Date()
+        }
+
+        let openingQuestion = Self.openingQuestion(
+            projectName: trimmedName,
+            briefDescription: trimmedDescription
+        )
+        let openingMessage = ChatMessage(role: "assistant", content: openingQuestion)
+        context.insert(openingMessage)
+        project.messages.append(openingMessage)
+
+        let openingMoment = ThinkingMoment(
+            momType: "question",
+            content: Self.truncatedMomentText(openingQuestion),
+            stageOrder: 1,
+            relatedField: nil
+        )
+        context.insert(openingMoment)
+        project.thinkingMoments.append(openingMoment)
 
         project.updatedAt = Date()
 
@@ -53,5 +74,28 @@ final class NewProjectViewModel {
             errorMessage = "创建项目失败，请重试"
             return nil
         }
+    }
+
+    private static func openingQuestion(projectName: String, briefDescription: String) -> String {
+        let seed = briefDescription
+            .components(separatedBy: .newlines)
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let idea = (seed?.isEmpty == false ? seed : projectName) ?? projectName
+
+        return """
+        我已经收到你的初始想法：「\(idea)」。
+
+        我们先从 Stage 1「痛点与场景锚定」开始，不需要重复描述需求。请你先选一个真实发生的使用场景：是谁，在什么时候、什么地点，遇到了什么具体不方便？
+        """
+    }
+
+    private static func truncatedMomentText(_ text: String, limit: Int = 60) -> String {
+        let flattened = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+        guard flattened.count > limit else { return flattened }
+        return String(flattened.prefix(limit)) + "..."
     }
 }

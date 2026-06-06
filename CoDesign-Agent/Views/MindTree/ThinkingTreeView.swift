@@ -125,22 +125,31 @@ struct ThinkingTreeView: View {
         let raw = TreeBuilder().build(
             project: project,
             expandedStageOrders: expandedStageOrders,
-            evidenceResourcesByStage: evidence
+            evidenceResourcesByStage: evidence,
+            visibleStageLimit: visibleStageLimit
         )
         let engine = layoutEngine(for: viewport)
-        return engine.layout(raw, in: engine.minimumContentSize())
+        return engine.layout(raw, in: engine.minimumContentSize(maxStage: visibleStageLimit))
+    }
+
+    private var visibleStageLimit: Int {
+        mode == .embedded ? project.currentStageOrder : 9
     }
 
     private func layoutEngine(for viewport: CGSize) -> TreeLayoutEngine {
         switch mode {
         case .embedded:
-            let stageSpacing = clamp((viewport.height - 130) / 9, min: 68, max: 92)
+            let stageSpacing = clamp(
+                (viewport.height - 220) / CGFloat(max(visibleStageLimit, 1)),
+                min: 145,
+                max: 180
+            )
             return TreeLayoutEngine(
                 stageSpacing: stageSpacing,
-                sideBranchSpacing: 150,
+                sideBranchSpacing: 220,
                 topPadding: 82,
                 bottomPadding: 112,
-                contentWidth: max(viewport.width * 1.2, 560)
+                contentWidth: max(viewport.width * 1.24, 720)
             )
         case .standalone:
             return TreeLayoutEngine(
@@ -154,7 +163,9 @@ struct ThinkingTreeView: View {
     }
 
     private func evidenceResourcesByStage() -> [Int: [ResourceCard]] {
-        let visibleStages = expandedStageOrders.union([project.currentStageOrder])
+        let visibleStages = mode == .embedded
+            ? expandedStageOrders
+            : expandedStageOrders.union([project.currentStageOrder])
         var result: [Int: [ResourceCard]] = [:]
         let limit = mode == .embedded ? 2 : 3
         let service = ResourceRecommendationService()
@@ -312,6 +323,7 @@ struct ThinkingTreeView: View {
 
     private func seedExpandedStageIfNeeded() {
         guard expandedStageOrders.isEmpty else { return }
+        guard mode == .standalone else { return }
         expandedStageOrders.insert(project.currentStageOrder)
     }
 

@@ -42,7 +42,8 @@ struct CurrentClarificationCard: View {
 
     private var currentStage: ProgressStage? {
         let sorted = project.stages.sorted { $0.order < $1.order }
-        return sorted.first(where: { $0.status == "active" })
+        return sorted.first(where: { $0.status == "needsReview" })
+            ?? sorted.first(where: { $0.status == "active" })
             ?? sorted.first(where: { $0.status == "notStarted" })
     }
 
@@ -190,15 +191,25 @@ struct CurrentClarificationCard: View {
 
     private var welcomeContent: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-            Text("设计澄清工作台")
+            Text("我们先从 Stage 1 开始。")
                 .font(AppTheme.Typography.headline)
                 .foregroundStyle(Color.textPrimary)
 
-            Text("在下方输入你的初始设计想法。CoDesign Agent 会将你的想法拆解为 9 个澄清阶段，通过追问帮你逐步明确目标用户、核心痛点、功能边界和实施方案。")
+            Text(initialStageQuestion)
                 .font(AppTheme.Typography.body)
                 .foregroundStyle(Color.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var initialStageQuestion: String {
+        let seed = project.briefDescription
+            .components(separatedBy: .newlines)
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let idea = seed?.isEmpty == false ? seed! : project.name
+
+        return "我已经收到你的初始想法：「\(idea)」。不用重复需求，请直接补充一个真实发生的使用场景：是谁，在什么时候、什么地点，遇到了什么具体不方便？"
     }
 
     private var streamingContent: some View {

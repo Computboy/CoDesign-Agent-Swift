@@ -23,8 +23,9 @@ struct TreeLayoutEngine {
     }
 
     func layout(_ data: TreeData, in size: CGSize) -> TreeData {
+        let maxStage = max(data.nodes.compactMap(\.stageOrder).max() ?? 1, 1)
         let width = max(size.width, contentWidth)
-        let height = max(size.height, minimumContentSize().height)
+        let height = max(size.height, minimumContentSize(maxStage: maxStage).height)
         let centerX = width / 2
         let rootY = height - bottomPadding
         let contentSize = CGSize(width: width, height: height)
@@ -69,10 +70,10 @@ struct TreeLayoutEngine {
         return TreeData(nodes: updatedNodes, edges: data.edges, contentSize: contentSize)
     }
 
-    func minimumContentSize() -> CGSize {
+    func minimumContentSize(maxStage: Int = 9) -> CGSize {
         CGSize(
             width: contentWidth,
-            height: topPadding + bottomPadding + stageSpacing * 9 + 90
+            height: topPadding + bottomPadding + stageSpacing * CGFloat(max(maxStage, 1)) + 90
         )
     }
 
