@@ -10,7 +10,9 @@ struct APISettingsView: View {
     @AppStorage("llmThinkingType") private var thinkingType: String = ""
 
     @State private var showClearAlert = false
+    #if DEBUG
     @State private var showDialogueGym = false
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -80,21 +82,22 @@ struct APISettingsView: View {
                     }
                 }
 
-                // MARK: - Developer Section
-
+                #if DEBUG
+                // MARK: - AI Dialogue Quality Lab
                 Section {
                     Button {
                         showDialogueGym = true
                     } label: {
-                        Label("Run Dialogue Gym", systemImage: "figure.mind.and.body")
+                        Label("AI Dialogue Quality Lab", systemImage: "figure.mind.and.body")
                     }
 
-                    Text("Developer-only 工具：调用真实 CoDesign Agent + LLM 模拟学生 + LLM 评估对话质量")
+                    Text("调试工具：调用真实 CoDesign Agent + LLM 模拟学生 + LLM 评估对话质量")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Text("Developer")
+                    Text("AI Dialogue Quality Lab")
                 }
+                #endif
             }
             .navigationTitle("API 设置")
             #if os(iOS)
@@ -115,9 +118,11 @@ struct APISettingsView: View {
             } message: {
                 Text("这将清空所有 API 配置，但不会影响已有项目数据。")
             }
+            #if DEBUG
             .sheet(isPresented: $showDialogueGym) {
                 DialogueGymDebugView()
             }
+            #endif
         }
     }
 

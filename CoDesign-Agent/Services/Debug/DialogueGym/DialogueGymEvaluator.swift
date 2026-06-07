@@ -26,6 +26,10 @@ struct LLMDialogueEvaluator {
                 suggestedFixes: []
             )
         }
+        let heuristicFindings = DialogueGymHeuristicBadQuestionDetector().detect(
+            transcript: transcript,
+            finalBriefSummary: finalBriefSummary
+        )
 
         let systemPrompt = buildSystemPrompt()
         let userPrompt = buildUserPrompt(
@@ -44,24 +48,35 @@ struct LLMDialogueEvaluator {
             rawJSON = try await apiClient.completeJSON(messages: messages)
         } catch {
             print("[DialogueGymEvaluator] LLM call failed: \(error)")
-            throw DialogueGymError.evaluatorFailed("LLM API call failed: \(error.localizedDescription)")
+            return mergeHeuristicFindings(
+                into: errorReport(
+                    scenario: scenario,
+                    transcript: transcript,
+                    finalBriefSummary: finalBriefSummary,
+                    error: "LLM API call failed: \(error.localizedDescription)"
+                ),
+                findings: heuristicFindings
+            )
         }
 
         // Parse the JSON response
         let cleaned = cleanJSON(rawJSON)
         guard let data = cleaned.data(using: .utf8) else {
             print("[DialogueGymEvaluator] Failed to convert response to data. Raw:\n\(rawJSON)")
-            return errorReport(
-                scenario: scenario,
-                transcript: transcript,
-                finalBriefSummary: finalBriefSummary,
-                error: "Response is not valid UTF-8 data."
+            return mergeHeuristicFindings(
+                into: errorReport(
+                    scenario: scenario,
+                    transcript: transcript,
+                    finalBriefSummary: finalBriefSummary,
+                    error: "Response is not valid UTF-8 data."
+                ),
+                findings: heuristicFindings
             )
         }
 
         do {
             let decoded = try JSONDecoder().decode(EvaluatorJSONResponse.self, from: data)
-            return SimulationReport(
+            let report = SimulationReport(
                 scenarioTitle: scenario.title,
                 transcript: transcript,
                 finalBriefSummary: finalBriefSummary,
@@ -79,13 +94,17 @@ struct LLMDialogueEvaluator {
                 badQuestions: decoded.badQuestions,
                 suggestedFixes: decoded.suggestedFixes
             )
+            return mergeHeuristicFindings(into: report, findings: heuristicFindings)
         } catch {
             print("[DialogueGymEvaluator] JSON parse failed: \(error). Raw response:\n\(rawJSON)")
-            return errorReport(
-                scenario: scenario,
-                transcript: transcript,
-                finalBriefSummary: finalBriefSummary,
-                error: "JSON parse error: \(error.localizedDescription). Raw: \(rawJSON.prefix(500))"
+            return mergeHeuristicFindings(
+                into: errorReport(
+                    scenario: scenario,
+                    transcript: transcript,
+                    finalBriefSummary: finalBriefSummary,
+                    error: "JSON parse error: \(error.localizedDescription). Raw: \(rawJSON.prefix(500))"
+                ),
+                findings: heuristicFindings
             )
         }
     }
@@ -243,5 +262,28 @@ struct LLMDialogueEvaluator {
             badQuestions: [],
             suggestedFixes: ["Re-run the evaluation with a valid API configuration."]
         )
+    }
+
+    private func mergeHeuristicFindings(
+        into report: SimulationReport,
+        findings: DialogueGymHeuristicFindings
+    ) -> SimulationReport {
+        guard !findings.isEmpty else { return report }
+        return SimulationReport(
+            id: report.id,
+            scenarioTitle: report.scenarioTitle,
+            transcript: report.transcript,
+            finalBriefSummary: report.finalBriefSummary,
+            scores: report.scores,
+            detectedProblems: unique(report.detectedProblems + findings.detectedProblems),
+            badQuestions: unique(report.badQuestions + findings.badQuestions),
+            suggestedFixes: report.suggestedFixes,
+            runTimestamp: report.runTimestamp
+        )
+    }
+
+    private func unique(_ values: [String]) -> [String] {
+        var seen: Set<String> = []
+        return values.filter { seen.insert($0).inserted }
     }
 }

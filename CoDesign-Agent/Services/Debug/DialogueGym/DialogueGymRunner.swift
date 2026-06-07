@@ -15,9 +15,14 @@ final class DialogueGymRunner {
     private let simulator: LLMDialogueUserSimulator
     private let evaluator: LLMDialogueEvaluator
 
+    init() {
+        self.simulator = LLMDialogueUserSimulator()
+        self.evaluator = LLMDialogueEvaluator()
+    }
+
     init(
-        simulator: LLMDialogueUserSimulator = LLMDialogueUserSimulator(),
-        evaluator: LLMDialogueEvaluator = LLMDialogueEvaluator()
+        simulator: LLMDialogueUserSimulator,
+        evaluator: LLMDialogueEvaluator
     ) {
         self.simulator = simulator
         self.evaluator = evaluator
@@ -93,6 +98,8 @@ final class DialogueGymRunner {
         // ④ Main loop
         var lastResult = firstResult
         while turnIndex < scenario.maxTurns {
+            let questionResult = lastResult
+
             // Simulate user answer
             let userAnswer: String
             do {
@@ -111,53 +118,51 @@ final class DialogueGymRunner {
                 break
             }
 
-            // Record turn
-            let turn = SimulatedTurn(
-                turnIndex: turnIndex,
-                stageTitle: lastResult.currentStageTitle,
-                agentQuestion: lastResult.assistantText,
-                simulatedUserAnswer: userAnswer,
-                changedBriefFields: lastResult.changedBriefFields,
-                notes: lastResult.changedBriefFields.isEmpty
-                    ? "Brief fields could not be determined for this turn; showing empty."
-                    : nil
-            )
-            transcript.append(turn)
-
-            turnIndex += 1
-
-            // Check if we've reached target stages or max turns
-            if turnIndex >= scenario.maxTurns {
-                print("[DialogueGym] Reached max turns (\(scenario.maxTurns)).")
-                break
-            }
-
-            // Send user answer to agent
+            // Send user answer to agent before recording the turn, so
+            // changedBriefFields belongs to this user's answer, not the prior one.
+            let turnChangedFields: [String]
+            let turnNotes: String?
             do {
                 print("[DialogueGym] Turn \(turnIndex): Sending user answer to agent...")
                 lastResult = try await agentRunner.sendUserAnswer(userAnswer)
+                turnChangedFields = lastResult.changedBriefFields
+                turnNotes = turnChangedFields.isEmpty
+                    ? "No Brief field changed after this user answer."
+                    : nil
                 print("[DialogueGym] Agent question: \(lastResult.assistantText.prefix(120))...")
             } catch {
                 print("[DialogueGym] ❌ Agent response failed at turn \(turnIndex): \(error)")
+                turnChangedFields = []
+                turnNotes = "Agent response failed after this user answer: \(error.localizedDescription)"
+                transcript.append(
+                    SimulatedTurn(
+                        turnIndex: turnIndex,
+                        stageTitle: questionResult.currentStageTitle,
+                        agentQuestion: questionResult.assistantText,
+                        simulatedUserAnswer: userAnswer,
+                        changedBriefFields: turnChangedFields,
+                        notes: turnNotes
+                    )
+                )
                 break
             }
-        }
 
-        // Also record the last turn (where agent responded but we may not have
-        // gotten a simulated user answer yet — record what we have)
-        if let lastTurn = transcript.last {
-            // If the last recorded turn doesn't match the last agent result,
-            // add a final entry
-            if lastTurn.agentQuestion != lastResult.assistantText {
-                let finalTurn = SimulatedTurn(
+            transcript.append(
+                SimulatedTurn(
                     turnIndex: turnIndex,
-                    stageTitle: lastResult.currentStageTitle,
-                    agentQuestion: lastResult.assistantText,
-                    simulatedUserAnswer: "(simulation ended)",
-                    changedBriefFields: lastResult.changedBriefFields,
-                    notes: "Final turn — no simulated user response."
+                    stageTitle: questionResult.currentStageTitle,
+                    agentQuestion: questionResult.assistantText,
+                    simulatedUserAnswer: userAnswer,
+                    changedBriefFields: turnChangedFields,
+                    notes: turnNotes
                 )
-                transcript.append(finalTurn)
+            )
+
+            turnIndex += 1
+
+            if turnIndex >= scenario.maxTurns {
+                print("[DialogueGym] Reached max turns (\(scenario.maxTurns)).")
+                break
             }
         }
 

@@ -35,6 +35,25 @@ final class DialogueGymDebugStore {
         print("[DialogueGymDebugStore] 🏁 Done. \(reports.count) reports.")
     }
 
+    func runFirstScenarioOnly() async {
+        guard !isRunning else { return }
+        guard let scenario = DialogueGymScenarios.builtIn.first else { return }
+        isRunning = true
+        errorMessage = nil
+        reports.removeAll()
+
+        progressText = "Running first scenario..."
+        print("[DialogueGymDebugStore] 🧪 Running first scenario only: \(scenario.title)")
+
+        reports = [await runner.run(scenario: scenario)]
+
+        isRunning = false
+        progressText = "Complete: first scenario run."
+
+        printReportsToConsole()
+        print("[DialogueGymDebugStore] 🏁 Done. First scenario report generated.")
+    }
+
     // MARK: - Console Output
 
     /// Print all reports to console, useful for headless debugging

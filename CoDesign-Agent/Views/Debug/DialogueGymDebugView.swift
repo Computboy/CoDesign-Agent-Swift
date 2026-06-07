@@ -6,6 +6,7 @@ import SwiftUI
 struct DialogueGymDebugView: View {
     @State private var store = DialogueGymDebugStore()
     @State private var expandedReportID: UUID?
+    @State private var showRunAllConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -23,7 +24,7 @@ struct DialogueGymDebugView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: {
-                        Task { await store.runAllScenarios() }
+                        showRunAllConfirmation = true
                     }) {
                         if store.isRunning {
                             ProgressView()
@@ -34,6 +35,14 @@ struct DialogueGymDebugView: View {
                     }
                     .disabled(store.isRunning)
                 }
+            }
+            .alert("Run all scenarios?", isPresented: $showRunAllConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Continue") {
+                    Task { await store.runAllScenarios() }
+                }
+            } message: {
+                Text("Running all scenarios may call the LLM many times. Continue?")
             }
             .overlay {
                 if store.isRunning {
@@ -72,7 +81,16 @@ struct DialogueGymDebugView: View {
                 .foregroundStyle(.orange)
 
             Button(action: {
-                Task { await store.runAllScenarios() }
+                Task { await store.runFirstScenarioOnly() }
+            }) {
+                Label("Run First Scenario Only", systemImage: "1.circle.fill")
+                    .frame(maxWidth: 280)
+            }
+            .buttonStyle(.bordered)
+            .disabled(store.isRunning)
+
+            Button(action: {
+                showRunAllConfirmation = true
             }) {
                 Label("Run 5 Built-in Scenarios", systemImage: "play.fill")
                     .frame(maxWidth: 280)
