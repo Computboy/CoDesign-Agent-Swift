@@ -61,6 +61,14 @@ final class LiveLLMService: LLMServiceProtocol {
         currentStage: ProgressStageSnapshot?
     ) -> [ChatCompletionMessage] {
         var result: [ChatCompletionMessage] = []
+        let stageOrder = currentStage?.order ?? 1
+        let latestUserMessage = messages.last(where: { $0.role == "user" })?.content
+        let resourceCards = ResourceRecommendationService().recommend(
+            currentStageOrder: stageOrder,
+            briefSnapshot: briefSnapshot,
+            recentMessage: latestUserMessage,
+            limit: 3
+        )
 
         // 1. System prompt
         result.append(ChatCompletionMessage(
@@ -73,7 +81,8 @@ final class LiveLLMService: LLMServiceProtocol {
             role: "user",
             content: SocraticPromptTemplates.contextPrompt(
                 brief: briefSnapshot,
-                currentStage: currentStage
+                currentStage: currentStage,
+                resourceCards: resourceCards
             )
         ))
 

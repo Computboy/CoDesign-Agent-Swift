@@ -18,6 +18,16 @@ struct ResourceCardView: View {
                             .fill(typeColor.opacity(0.10))
                     )
 
+                Text(resource.cardRole.displayName)
+                    .font(AppTheme.Typography.caption.weight(.semibold))
+                    .foregroundStyle(Color.textTertiary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.textTertiary.opacity(0.08))
+                    )
+
                 if let metaText {
                     Text(metaText)
                         .font(AppTheme.Typography.caption)
@@ -50,9 +60,14 @@ struct ResourceCardView: View {
                 recommendationBlock(title: "怎么使用", text: resource.howToUse)
                     .transition(.opacity.combined(with: .move(edge: .top)))
 
+                if let sourceText = resource.sourceDisplayText {
+                    recommendationBlock(title: "参考来源", text: sourceText)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
                 if let url = resource.sourceURL {
                     Link(destination: url) {
-                        Label("查看论文来源", systemImage: "arrow.up.right.square")
+                        Label("查看来源", systemImage: "arrow.up.right.square")
                             .font(AppTheme.Typography.caption.weight(.semibold))
                             .foregroundStyle(Color.orange)
                     }

@@ -2,8 +2,9 @@ import SwiftUI
 
 struct ResourceCardPanel: View {
     let project: Project
-    var title: String = "AI 助教推荐"
-    var subtitle: String = "根据当前阶段，为你补充可参考的方法、理论与案例。"
+    var title: String = "阶段资源提示"
+    var subtitle: String = "根据当前阶段和缺失字段，补充一张主要参考。"
+    var allowsOnlineSearch: Bool = false
 
     private let recommendationService = ResourceRecommendationService()
     private let paperSearchService = FrontierPaperSearchService()
@@ -19,8 +20,13 @@ struct ResourceCardPanel: View {
             brief: project.brief,
             recentMessage: latestSearchContext
         )
-        let combined = onlinePapers + local.filter { localResource in
-            !onlinePapers.contains(where: { $0.id == localResource.id })
+        let combined: [ResourceCard]
+        if allowsOnlineSearch {
+            combined = onlinePapers + local.filter { localResource in
+                !onlinePapers.contains(where: { $0.id == localResource.id })
+            }
+        } else {
+            combined = local
         }
         return Array(combined.prefix(3))
     }
@@ -49,9 +55,9 @@ struct ResourceCardPanel: View {
                             .controlSize(.small)
                             .tint(Color.orange)
                     } else {
-                        Image(systemName: onlinePapers.isEmpty ? "network" : "checkmark.circle.fill")
+                        Image(systemName: panelIconName)
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(onlinePapers.isEmpty ? Color.orange : Color.success)
+                            .foregroundStyle(allowsOnlineSearch && !onlinePapers.isEmpty ? Color.success : Color.orange)
                     }
 
                     Image(systemName: "chevron.down")
@@ -80,6 +86,8 @@ struct ResourceCardPanel: View {
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+            } else if let primaryResource = recommendations.first {
+                collapsedPreview(primaryResource)
             }
         }
         .padding(AppTheme.Layout.cardPadding)
@@ -94,11 +102,18 @@ struct ResourceCardPanel: View {
         )
         .coDesignShadow(.card)
         .task(id: "\(project.currentStageOrder)-\(latestSearchContext)") {
+            guard allowsOnlineSearch else { return }
             await loadOnlinePapers()
         }
     }
 
     private var statusText: String {
+        if !allowsOnlineSearch {
+            if let first = recommendations.first {
+                return "\(first.cardRole.displayName) · 点击展开资源摘要"
+            }
+            return subtitle
+        }
         if isSearchingPapers {
             return "正在联网检索与你主题相关的论文..."
         }
@@ -109,6 +124,50 @@ struct ResourceCardPanel: View {
             return "论文检索暂不可用，点击查看本地课程资源"
         }
         return subtitle
+    }
+
+    private var panelIconName: String {
+        if allowsOnlineSearch {
+            return onlinePapers.isEmpty ? "network" : "checkmark.circle.fill"
+        }
+        return "books.vertical"
+    }
+
+    private func collapsedPreview(_ resource: ResourceCard) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text(resource.type.displayName)
+                    .font(AppTheme.Typography.caption.weight(.semibold))
+                    .foregroundStyle(Color.orange)
+
+                Text(resource.cardRole.displayName)
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(Color.textTertiary)
+
+                Spacer(minLength: 0)
+            }
+
+            Text(resource.title)
+                .font(AppTheme.Typography.caption.weight(.semibold))
+                .foregroundStyle(Color.textPrimary)
+                .lineLimit(1)
+
+            Text(resource.summary)
+                .font(AppTheme.Typography.caption)
+                .foregroundStyle(Color.textSecondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(AppTheme.spacingMedium)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.72))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.16), lineWidth: AppTheme.Border.thin)
+        )
     }
 
     private func loadOnlinePapers() async {

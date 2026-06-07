@@ -127,8 +127,8 @@ struct CurrentClarificationCard: View {
                 )
                 ResourceCardPanel(
                     project: project,
-                    title: "前沿资源推荐",
-                    subtitle: "联网检索与你项目相关的论文，展开后查看。"
+                    title: "当前资源卡",
+                    subtitle: "系统会选择一张主要理论/方法卡辅助下一步澄清。"
                 )
                 quickActionsSection
             }

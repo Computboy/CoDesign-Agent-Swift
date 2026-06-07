@@ -248,9 +248,9 @@ struct TreeBuilder {
                         branchVersion: 1,
                         richness: 0.45,
                         isGhost: true,
-                        processLabel: "Evidence",
+                        processLabel: "Resource",
                         processIcon: "doc.text.magnifyingglass",
-                        statusText: "推荐依据",
+                        statusText: "资源卡",
                         resource: resource
                     )
                 )

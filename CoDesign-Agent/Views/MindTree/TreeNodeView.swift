@@ -202,7 +202,7 @@ struct TreeNodeView: View {
                     .frame(width: 18, height: 18)
                     .background(Circle().fill(Color.secondaryAccent.opacity(0.12)))
 
-                Text("Evidence")
+                Text("Resource")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.secondaryAccent)
 

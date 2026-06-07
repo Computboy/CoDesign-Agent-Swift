@@ -75,7 +75,8 @@ enum SocraticPromptTemplates {
     /// 把当前 DesignBrief 和当前阶段传给模型，用于引导追问方向
     static func contextPrompt(
         brief: DesignBriefSnapshot?,
-        currentStage: ProgressStageSnapshot?
+        currentStage: ProgressStageSnapshot?,
+        resourceCards: [ResourceCard] = []
     ) -> String {
         let brief = brief ?? DesignBriefSnapshot()
         let plan = DesignDialoguePlanner().plan(
@@ -141,6 +142,19 @@ enum SocraticPromptTemplates {
         lines.append("请根据当前阶段和已有信息，继续苏格拉底式追问。每次只问 1 个关键问题，帮助用户完善当前阶段的设计。")
         lines.append("")
         lines.append(plan.promptBlock)
+
+        if !resourceCards.isEmpty {
+            lines.append("")
+            lines.append("## 当前资源卡（内部参考，不要逐条讲给用户）")
+            lines.append("每轮最多使用 1 张内容依据卡；策略卡只用于决定怎么问、问多深和给多少提示。")
+            for card in resourceCards {
+                lines.append("- \(card.id)｜\(card.cardRole.displayName)｜\(card.title)")
+                lines.append("  核心观点：\(card.summary)")
+                lines.append("  为什么相关：\(card.whyRelevant)")
+                lines.append("  使用方式：\(card.howToUse)")
+            }
+        }
+
         lines.append("")
         lines.append("请优先执行上面的提问规划。如果用户最新回答已经解决了这个规划，请推进到同阶段下一个最影响设计判断的缺口。")
         lines.append("输出前做一次问题资格审查：这个问题必须能改变一个 DesignBrief 字段、Stage 状态、思维树节点或学习轨迹。")

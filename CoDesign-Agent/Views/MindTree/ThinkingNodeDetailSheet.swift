@@ -7,6 +7,7 @@ struct ThinkingNodeDetailSheet: View {
     var onAdoptEvidence: (ResourceCard, Int) -> Void = { _, _ in }
 
     @Environment(\.dismiss) private var dismiss
+    @State private var isResourceModuleExpanded = true
 
     var body: some View {
         NavigationStack {
@@ -150,6 +151,8 @@ struct ThinkingNodeDetailSheet: View {
                             .foregroundStyle(Color.textSecondary)
                     }
                 }
+
+                stageResourceModule(order: order)
             }
         }
     }
@@ -350,6 +353,53 @@ struct ThinkingNodeDetailSheet: View {
                 .foregroundStyle(filled ? Color.success : Color.textTertiary)
         }
         .padding(.vertical, 2)
+    }
+
+    private func stageResourceModule(order: Int) -> some View {
+        let resources = ResourceRecommendationService().recommend(
+            currentStageOrder: order,
+            brief: project.brief,
+            recentMessage: project.latestConversationText,
+            limit: 3
+        )
+
+        return DisclosureGroup(isExpanded: $isResourceModuleExpanded) {
+            VStack(spacing: AppTheme.spacingSmall) {
+                ForEach(resources) { resource in
+                    ResourceCardView(resource: resource)
+                }
+            }
+            .padding(.top, AppTheme.spacingSmall)
+        } label: {
+            HStack(spacing: AppTheme.spacingSmall) {
+                Image(systemName: "books.vertical")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.secondaryAccent)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("阶段资源卡")
+                        .font(AppTheme.Typography.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
+
+                    Text(resources.first?.summary ?? "当前阶段暂无资源推荐")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(Color.textTertiary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 0)
+            }
+        }
+        .tint(Color.secondaryAccent)
+        .padding(AppTheme.spacingMedium)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                .fill(Color.panelBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                .strokeBorder(Color.secondaryAccent.opacity(0.16), lineWidth: AppTheme.Border.thin)
+        )
     }
 
     private func resourceBlock(_ title: String, _ content: String) -> some View {

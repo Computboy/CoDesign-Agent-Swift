@@ -166,7 +166,7 @@ struct ThinkingTreeView: View {
 
     private func evidenceResourcesByStage() -> [Int: [ResourceCard]] {
         let visibleStages = mode == .embedded
-            ? expandedStageOrders
+            ? expandedStageOrders.union([project.currentStageOrder])
             : expandedStageOrders.union([project.currentStageOrder])
         var result: [Int: [ResourceCard]] = [:]
         let limit = mode == .embedded ? 2 : 3
@@ -344,6 +344,7 @@ struct ThinkingTreeView: View {
             if mode == .standalone {
                 toggleStage(order)
             } else {
+                toggleStage(order)
                 locateStage(order, in: lastViewportSize, preserveScale: true)
             }
         }

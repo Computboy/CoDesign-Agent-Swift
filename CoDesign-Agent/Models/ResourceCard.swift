@@ -20,6 +20,56 @@ enum ResourceType: String, CaseIterable, Identifiable {
     }
 }
 
+enum ResourceCardRole: String, CaseIterable, Identifiable {
+    case content
+    case questionStrategy
+    case cognitiveDepth
+    case reflectionDetector
+    case stageReflection
+    case onboarding
+    case correctionFeedback
+    case errorRecovery
+    case feedbackStrategy
+    case scaffoldingStrategy
+    case loadControl
+    case selfRegulation
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .content: return "内容依据"
+        case .questionStrategy: return "提问策略"
+        case .cognitiveDepth: return "认知深度"
+        case .reflectionDetector: return "反思识别"
+        case .stageReflection: return "阶段复盘"
+        case .onboarding: return "使用说明"
+        case .correctionFeedback: return "纠正反馈"
+        case .errorRecovery: return "错误恢复"
+        case .feedbackStrategy: return "形成性反馈"
+        case .scaffoldingStrategy: return "脚手架"
+        case .loadControl: return "信息负荷"
+        case .selfRegulation: return "自我调节"
+        }
+    }
+}
+
+enum ResourceEvidenceLevel: String, CaseIterable, Identifiable {
+    case direct
+    case adapted
+    case heuristic
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .direct: return "直接依据"
+        case .adapted: return "转化应用"
+        case .heuristic: return "启发规则"
+        }
+    }
+}
+
 struct ResourceCard: Identifiable, Hashable {
     let id: String
     let title: String
@@ -32,4 +82,21 @@ struct ResourceCard: Identifiable, Hashable {
     var sourceURL: URL? = nil
     var year: Int? = nil
     var venue: String? = nil
+    var cardRole: ResourceCardRole = .content
+    var source: String? = nil
+    var sourceType: String? = nil
+    var evidenceLevel: ResourceEvidenceLevel = .adapted
+    var problemTypes: [String] = []
+    var relatedFields: [BriefField] = []
+    var requiredContext: [String] = []
+    var globalMoments: [String] = []
+    var priority: Int = 50
+    var applicationScope: [String] = ["user_project"]
+    var uiOutputs: [String] = []
+    var triggerSignals: [String] = []
+    var avoidWhen: [String] = []
+
+    var sourceDisplayText: String? {
+        source ?? venue
+    }
 }
