@@ -11,6 +11,14 @@ struct ReflectionCard: View {
             return ("scope", Color.success)
         case "boundaryShrink":
             return ("rectangle.compress.vertical", Color.warning)
+        case "differentiate":
+            return ("square.grid.2x2", Color.secondaryAccent)
+        case "challenge":
+            return ("questionmark.diamond", Color.warning)
+        case "prioritize":
+            return ("arrow.down.right.and.arrow.up.left", Color.success)
+        case "bound":
+            return ("lock.shield", Color.primaryAccent)
         default:
             return ("sparkles", Color.textTertiary)
         }

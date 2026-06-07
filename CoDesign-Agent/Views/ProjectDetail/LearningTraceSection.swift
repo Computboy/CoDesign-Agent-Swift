@@ -267,6 +267,10 @@ struct LearningTraceSection: View {
         case "reframe":        return ("arrow.triangle.2.circlepath", Color.primaryAccent)
         case "converge":       return ("scope", Color.success)
         case "boundaryShrink": return ("rectangle.compress.vertical", Color.warning)
+        case "differentiate":  return ("square.grid.2x2", Color.secondaryAccent)
+        case "challenge":      return ("questionmark.diamond", Color.warning)
+        case "prioritize":     return ("arrow.down.right.and.arrow.up.left", Color.success)
+        case "bound":          return ("lock.shield", Color.primaryAccent)
         default:               return ("sparkles", Color.textTertiary)
         }
     }
@@ -276,6 +280,10 @@ struct LearningTraceSection: View {
         case "reframe":        return "重新定义"
         case "converge":       return "收敛推进"
         case "boundaryShrink": return "边界收缩"
+        case "differentiate":  return "概念区分"
+        case "challenge":      return "反设检查"
+        case "prioritize":     return "取舍判断"
+        case "bound":          return "可行降级"
         default:               return actionType
         }
     }

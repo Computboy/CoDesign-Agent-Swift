@@ -35,16 +35,8 @@ final class ChatViewModel {
         // ② 快照当前状态（用于后续 diff）
         let previousBrief = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
 
-        // ③ 构造 DTO
-        let payloadMessages = project.messages
-            .sorted { $0.timestamp < $1.timestamp }
-            .map { $0.toPayload() }
-        let briefSnapshot = project.brief?.toSnapshot()
-        let sortedStages = project.stages.sorted { $0.order < $1.order }
-        let activeStage = sortedStages.first { $0.stageStatusValue == .needsReview }
-            ?? sortedStages.first { $0.stageStatusValue == .active }
-            ?? sortedStages.first { $0.stageStatusValue == .notStarted }
-        let stageSnapshot = activeStage?.toSnapshot()
+        // ③ 记录用户回答对应的过程片段
+        let activeStage = currentActiveStage()
         let activeStageOrder = activeStage?.order ?? project.currentStageOrder
 
         recordThinkingMoment(
@@ -56,7 +48,41 @@ final class ChatViewModel {
         )
         try? context.save()
 
-        // ④ 流式调用 LLM
+        // ④ 先抽取并更新状态，再生成下一问。
+        // 这样 Agent 问出的不是“更多细节”，而是当前 DesignBrief 中最值得推进的设计判断。
+        let extractionMessages = project.messages
+            .sorted { $0.timestamp < $1.timestamp }
+            .map { $0.toPayload() }
+
+        await applyStructuredExtraction(
+            messages: extractionMessages,
+            existing: previousBrief,
+            context: context
+        )
+
+        let updatedBriefSnapshot = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
+        recordBriefDecisionMoments(
+            previous: previousBrief,
+            current: updatedBriefSnapshot,
+            context: context
+        )
+        updateStageProgress(brief: updatedBriefSnapshot)
+
+        let nextActiveStage = currentActiveStage()
+        appendLearningTraces(
+            previousBrief: previousBrief,
+            currentBrief: updatedBriefSnapshot,
+            activeStageOrder: nextActiveStage?.order ?? activeStageOrder,
+            context: context
+        )
+        try? context.save()
+
+        // ⑤ 基于更新后的状态流式调用 LLM
+        let payloadMessages = project.messages
+            .sorted { $0.timestamp < $1.timestamp }
+            .map { $0.toPayload() }
+        let stageSnapshot = nextActiveStage?.toSnapshot()
+
         isStreaming = true
         currentStreamingText = ""
         errorMessage = nil
@@ -64,7 +90,7 @@ final class ChatViewModel {
         do {
             let stream = llmService.streamChat(
                 messages: payloadMessages,
-                briefSnapshot: briefSnapshot,
+                briefSnapshot: updatedBriefSnapshot,
                 currentStage: stageSnapshot
             )
             for try await token in stream {
@@ -77,28 +103,35 @@ final class ChatViewModel {
             return
         }
 
-        // ⑤ 保存 AI 回复
+        // ⑥ 保存 AI 回复
         let assistantMsg = ChatMessage(role: "assistant", content: currentStreamingText)
         context.insert(assistantMsg)
         project.messages.append(assistantMsg)
         recordThinkingMoment(
             momType: "question",
             content: questionMomentText(from: assistantMsg.content),
-            stageOrder: activeStageOrder,
+            stageOrder: nextActiveStage?.order ?? activeStageOrder,
             relatedField: nil,
             context: context
         )
         currentStreamingText = ""
         isStreaming = false
 
-        // ⑥ 结构化提取（失败不中断对话）
-        let extractionMessages = project.messages
-            .sorted { $0.timestamp < $1.timestamp }
-            .map { $0.toPayload() }
+        // ⑦ 保存
+        try? context.save()
+    }
+
+    // MARK: - Conversation State Updates
+
+    private func applyStructuredExtraction(
+        messages: [ChatPayloadMessage],
+        existing: DesignBriefSnapshot,
+        context: ModelContext
+    ) async {
         do {
             let outcome = try await extractor.extract(
-                from: extractionMessages,
-                existing: briefSnapshot
+                from: messages,
+                existing: existing
             )
             if let brief = project.brief {
                 brief.applyValidatedExtraction(outcome: outcome, context: context)
@@ -113,14 +146,17 @@ final class ChatViewModel {
                 brief.applyValidatedExtraction(outcome: outcome, context: context)
             }
         }
+    }
 
-        // ⑥.5 思维片段记录：检测新填充的字段，生成 ThinkingMoment
-        let updatedBriefSnapshot = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
-        let preBrief = briefSnapshot ?? DesignBriefSnapshot()
+    private func recordBriefDecisionMoments(
+        previous: DesignBriefSnapshot,
+        current: DesignBriefSnapshot,
+        context: ModelContext
+    ) {
         for field in BriefField.allCases {
-            let wasEmpty = !field.isFilled(in: preBrief)
-            let isNowFilled = field.isFilled(in: updatedBriefSnapshot)
-            let changedMeaningfully = fieldFingerprint(field, in: preBrief) != fieldFingerprint(field, in: updatedBriefSnapshot)
+            let wasEmpty = !field.isFilled(in: previous)
+            let isNowFilled = field.isFilled(in: current)
+            let changedMeaningfully = fieldFingerprint(field, in: previous) != fieldFingerprint(field, in: current)
             if isNowFilled && (wasEmpty || changedMeaningfully) {
                 let stageOrder = StageDefinition.all
                     .first { $0.briefFields.contains(field) }?.order ?? 1
@@ -133,9 +169,10 @@ final class ChatViewModel {
                 )
             }
         }
+    }
 
-        // ⑦ 进度分析
-        let currentBriefSnapshot = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
+    private func updateStageProgress(brief currentBriefSnapshot: DesignBriefSnapshot) {
+        let sortedStages = project.stages.sorted { $0.order < $1.order }
         let stageSnapshots = sortedStages.map { $0.toSnapshot() }
         let updatedStages = analyzer.analyze(
             brief: currentBriefSnapshot,
@@ -149,14 +186,27 @@ final class ChatViewModel {
                 stage.lastUpdated = Date()
             }
         }
+    }
 
-        // ⑧ 学习轨迹检测
+    private func appendLearningTraces(
+        previousBrief: DesignBriefSnapshot,
+        currentBrief: DesignBriefSnapshot,
+        activeStageOrder: Int,
+        context: ModelContext
+    ) {
         let traces = analyzer.detectLearningTraces(
             previousBrief: previousBrief,
-            currentBrief: currentBriefSnapshot,
-            activeStageOrder: activeStage?.order ?? 1
+            currentBrief: currentBrief,
+            activeStageOrder: activeStageOrder
         )
         for traceDTO in traces {
+            let isDuplicate = project.learningTraces.contains { trace in
+                trace.stageOrder == traceDTO.stageOrder &&
+                trace.actionType == traceDTO.actionType &&
+                trace.title == traceDTO.title
+            }
+            guard !isDuplicate else { continue }
+
             let trace = LearningTrace(
                 stageOrder: traceDTO.stageOrder,
                 actionType: traceDTO.actionType,
@@ -166,9 +216,13 @@ final class ChatViewModel {
             context.insert(trace)
             project.learningTraces.append(trace)
         }
+    }
 
-        // ⑨ 保存
-        try? context.save()
+    private func currentActiveStage() -> ProgressStage? {
+        let sortedStages = project.stages.sorted { $0.order < $1.order }
+        return sortedStages.first { $0.stageStatusValue == .needsReview }
+            ?? sortedStages.first { $0.stageStatusValue == .active }
+            ?? sortedStages.first { $0.stageStatusValue == .notStarted }
     }
 
     // MARK: - Thinking Moment Recording

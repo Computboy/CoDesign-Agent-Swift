@@ -576,7 +576,7 @@ private struct StructuredAssistantText: View {
     }
 
     private func parseTaggedLine(_ line: String) -> StructuredAssistantLine? {
-        let knownLabels = ["理解", "线索", "选项", "追问", "例子", "下一步"]
+        let knownLabels = ["理解", "线索", "选项", "追问", "例子", "下一步", "这个问题会决定"]
         for separator in ["｜", "|", "：", ":"] {
             guard let range = line.range(of: separator) else { continue }
             let label = String(line[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -595,6 +595,8 @@ private struct StructuredAssistantText: View {
             return prefixedSentence("我先确认一下：", body: trimmed)
         case "线索":
             return prefixedSentence("现在缺的线索是：", body: trimmed)
+        case "这个问题会决定":
+            return prefixedSentence("这个问题会决定：", body: trimmed)
         case "选项":
             return prefixedSentence("可以这样看：", body: trimmed)
         case "追问":
@@ -617,6 +619,7 @@ private struct StructuredAssistantText: View {
         switch label {
         case "理解": return .primaryAccent
         case "线索": return .warning
+        case "这个问题会决定": return .primaryAccent
         case "选项", "例子": return .secondaryAccent
         case "追问": return .success
         default: return .textSecondary

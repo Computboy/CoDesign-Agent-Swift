@@ -91,6 +91,73 @@ struct ProgressAnalyzer {
             ))
         }
 
+        // ── differentiate：用户把混在一起的场景、价值或成功标准区分开 ──
+        if changed(\.useScenario, from: previousBrief, to: currentBrief) {
+            traces.append(LearningTraceDTO(
+                stageOrder: 1,
+                actionType: "differentiate",
+                title: "你区分了核心场景",
+                detail: "你不再停留在笼统问题上，而是开始判断第一版应该锚定哪个具体使用场景。"
+            ))
+        }
+        if changed(\.differentiation, from: previousBrief, to: currentBrief) {
+            traces.append(LearningTraceDTO(
+                stageOrder: 2,
+                actionType: "differentiate",
+                title: "你区分了方案差异",
+                detail: "你开始说明这个方案和已有办法的不同，这会让项目从“也能做”变成“为什么值得做”。"
+            ))
+        }
+        if currentBrief.successMetrics.count > previousBrief.successMetrics.count {
+            traces.append(LearningTraceDTO(
+                stageOrder: 7,
+                actionType: "differentiate",
+                title: "你区分了成功标准",
+                detail: "你把“做得好”拆成了可以观察或测量的指标，后续评估会更清楚。"
+            ))
+        }
+
+        // ── challenge：用户回应了价值或风险层面的隐含假设 ──
+        if changed(\.coreValue, from: previousBrief, to: currentBrief) {
+            traces.append(LearningTraceDTO(
+                stageOrder: 2,
+                actionType: "challenge",
+                title: "你回应了价值反设",
+                detail: "你开始说明用户为什么需要这个方案，而不是继续使用现有办法。"
+            ))
+        }
+        if currentBrief.risks.count > previousBrief.risks.count {
+            traces.append(LearningTraceDTO(
+                stageOrder: 8,
+                actionType: "challenge",
+                title: "你暴露了关键风险",
+                detail: "你主动检查了方案可能失败的地方，这会让后续技术路线和展示策略更可信。"
+            ))
+        }
+
+        // ── prioritize：用户做出了范围或功能优先级判断 ──
+        let prevIncluded = previousBrief.boundaryItems.filter { $0.isIncluded }.count
+        let currIncluded = currentBrief.boundaryItems.filter { $0.isIncluded }.count
+        if currIncluded > prevIncluded || changed(\.mvpFeatures, from: previousBrief, to: currentBrief) {
+            traces.append(LearningTraceDTO(
+                stageOrder: currIncluded > prevIncluded ? 3 : 4,
+                actionType: "prioritize",
+                title: "你完成了优先级取舍",
+                detail: "你开始判断第一版真正要保留什么，这能防止项目继续发散。"
+            ))
+        }
+
+        // ── bound：用户承认限制，并把方案推向可落地版本 ──
+        if changed(\.technicalModules, from: previousBrief, to: currentBrief)
+            || changed(\.hardConstraints, from: previousBrief, to: currentBrief) {
+            traces.append(LearningTraceDTO(
+                stageOrder: changed(\.hardConstraints, from: previousBrief, to: currentBrief) ? 6 : 4,
+                actionType: "bound",
+                title: "你把方案推向可落地版本",
+                detail: "你开始面对技术、资源或设备限制，并思考第一版可以如何降级仍然成立。"
+            ))
+        }
+
         // ── converge：某阶段从未填充变为有填充（首次收敛） ──
         for def in StageDefinition.all {
             let prevRatio = def.completionRatio(from: previousBrief)
@@ -118,5 +185,15 @@ struct ProgressAnalyzer {
         }
 
         return traces
+    }
+
+    private func changed(
+        _ keyPath: KeyPath<DesignBriefSnapshot, String?>,
+        from previous: DesignBriefSnapshot,
+        to current: DesignBriefSnapshot
+    ) -> Bool {
+        let previousValue = previous[keyPath: keyPath]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let currentValue = current[keyPath: keyPath]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return previousValue != currentValue && currentValue?.isEmpty == false
     }
 }

@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xcodebuild -scheme CoDesign-Agent -destination 'platform=iOS Simulator,id=7E83E99D-AA67-488D-B2CC-F1F1DF77EAF8' build)"
+      "Bash(xcodebuild -scheme CoDesign-Agent -destination 'platform=iOS Simulator,id=7E83E99D-AA67-488D-B2CC-F1F1DF77EAF8' build)",
+      "Bash(xcodebuild -scheme CoDesign-Agent -showdestinations)"
     ]
   }
 }

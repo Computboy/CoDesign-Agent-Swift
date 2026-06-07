@@ -9,18 +9,14 @@ final class MockLLMService: LLMServiceProtocol {
         AsyncThrowingStream { continuation in
             Task {
                 // 1. 确定当前阶段
-                let stageOrder = currentStage?.order ?? 1
-
-                // 2. 只统计 user 消息数（排除 system / assistant）
-                let userMessageCount = messages.filter { $0.role == "user" }.count
-
-                // 3. 选择回复
-                let response = Self.pickResponse(
-                    stageOrder: stageOrder,
-                    userTurnCount: userMessageCount
+                let brief = briefSnapshot ?? DesignBriefSnapshot()
+                let plan = DesignDialoguePlanner().plan(
+                    brief: brief,
+                    currentStage: currentStage
                 )
+                let response = plan.mockResponse
 
-                // 4. 模拟流式输出（每个字符 25ms）
+                // 2. 模拟流式输出（每个字符 25ms）
                 for char in response {
                     try? await Task.sleep(for: .milliseconds(25))
                     continuation.yield(String(char))
@@ -31,8 +27,11 @@ final class MockLLMService: LLMServiceProtocol {
         }
     }
 
-    // MARK: - 9 阶段苏格拉底式追问库
+    // MARK: - Legacy 9 阶段苏格拉底式追问库
 
+    /// Kept as a compatibility fallback for older tests and previews.
+    /// Runtime mock chat now uses DesignDialoguePlanner so it can ask questions
+    /// that point to an explicit design decision.
     static let stageResponses: [Int: [String]] = [
         // 阶段 1：痛点与场景锚定
         1: [
