@@ -137,7 +137,11 @@ struct DialogueGymDebugView: View {
                 }
             }
         }
+        #if os(iOS)
         .listStyle(.insetGrouped)
+        #else
+        .listStyle(.plain)
+        #endif
     }
 
     // MARK: - Report Header
