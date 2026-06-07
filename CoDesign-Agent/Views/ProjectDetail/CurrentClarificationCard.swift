@@ -507,16 +507,11 @@ private struct StructuredAssistantText: View {
                 if line.isSpacer {
                     Color.clear.frame(height: 2)
                 } else if let label = line.label {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(label)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(labelTint(for: label))
-                            .padding(.horizontal, 8)
-                            .frame(height: 24)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(labelTint(for: label).opacity(0.09))
-                            )
+                    HStack(alignment: .top, spacing: 8) {
+                        Circle()
+                            .fill(labelTint(for: label).opacity(0.72))
+                            .frame(width: 5, height: 5)
+                            .padding(.top, 10)
 
                         Text(line.body)
                             .font(font)
@@ -587,9 +582,35 @@ private struct StructuredAssistantText: View {
             let label = String(line[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
             let body = String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
             guard knownLabels.contains(label), !body.isEmpty else { continue }
-            return StructuredAssistantLine(label: label, body: body)
+            return StructuredAssistantLine(label: label, body: naturalSentence(label: label, body: body))
         }
         return nil
+    }
+
+    private func naturalSentence(label: String, body: String) -> String {
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        switch label {
+        case "理解":
+            return prefixedSentence("我先确认一下：", body: trimmed)
+        case "线索":
+            return prefixedSentence("现在缺的线索是：", body: trimmed)
+        case "选项":
+            return prefixedSentence("可以这样看：", body: trimmed)
+        case "追问":
+            return prefixedSentence("所以这轮只问一个问题：", body: trimmed)
+        case "例子":
+            return prefixedSentence("比如：", body: trimmed)
+        case "下一步":
+            return prefixedSentence("接下来：", body: trimmed)
+        default:
+            return trimmed
+        }
+    }
+
+    private func prefixedSentence(_ prefix: String, body: String) -> String {
+        guard !body.hasPrefix(prefix) else { return body }
+        return prefix + body
     }
 
     private func labelTint(for label: String) -> Color {

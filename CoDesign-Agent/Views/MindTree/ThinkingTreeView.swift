@@ -147,6 +147,7 @@ struct ThinkingTreeView: View {
             return TreeLayoutEngine(
                 stageSpacing: stageSpacing,
                 sideBranchSpacing: 220,
+                sideNodeVerticalSpacing: 96,
                 topPadding: 82,
                 bottomPadding: 112,
                 contentWidth: max(viewport.width * 1.24, 720)
@@ -155,6 +156,7 @@ struct ThinkingTreeView: View {
             return TreeLayoutEngine(
                 stageSpacing: 150,
                 sideBranchSpacing: 235,
+                sideNodeVerticalSpacing: 104,
                 topPadding: 110,
                 bottomPadding: 150,
                 contentWidth: max(viewport.width * 1.45, 1180)
@@ -233,32 +235,53 @@ struct ThinkingTreeView: View {
         )
     }
 
+    @ViewBuilder
     private var treeToolbar: some View {
-        HStack(spacing: 8) {
-            toolbarButton("定位当前阶段", icon: "scope") {
-                expandedStageOrders.insert(project.currentStageOrder)
-                locateCurrentStage(in: lastViewportSize, preserveScale: true)
-            }
+        if mode == .embedded {
+            HStack(spacing: 6) {
+                compactToolbarButton("定位当前阶段", icon: "scope") {
+                    locateCurrentStage(in: lastViewportSize, preserveScale: true)
+                }
 
-            toolbarButton("重置视图", icon: "arrow.counterclockwise") {
-                resetViewport(in: lastViewportSize)
+                compactToolbarButton("重置视图", icon: "arrow.counterclockwise") {
+                    resetViewport(in: lastViewportSize)
+                }
             }
+            .padding(5)
+            .fixedSize()
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.cardBackground.opacity(0.94))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(Color.primaryAccent.opacity(0.12), lineWidth: 1)
+            )
+        } else {
+            HStack(spacing: 8) {
+                toolbarButton("定位当前阶段", icon: "scope") {
+                    expandedStageOrders.insert(project.currentStageOrder)
+                    locateCurrentStage(in: lastViewportSize, preserveScale: true)
+                }
 
-            if mode == .standalone {
+                toolbarButton("重置视图", icon: "arrow.counterclockwise") {
+                    resetViewport(in: lastViewportSize)
+                }
+
                 toolbarButton("\(Int(scale * 100))%", icon: "plus.magnifyingglass") {
                     setScale(scale + 0.12)
                 }
             }
+            .padding(7)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.cardBackground.opacity(0.94))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(Color.primaryAccent.opacity(0.12), lineWidth: 1)
+            )
         }
-        .padding(7)
-        .background(
-            Capsule(style: .continuous)
-                .fill(Color.cardBackground.opacity(0.94))
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .strokeBorder(Color.primaryAccent.opacity(0.12), lineWidth: 1)
-        )
     }
 
     private func toolbarButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
@@ -274,6 +297,18 @@ struct ThinkingTreeView: View {
             .padding(.horizontal, mode == .embedded ? 8 : 10)
             .padding(.vertical, 7)
             .background(Capsule().fill(Color.primaryAccent.opacity(0.075)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+    }
+
+    private func compactToolbarButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color.primaryAccent)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(Color.primaryAccent.opacity(0.075)))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
@@ -306,7 +341,11 @@ struct ThinkingTreeView: View {
 
     private func handleTap(_ node: TreeNode) {
         if node.kind == .stage, let order = node.stageOrder {
-            toggleStage(order)
+            if mode == .standalone {
+                toggleStage(order)
+            } else {
+                locateStage(order, in: lastViewportSize, preserveScale: true)
+            }
         }
         selectedNode = node
     }
@@ -357,24 +396,26 @@ struct ThinkingTreeView: View {
 
     @ViewBuilder
     private func edgeHitAreas(graph: TreeData) -> some View {
-        ForEach(graph.edges.filter { $0.togglesStageOrder != nil }) { edge in
-            if let from = graph.node(for: edge.fromID),
-               let to = graph.node(for: edge.toID),
-               let stageOrder = edge.togglesStageOrder {
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(width: 190, height: max(abs(from.position.y - to.position.y), 42))
-                    .contentShape(Rectangle())
-                    .position(
-                        CGPoint(
-                            x: (from.position.x + to.position.x) / 2,
-                            y: (from.position.y + to.position.y) / 2
+        if mode == .standalone {
+            ForEach(graph.edges.filter { $0.togglesStageOrder != nil }) { edge in
+                if let from = graph.node(for: edge.fromID),
+                   let to = graph.node(for: edge.toID),
+                   let stageOrder = edge.togglesStageOrder {
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(width: 190, height: max(abs(from.position.y - to.position.y), 42))
+                        .contentShape(Rectangle())
+                        .position(
+                            CGPoint(
+                                x: (from.position.x + to.position.x) / 2,
+                                y: (from.position.y + to.position.y) / 2
+                            )
                         )
-                    )
-                    .onTapGesture {
-                        toggleStage(stageOrder)
-                    }
-                    .zIndex(1)
+                        .onTapGesture {
+                            toggleStage(stageOrder)
+                        }
+                        .zIndex(1)
+                }
             }
         }
     }
@@ -475,10 +516,14 @@ struct ThinkingTreeView: View {
     }
 
     private func locateCurrentStage(in viewport: CGSize, preserveScale: Bool) {
+        locateStage(project.currentStageOrder, in: viewport, preserveScale: preserveScale)
+    }
+
+    private func locateStage(_ stageOrder: Int, in viewport: CGSize, preserveScale: Bool) {
         guard viewport.width > 0, viewport.height > 0 else { return }
         seedExpandedStageIfNeeded()
         let graph = layoutGraph(for: viewport)
-        let targetID = TreeBuilder.stageNodeID(project.currentStageOrder)
+        let targetID = TreeBuilder.stageNodeID(stageOrder)
         guard let node = graph.node(for: targetID) else { return }
 
         let nextScale = preserveScale ? scale : max(fitScale(for: graph, viewport: viewport), mode == .embedded ? 0.46 : 0.58)

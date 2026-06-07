@@ -4,6 +4,7 @@ import SwiftUI
 struct TreeLayoutEngine {
     let stageSpacing: CGFloat
     let sideBranchSpacing: CGFloat
+    let sideNodeVerticalSpacing: CGFloat
     let topPadding: CGFloat
     let bottomPadding: CGFloat
     let contentWidth: CGFloat
@@ -11,12 +12,14 @@ struct TreeLayoutEngine {
     init(
         stageSpacing: CGFloat = 140,
         sideBranchSpacing: CGFloat = 170,
+        sideNodeVerticalSpacing: CGFloat = 34,
         topPadding: CGFloat = 90,
         bottomPadding: CGFloat = 120,
         contentWidth: CGFloat = 900
     ) {
         self.stageSpacing = stageSpacing
         self.sideBranchSpacing = sideBranchSpacing
+        self.sideNodeVerticalSpacing = sideNodeVerticalSpacing
         self.topPadding = topPadding
         self.bottomPadding = bottomPadding
         self.contentWidth = contentWidth
@@ -25,14 +28,14 @@ struct TreeLayoutEngine {
     func layout(_ data: TreeData, in size: CGSize) -> TreeData {
         let maxStage = max(data.nodes.compactMap(\.stageOrder).max() ?? 1, 1)
         let width = max(size.width, contentWidth)
-        let height = max(size.height, minimumContentSize(maxStage: maxStage).height)
-        let centerX = width / 2
-        let rootY = height - bottomPadding
-        let contentSize = CGSize(width: width, height: height)
-
         let nodesByStage = Dictionary(grouping: data.nodes.filter { node in
             node.stageOrder != nil && node.kind != .stage
         }, by: { $0.stageOrder ?? 0 })
+        let effectiveStageSpacing = effectiveStageSpacing(for: nodesByStage)
+        let height = max(size.height, minimumContentSize(maxStage: maxStage, stageSpacing: effectiveStageSpacing).height)
+        let centerX = width / 2
+        let rootY = height - bottomPadding
+        let contentSize = CGSize(width: width, height: height)
 
         var updatedNodes = data.nodes
 
@@ -45,7 +48,7 @@ struct TreeLayoutEngine {
                 guard let order = updatedNodes[index].stageOrder else { continue }
                 updatedNodes[index].position = CGPoint(
                     x: centerX,
-                    y: stageY(order: order, rootY: rootY)
+                    y: stageY(order: order, rootY: rootY, stageSpacing: effectiveStageSpacing)
                 )
 
             case .field, .process, .evidence, .revision:
@@ -62,6 +65,7 @@ struct TreeLayoutEngine {
                     stageOrder: order,
                     centerX: centerX,
                     rootY: rootY,
+                    stageSpacing: effectiveStageSpacing,
                     contentWidth: width
                 )
             }
@@ -71,14 +75,33 @@ struct TreeLayoutEngine {
     }
 
     func minimumContentSize(maxStage: Int = 9) -> CGSize {
+        minimumContentSize(maxStage: maxStage, stageSpacing: stageSpacing)
+    }
+
+    private func minimumContentSize(maxStage: Int, stageSpacing: CGFloat) -> CGSize {
         CGSize(
             width: contentWidth,
             height: topPadding + bottomPadding + stageSpacing * CGFloat(max(maxStage, 1)) + 90
         )
     }
 
-    private func stageY(order: Int, rootY: CGFloat) -> CGFloat {
+    private func stageY(order: Int, rootY: CGFloat, stageSpacing: CGFloat) -> CGFloat {
         rootY - CGFloat(order) * stageSpacing
+    }
+
+    private func effectiveStageSpacing(for nodesByStage: [Int: [TreeNode]]) -> CGFloat {
+        let maxSideCount = nodesByStage.values
+            .map { nodes in
+                let sideCounts = balancedSideCounts(for: nodes.count)
+                return max(sideCounts.left, sideCounts.right)
+            }
+            .max() ?? 0
+
+        guard maxSideCount > 1 else { return stageSpacing }
+
+        let estimatedNodeHeight: CGFloat = 86
+        let stackHeight = estimatedNodeHeight + CGFloat(maxSideCount - 1) * sideNodeVerticalSpacing
+        return max(stageSpacing, stackHeight + 56)
     }
 
     private func sortedSideNodes(_ nodes: [TreeNode]) -> [TreeNode] {
@@ -113,27 +136,33 @@ struct TreeLayoutEngine {
         stageOrder: Int,
         centerX: CGFloat,
         rootY: CGFloat,
+        stageSpacing: CGFloat,
         contentWidth: CGFloat
     ) -> CGPoint {
-        let stageY = stageY(order: stageOrder, rootY: rootY)
+        let stageY = stageY(order: stageOrder, rootY: rootY, stageSpacing: stageSpacing)
         let side: CGFloat = siblingIndex.isMultiple(of: 2) ? -1 : 1
-        let pairIndex = CGFloat(siblingIndex / 2)
-        let sideDistance = min(
-            sideBranchSpacing + pairIndex * 46,
-            max(120, contentWidth / 2 - 116)
-        )
-        let verticalBase = CGFloat((siblingIndex % 5) - 2) * 22
-        let yJitter = deterministicUnit(for: node.id + "-y") * 14
-        let xJitter = deterministicUnit(for: node.id + "-x") * 16
+        let sideIndex = siblingIndex / 2
+        let sideCount = siblingIndex.isMultiple(of: 2)
+            ? balancedSideCounts(for: siblingCount).left
+            : balancedSideCounts(for: siblingCount).right
+        let sideDistance = min(sideBranchSpacing, max(120, contentWidth / 2 - 116))
+        let stackOffset = CGFloat(sideIndex) * sideNodeVerticalSpacing
+            - CGFloat(max(sideCount - 1, 0)) * sideNodeVerticalSpacing / 2
+        let yJitter = deterministicUnit(for: node.id + "-y") * 4
+        let xJitter = deterministicUnit(for: node.id + "-x") * 6
         let archivedOffset = node.isArchived ? CGFloat(28) : 0
 
         let x = centerX + side * (sideDistance + archivedOffset) + xJitter
-        let y = stageY + verticalBase + yJitter
+        let y = stageY + stackOffset + yJitter
 
         return CGPoint(
             x: min(max(x, 86), contentWidth - 86),
-            y: min(max(y, topPadding), rootY - 72)
+            y: min(max(y, topPadding + 44), rootY - 116)
         )
+    }
+
+    private func balancedSideCounts(for count: Int) -> (left: Int, right: Int) {
+        (left: (count + 1) / 2, right: count / 2)
     }
 
     /// Stable deterministic pseudo-random value in -1...1.

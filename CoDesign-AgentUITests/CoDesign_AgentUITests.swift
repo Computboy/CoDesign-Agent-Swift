@@ -1,10 +1,3 @@
-//
-//  CoDesign_AgentUITests.swift
-//  CoDesign-AgentUITests
-//
-//  Created by mac on 2026/5/28.
-//
-
 import XCTest
 
 final class CoDesign_AgentUITests: XCTestCase {
