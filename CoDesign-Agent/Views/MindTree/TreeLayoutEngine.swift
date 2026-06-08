@@ -90,22 +90,21 @@ struct TreeLayoutEngine {
     }
 
     private func effectiveStageSpacing(for nodesByStage: [Int: [TreeNode]]) -> CGFloat {
-        let maxSideCount = nodesByStage.values
-            .map { nodes in
-                let sideCounts = balancedSideCounts(for: nodes.count)
-                return max(sideCounts.left, sideCounts.right)
-            }
+        let maxTransitionCount = nodesByStage.values
+            .map(\.count)
             .max() ?? 0
 
-        guard maxSideCount > 1 else { return stageSpacing }
+        guard maxTransitionCount > 2 else { return stageSpacing }
 
-        let estimatedNodeHeight: CGFloat = 86
-        let stackHeight = estimatedNodeHeight + CGFloat(maxSideCount - 1) * sideNodeVerticalSpacing
-        return max(stageSpacing, stackHeight + 56)
+        let corridorHeight = 74 + CGFloat(maxTransitionCount) * sideNodeVerticalSpacing
+        return max(stageSpacing, corridorHeight)
     }
 
     private func sortedSideNodes(_ nodes: [TreeNode]) -> [TreeNode] {
         nodes.sorted { lhs, rhs in
+            if let lhsDate = lhs.timestamp, let rhsDate = rhs.timestamp, lhsDate != rhsDate {
+                return lhsDate < rhsDate
+            }
             if lhs.isActiveBranch != rhs.isActiveBranch {
                 return lhs.isActiveBranch
             }
@@ -140,30 +139,28 @@ struct TreeLayoutEngine {
         stageSpacing: CGFloat,
         contentWidth: CGFloat
     ) -> CGPoint {
-        let stageY = stageY(order: stageOrder, rootY: rootY, stageSpacing: stageSpacing)
+        let fromY: CGFloat
+        if stageOrder == 1 {
+            fromY = rootY
+        } else {
+            fromY = stageY(order: stageOrder - 1, rootY: rootY, stageSpacing: stageSpacing)
+        }
+        let toY = stageY(order: stageOrder, rootY: rootY, stageSpacing: stageSpacing)
+        let corridorHeight = max(abs(fromY - toY), stageSpacing)
+        let fraction = CGFloat(siblingIndex + 1) / CGFloat(max(siblingCount + 1, 2))
         let side: CGFloat = siblingIndex.isMultiple(of: 2) ? -1 : 1
-        let sideIndex = siblingIndex / 2
-        let sideCount = siblingIndex.isMultiple(of: 2)
-            ? balancedSideCounts(for: siblingCount).left
-            : balancedSideCounts(for: siblingCount).right
-        let sideDistance = min(sideBranchSpacing, max(120, contentWidth / 2 - 116))
-        let stackOffset = CGFloat(sideIndex) * sideNodeVerticalSpacing
-            - CGFloat(max(sideCount - 1, 0)) * sideNodeVerticalSpacing / 2
-        let yJitter = deterministicUnit(for: node.id + "-y") * 4
-        let xJitter = deterministicUnit(for: node.id + "-x") * 6
-        let archivedOffset = node.isArchived ? CGFloat(28) : 0
+        let sideDistance = min(sideBranchSpacing * 0.42, max(54, contentWidth / 2 - 180))
+        let yJitter = deterministicUnit(for: node.id + "-y") * 3
+        let xJitter = deterministicUnit(for: node.id + "-x") * 5
+        let archivedOffset = node.isArchived ? CGFloat(24) : 0
 
         let x = centerX + side * (sideDistance + archivedOffset) + xJitter
-        let y = stageY + stackOffset + yJitter
+        let y = fromY - corridorHeight * fraction + yJitter
 
         return CGPoint(
             x: min(max(x, 86), contentWidth - 86),
             y: min(max(y, topPadding + 44), rootY - 116)
         )
-    }
-
-    private func balancedSideCounts(for count: Int) -> (left: Int, right: Int) {
-        (left: (count + 1) / 2, right: count / 2)
     }
 
     /// Stable deterministic pseudo-random value in -1...1.

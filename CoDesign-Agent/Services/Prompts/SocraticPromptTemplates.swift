@@ -78,7 +78,8 @@ enum SocraticPromptTemplates {
     static func contextPrompt(
         brief: DesignBriefSnapshot?,
         currentStage: ProgressStageSnapshot?,
-        resourceCards: [ResourceCard] = []
+        resourceCards: [ResourceCard] = [],
+        mode: ClarificationMode = .normal
     ) -> String {
         let brief = brief ?? DesignBriefSnapshot()
         let plan = DesignDialoguePlanner().plan(
@@ -161,6 +162,39 @@ enum SocraticPromptTemplates {
                     lines.append("  预期推动字段：\(fields)")
                 }
             }
+        }
+
+        switch mode {
+        case .stuckScaffold:
+            lines.append("")
+            lines.append("## 本轮模式：stuckScaffold / 线索 + 提问")
+            lines.append("用户明确表达不确定、卡住或没有思路。本轮必须把资源卡内化为认知支架，而不是把资料推荐给用户。")
+            lines.append("输出格式必须严格为：")
+            lines.append("线索：")
+            lines.append("[把 1-2 张资源卡的方法论转译成当前项目可理解的思考线索，不超过 3 行]")
+            lines.append("")
+            lines.append("追问：")
+            lines.append("[只提出 1 个开放但具体的问题]")
+            lines.append("严格禁止 A/B/C、编号选项、'你可以选择'、'以下几个方向'、直接替用户回答、直接生成 Design Brief。")
+            lines.append("不要大段讲资源卡标题、论文名、作者名；最多只让方法以自然语言出现在'线索'里。")
+        case .exampleRequested:
+            lines.append("")
+            lines.append("## 本轮模式：exampleRequested")
+            lines.append("用户明确要求例子时，最多给 2-3 个很短例子作为启发，然后仍然只问 1 个开放问题。不要让用户机械选择一个例子。")
+        case .reframe:
+            lines.append("")
+            lines.append("## 本轮模式：reframe")
+            lines.append("请换一个角度重问，但仍然只问 1 个开放问题，不输出 A/B/C 选项。")
+        case .boundaryDraft:
+            lines.append("")
+            lines.append("## 本轮模式：boundaryDraft")
+            lines.append("可以轻量提出 MVP 边界草稿，但必须保留为可修改假设，不要替用户做最终决定。")
+        case .skip:
+            lines.append("")
+            lines.append("## 本轮模式：skip")
+            lines.append("用户希望先跳过当前问题，请基于已有信息推进到下一个最合理的澄清点，只问 1 个问题。")
+        case .normal:
+            break
         }
 
         lines.append("")

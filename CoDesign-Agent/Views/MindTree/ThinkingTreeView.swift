@@ -15,7 +15,7 @@ struct ThinkingTreeView: View {
 
     @Environment(\.modelContext) private var modelContext
 
-    @State private var expandedStageOrders: Set<Int> = []
+    @State private var expandedTransitionOrders: Set<Int> = []
     @State private var selectedNode: TreeNode?
     @State private var editingNode: TreeNode?
     @State private var scale: CGFloat = 1
@@ -87,7 +87,7 @@ struct ThinkingTreeView: View {
             }
             .onAppear {
                 lastViewportSize = geo.size
-                seedExpandedStageIfNeeded()
+                seedExpandedTransitionIfNeeded()
                 if !hasInitializedViewport {
                     DispatchQueue.main.async {
                         locateCurrentStage(in: geo.size, preserveScale: false)
@@ -140,7 +140,7 @@ struct ThinkingTreeView: View {
         let evidence = evidenceResourcesByStage()
         let raw = TreeBuilder().build(
             project: project,
-            expandedStageOrders: expandedStageOrders,
+            expandedTransitionOrders: expandedTransitionOrders,
             evidenceResourcesByStage: evidence,
             visibleStageLimit: visibleStageLimit
         )
@@ -182,8 +182,8 @@ struct ThinkingTreeView: View {
 
     private func evidenceResourcesByStage() -> [Int: [ResourceCard]] {
         let visibleStages = mode == .embedded
-            ? expandedStageOrders.union([project.currentStageOrder])
-            : expandedStageOrders.union([project.currentStageOrder])
+            ? expandedTransitionOrders.union([project.currentStageOrder])
+            : expandedTransitionOrders.union([project.currentStageOrder])
         var result: [Int: [ResourceCard]] = [:]
         let limit = mode == .embedded ? 2 : 3
         let service = ResourceRecommendationService()
@@ -276,7 +276,7 @@ struct ThinkingTreeView: View {
         } else {
             HStack(spacing: 8) {
                 toolbarButton("定位当前阶段", icon: "scope") {
-                    expandedStageOrders.insert(project.currentStageOrder)
+                    expandedTransitionOrders.insert(project.currentStageOrder)
                     locateCurrentStage(in: lastViewportSize, preserveScale: true)
                 }
 
@@ -405,29 +405,26 @@ struct ThinkingTreeView: View {
 
     private func handleTap(_ node: TreeNode) {
         if node.kind == .stage, let order = node.stageOrder {
-            if mode == .standalone {
-                toggleStage(order)
-            } else {
-                toggleStage(order)
+            if mode == .embedded {
                 locateStage(order, in: lastViewportSize, preserveScale: true)
             }
         }
         selectedNode = node
     }
 
-    private func toggleStage(_ order: Int) {
+    private func toggleTransition(_ order: Int) {
         withAnimation(AppTheme.Animation.spring) {
-            if expandedStageOrders.contains(order) {
-                expandedStageOrders.remove(order)
+            if expandedTransitionOrders.contains(order) {
+                expandedTransitionOrders.remove(order)
             } else {
-                expandedStageOrders.insert(order)
+                expandedTransitionOrders.insert(order)
             }
         }
     }
 
-    private func seedExpandedStageIfNeeded() {
-        guard expandedStageOrders.isEmpty else { return }
-        expandedStageOrders.insert(project.currentStageOrder)
+    private func seedExpandedTransitionIfNeeded() {
+        guard expandedTransitionOrders.isEmpty else { return }
+        expandedTransitionOrders.insert(project.currentStageOrder)
     }
 
     private func beginEditing(_ node: TreeNode) {
@@ -460,35 +457,64 @@ struct ThinkingTreeView: View {
         modelContext.insert(moment)
         project.thinkingMoments.append(moment)
         project.updatedAt = Date()
-        expandedStageOrders.insert(stageOrder)
+        expandedTransitionOrders.insert(stageOrder)
         try? modelContext.save()
         selectedNode = nil
     }
 
     @ViewBuilder
     private func edgeHitAreas(graph: TreeData) -> some View {
-        if mode == .standalone {
-            ForEach(graph.edges.filter { $0.togglesStageOrder != nil }) { edge in
-                if let from = graph.node(for: edge.fromID),
-                   let to = graph.node(for: edge.toID),
-                   let stageOrder = edge.togglesStageOrder {
+        ForEach(graph.edges.filter { $0.togglesTransitionOrder != nil }) { edge in
+            if let from = graph.node(for: edge.fromID),
+               let to = graph.node(for: edge.toID),
+               let transitionOrder = edge.togglesTransitionOrder {
+                ZStack {
                     Rectangle()
                         .fill(Color.clear)
                         .frame(width: 190, height: max(abs(from.position.y - to.position.y), 42))
                         .contentShape(Rectangle())
-                        .position(
-                            CGPoint(
-                                x: (from.position.x + to.position.x) / 2,
-                                y: (from.position.y + to.position.y) / 2
-                            )
-                        )
-                        .onTapGesture {
-                            toggleStage(stageOrder)
-                        }
-                        .zIndex(1)
+
+                    transitionLabel(order: transitionOrder)
+                        .offset(x: 112)
                 }
+                .position(
+                    CGPoint(
+                        x: (from.position.x + to.position.x) / 2,
+                        y: (from.position.y + to.position.y) / 2
+                    )
+                )
+                .onTapGesture {
+                    toggleTransition(transitionOrder)
+                }
+                .zIndex(1)
             }
         }
+    }
+
+    private func transitionLabel(order: Int) -> some View {
+        let count = transitionNodeCount(order)
+        let isExpanded = expandedTransitionOrders.contains(order)
+        return Text(isExpanded ? "已展开 · \(count) 个节点" : "点击展开问题链")
+            .font(.system(size: mode == .embedded ? 8.5 : 10, weight: .semibold, design: .rounded))
+            .foregroundStyle(isExpanded ? Color.primaryAccent : Color.textTertiary)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.cardBackground.opacity(isExpanded ? 0.94 : 0.78))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(
+                        (isExpanded ? Color.primaryAccent : Color.textTertiary).opacity(0.16),
+                        lineWidth: 1
+                    )
+            )
+    }
+
+    private func transitionNodeCount(_ order: Int) -> Int {
+        project.thinkingMoments.filter { $0.stageOrder == order }.count +
+        project.learningTraces.filter { $0.stageOrder == order }.count
     }
 
     private func zIndex(for node: TreeNode) -> Double {
@@ -512,7 +538,7 @@ struct ThinkingTreeView: View {
             path.move(to: from.position)
 
             let dy = abs(to.position.y - from.position.y)
-            let isTrunk = from.kind == .root || from.kind == .stage && to.kind == .stage
+            let isTrunk = (from.kind == .root || from.kind == .stage) && to.kind == .stage
             if isTrunk {
                 path.addLine(to: to.position)
             } else {
@@ -532,6 +558,11 @@ struct ThinkingTreeView: View {
     }
 
     private func edgeColor(_ edge: TreeEdge, to node: TreeNode) -> Color {
+        if let order = edge.togglesTransitionOrder,
+           expandedTransitionOrders.contains(order) {
+            return Color.primaryAccent.opacity(0.82)
+        }
+
         switch edge.style {
         case .active:
             return node.kind == .stage ? node.nodeColor.opacity(0.72) : Color.primaryAccent.opacity(0.52)
@@ -547,6 +578,11 @@ struct ThinkingTreeView: View {
     }
 
     private func edgeStroke(_ edge: TreeEdge) -> StrokeStyle {
+        if let order = edge.togglesTransitionOrder,
+           expandedTransitionOrders.contains(order) {
+            return StrokeStyle(lineWidth: 3.0, lineCap: .round)
+        }
+
         switch edge.style {
         case .active:
             return StrokeStyle(lineWidth: 2.2, lineCap: .round)
@@ -592,7 +628,7 @@ struct ThinkingTreeView: View {
 
     private func locateStage(_ stageOrder: Int, in viewport: CGSize, preserveScale: Bool) {
         guard viewport.width > 0, viewport.height > 0 else { return }
-        seedExpandedStageIfNeeded()
+        seedExpandedTransitionIfNeeded()
         let graph = layoutGraph(for: viewport)
         let targetID = TreeBuilder.stageNodeID(stageOrder)
         guard let node = graph.node(for: targetID) else { return }

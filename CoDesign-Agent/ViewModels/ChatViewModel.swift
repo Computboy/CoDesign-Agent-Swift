@@ -82,12 +82,15 @@ final class ChatViewModel {
             .sorted { $0.timestamp < $1.timestamp }
             .map { $0.toPayload() }
         let stageSnapshot = nextActiveStage?.toSnapshot()
-        let selectedMethodCard = ResourceRecommendationService().recommend(
+        let clarificationMode = ClarificationMode.detect(from: text)
+        let selectedResourceCards = ResourceRecommendationService().recommend(
             currentStageOrder: stageSnapshot?.order ?? nextActiveStage?.order ?? activeStageOrder,
             briefSnapshot: updatedBriefSnapshot,
             recentMessage: text,
-            limit: 1
-        ).first
+            limit: clarificationMode == .stuckScaffold ? 2 : 5,
+            mode: clarificationMode
+        )
+        let selectedMethodCard = selectedResourceCards.first
 
         isStreaming = true
         currentStreamingText = ""
@@ -97,7 +100,9 @@ final class ChatViewModel {
             let stream = llmService.streamChat(
                 messages: payloadMessages,
                 briefSnapshot: updatedBriefSnapshot,
-                currentStage: stageSnapshot
+                currentStage: stageSnapshot,
+                mode: clarificationMode,
+                resourceCards: selectedResourceCards
             )
             for try await token in stream {
                 currentStreamingText += token
@@ -118,6 +123,7 @@ final class ChatViewModel {
                 card: selectedMethodCard,
                 generatedQuestion: assistantMsg.content,
                 stageOrder: nextActiveStage?.order ?? activeStageOrder,
+                mode: clarificationMode,
                 context: context
             )
             appendMethodLearningTrace(
@@ -282,14 +288,21 @@ final class ChatViewModel {
         card: ResourceCard,
         generatedQuestion: String,
         stageOrder: Int,
+        mode: ClarificationMode,
         context: ModelContext
     ) {
         let fields = card.relatedFields.map(\.displayName).joined(separator: "、")
         let question = questionMomentText(from: generatedQuestion)
+        let triggerReason = mode == .stuckScaffold
+            ? "用户不确定 / 当前字段缺失 / 当前阶段卡住"
+            : card.promptTriggerProblem
+        let scaffoldRole = mode == .stuckScaffold
+            ? "帮助用户从 \(card.processActionText) 角度重新理解当前问题"
+            : card.processActionText
         let content = [
             "调用方法：\(card.title)",
-            "触发原因：\(card.promptTriggerProblem)",
-            "Agent 动作：\(card.processActionText)",
+            "触发原因：\(triggerReason)",
+            "线索作用：\(scaffoldRole)",
             "生成问题：\(question)",
             fields.isEmpty ? nil : "期望字段：\(fields)",
         ]
@@ -348,6 +361,14 @@ final class ChatViewModel {
     }
 
     private func questionMomentText(from text: String) -> String {
+        if let followUpRange = text.range(of: "追问：") {
+            let followUp = text[followUpRange.upperBound...]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !followUp.isEmpty {
+                return truncatedMomentText(followUp)
+            }
+        }
+
         let separators = CharacterSet(charactersIn: "。！？!?\n")
         let fragments = text
             .components(separatedBy: separators)

@@ -4,7 +4,9 @@ final class MockLLMService: LLMServiceProtocol {
     func streamChat(
         messages: [ChatPayloadMessage],
         briefSnapshot: DesignBriefSnapshot?,
-        currentStage: ProgressStageSnapshot?
+        currentStage: ProgressStageSnapshot?,
+        mode: ClarificationMode,
+        resourceCards: [ResourceCard]
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             Task {
@@ -14,7 +16,13 @@ final class MockLLMService: LLMServiceProtocol {
                     brief: brief,
                     currentStage: currentStage
                 )
-                let response = plan.mockResponse
+                let response = Self.response(
+                    mode: mode,
+                    planResponse: plan.mockResponse,
+                    brief: brief,
+                    currentStage: currentStage,
+                    resourceCards: resourceCards
+                )
 
                 // 2. 模拟流式输出（每个字符 25ms）
                 for char in response {
@@ -24,6 +32,129 @@ final class MockLLMService: LLMServiceProtocol {
 
                 continuation.finish()
             }
+        }
+    }
+
+    private static func response(
+        mode: ClarificationMode,
+        planResponse: String,
+        brief: DesignBriefSnapshot,
+        currentStage: ProgressStageSnapshot?,
+        resourceCards: [ResourceCard]
+    ) -> String {
+        switch mode {
+        case .stuckScaffold:
+            return scaffoldResponse(
+                brief: brief,
+                currentStage: currentStage,
+                resourceCards: resourceCards
+            )
+        case .exampleRequested:
+            return exampleResponse(brief: brief, currentStage: currentStage)
+        default:
+            return planResponse
+        }
+    }
+
+    private static func scaffoldResponse(
+        brief: DesignBriefSnapshot,
+        currentStage: ProgressStageSnapshot?,
+        resourceCards: [ResourceCard]
+    ) -> String {
+        let projectFocus = [
+            brief.targetUser,
+            brief.painPoint,
+            brief.useScenario,
+            brief.coreValue
+        ]
+        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first { !$0.isEmpty } ?? "当前这个设计想法"
+
+        let card = resourceCards.first
+        let clueSeed = card?.promptCoreIdea ?? card?.promptAgentUse ?? "先把模糊想法放回一个真实任务片段里看"
+        let question = card?.promptExampleQuestion ?? stageQuestion(currentStage?.order ?? 1)
+
+        return """
+        线索：
+        \(projectFocus) 现在不需要立刻变成答案。
+        可以先借用“\(clueSeed)”这个方法，
+        看它在一个连续任务里哪里真正卡住。
+
+        追问：
+        \(singleQuestion(question, stageOrder: currentStage?.order ?? 1))
+        """
+    }
+
+    private static func exampleResponse(
+        brief: DesignBriefSnapshot,
+        currentStage: ProgressStageSnapshot?
+    ) -> String {
+        let stageOrder = currentStage?.order ?? 1
+        let focus = brief.targetUser ?? brief.useScenario ?? "你的目标用户"
+        switch stageOrder {
+        case 1:
+            return """
+            例子：
+            新生报到当天找不到下一步办理地点。
+            社团招新时新成员不知道该问谁。
+
+            追问：
+            你自己的项目里，哪一个真实任务片段最像这种“走到一半停住”的状态？
+            """
+        case 3:
+            return """
+            例子：
+            第一版只做最核心任务闭环。
+            暂时不做社交、排行榜或复杂推荐。
+
+            追问：
+            如果只保留能帮助 \(focus) 完成主任务的一小段流程，哪部分必须留下？
+            """
+        default:
+            return """
+            例子：
+            可以从一个真实用户、一段连续任务、一个失败节点里切入。
+            也可以从“如果不解决会怎样”来判断优先级。
+
+            追问：
+            这些例子里，哪一种最接近你现在项目的真实不确定点？
+            """
+        }
+    }
+
+    private static func singleQuestion(_ raw: String, stageOrder: Int) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return stageQuestion(stageOrder) }
+        let separators = CharacterSet(charactersIn: "？?\n")
+        let first = trimmed
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+        return (first ?? stageQuestion(stageOrder)).trimmingCharacters(in: .whitespacesAndNewlines) + "？"
+    }
+
+    private static func stageQuestion(_ stageOrder: Int) -> String {
+        switch stageOrder {
+        case 1:
+            return "你能回想一个用户完成任务的连续片段吗，在哪个节点他最容易停下来"
+        case 2:
+            return "和已有方案相比，你最希望用户记住哪一个不同的价值判断"
+        case 3:
+            return "如果第一版只能解决一段最小任务，哪部分应该先被保留下来"
+        case 4:
+            return "这个核心任务背后，哪一个功能模块最先决定方案能不能跑通"
+        case 5:
+            return "当用户操作到一半出错时，系统应该根据什么规则继续引导"
+        case 6:
+            return "现在最不能绕开的时间、设备或资源限制是什么"
+        case 7:
+            return "哪个可观察的变化能证明这个设计真的有效"
+        case 8:
+            return "这个项目最可能在哪一个假设上失败"
+        case 9:
+            return "第一个里程碑应该验证哪一个最关键的不确定性"
+        default:
+            return "你现在最需要澄清的那个设计判断是什么"
         }
     }
 

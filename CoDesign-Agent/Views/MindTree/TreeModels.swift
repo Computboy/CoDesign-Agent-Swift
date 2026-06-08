@@ -33,6 +33,7 @@ struct TreeNode: Identifiable {
     let processIcon: String?
     let statusText: String?
     let resource: ResourceCard?
+    let timestamp: Date?
 
     var iconSystemName: String? {
         switch kind {
@@ -75,20 +76,20 @@ struct TreeEdge: Identifiable {
     let fromID: String
     let toID: String
     let style: TreeEdgeStyle
-    let togglesStageOrder: Int?
+    let togglesTransitionOrder: Int?
 
     init(
         id: String,
         fromID: String,
         toID: String,
         style: TreeEdgeStyle,
-        togglesStageOrder: Int? = nil
+        togglesTransitionOrder: Int? = nil
     ) {
         self.id = id
         self.fromID = fromID
         self.toID = toID
         self.style = style
-        self.togglesStageOrder = togglesStageOrder
+        self.togglesTransitionOrder = togglesTransitionOrder
     }
 }
 
@@ -110,12 +111,12 @@ struct TreeData {
 struct TreeBuilder {
 
     func build(project: Project) -> TreeData {
-        build(project: project, expandedStageOrders: [], evidenceResourcesByStage: [:])
+        build(project: project, expandedTransitionOrders: [], evidenceResourcesByStage: [:])
     }
 
     func build(
         project: Project,
-        expandedStageOrders: Set<Int>,
+        expandedTransitionOrders: Set<Int>,
         evidenceResourcesByStage: [Int: [ResourceCard]] = [:],
         visibleStageLimit: Int = 9
     ) -> TreeData {
@@ -152,7 +153,8 @@ struct TreeBuilder {
                     processLabel: nil,
                     processIcon: definition.iconName,
                     statusText: stageStatusText(status),
-                    resource: nil
+                    resource: nil,
+                    timestamp: nil
                 )
             )
 
@@ -163,13 +165,13 @@ struct TreeBuilder {
                     fromID: parentID,
                     toID: stageID,
                     style: edgeStyle(for: status),
-                    togglesStageOrder: definition.order
+                    togglesTransitionOrder: definition.order
                 )
             )
         }
 
         let visibleMoments = project.thinkingMoments
-            .filter { expandedStageOrders.contains($0.stageOrder) && $0.stageOrder <= visibleLimit }
+            .filter { expandedTransitionOrders.contains($0.stageOrder) && $0.stageOrder <= visibleLimit }
             .sorted { lhs, rhs in
                 if lhs.stageOrder == rhs.stageOrder {
                     return lhs.timestamp < rhs.timestamp
@@ -177,23 +179,45 @@ struct TreeBuilder {
                 return lhs.stageOrder < rhs.stageOrder
             }
 
-        for moment in visibleMoments where (1...9).contains(moment.stageOrder) {
-            let node = momentNode(moment, brief: brief, project: project)
-            nodes.append(node)
+        let momentsByTransition = Dictionary(grouping: visibleMoments.filter { (1...9).contains($0.stageOrder) }, by: \.stageOrder)
+        for stageOrder in momentsByTransition.keys.sorted() {
+            let transitionMoments = momentsByTransition[stageOrder] ?? []
+            let previousStageID = transitionStartNodeID(for: stageOrder)
+            var previousNodeID = previousStageID
 
-            let parentID = parentID(for: moment, visibleMomentIDs: Set(visibleMoments.map(\.id)))
-            edges.append(
-                TreeEdge(
-                    id: "\(parentID)-\(node.id)",
-                    fromID: parentID,
-                    toID: node.id,
-                    style: moment.isActiveBranch ? (node.kind == .evidence ? .evidence : .active) : .archived
+            for moment in transitionMoments {
+                let node = momentNode(moment, brief: brief, project: project)
+                nodes.append(node)
+
+                let parentID = moment.parentMomentID.flatMap { parentID in
+                    transitionMoments.contains { $0.id == parentID } ? "moment-\(parentID)" : nil
+                } ?? previousNodeID
+
+                edges.append(
+                    TreeEdge(
+                        id: "\(parentID)-\(node.id)",
+                        fromID: parentID,
+                        toID: node.id,
+                        style: moment.isActiveBranch ? (node.kind == .evidence ? .evidence : .active) : .archived
+                    )
                 )
-            )
+                previousNodeID = node.id
+            }
+
+            if previousNodeID != previousStageID {
+                edges.append(
+                    TreeEdge(
+                        id: "\(previousNodeID)-\(Self.stageNodeID(stageOrder))-return",
+                        fromID: previousNodeID,
+                        toID: Self.stageNodeID(stageOrder),
+                        style: .transition
+                    )
+                )
+            }
         }
 
         for trace in project.learningTraces
-            .filter({ expandedStageOrders.contains($0.stageOrder) && $0.stageOrder <= visibleLimit })
+            .filter({ expandedTransitionOrders.contains($0.stageOrder) && $0.stageOrder <= visibleLimit })
             .sorted(by: { $0.timestamp < $1.timestamp }) {
             let nodeID = "trace-\(trace.id)"
             nodes.append(
@@ -214,20 +238,21 @@ struct TreeBuilder {
                     processLabel: traceLabel(trace.actionType),
                     processIcon: traceIcon(trace.actionType),
                     statusText: "学习轨迹",
-                    resource: nil
+                    resource: nil,
+                    timestamp: trace.timestamp
                 )
             )
             edges.append(
                 TreeEdge(
-                    id: "\(Self.stageNodeID(trace.stageOrder))-\(nodeID)",
-                    fromID: Self.stageNodeID(trace.stageOrder),
+                    id: "\(transitionStartNodeID(for: trace.stageOrder))-\(nodeID)",
+                    fromID: transitionStartNodeID(for: trace.stageOrder),
                     toID: nodeID,
                     style: .transition
                 )
             )
         }
 
-        for (stageOrder, resources) in evidenceResourcesByStage where expandedStageOrders.contains(stageOrder) && stageOrder <= visibleLimit {
+        for (stageOrder, resources) in evidenceResourcesByStage where expandedTransitionOrders.contains(stageOrder) && stageOrder <= visibleLimit {
             let adoptedTitles = Set(
                 project.thinkingMoments
                     .filter { $0.stageOrder == stageOrder && $0.momType == "evidence" && $0.isActiveBranch }
@@ -254,13 +279,14 @@ struct TreeBuilder {
                         processLabel: "Resource",
                         processIcon: "doc.text.magnifyingglass",
                         statusText: "资源卡",
-                        resource: resource
+                        resource: resource,
+                        timestamp: nil
                     )
                 )
                 edges.append(
                     TreeEdge(
-                        id: "\(Self.stageNodeID(stageOrder))-\(nodeID)",
-                        fromID: Self.stageNodeID(stageOrder),
+                        id: "\(transitionStartNodeID(for: stageOrder))-\(nodeID)",
+                        fromID: transitionStartNodeID(for: stageOrder),
                         toID: nodeID,
                         style: .evidence
                     )
@@ -297,7 +323,8 @@ struct TreeBuilder {
             processLabel: nil,
             processIcon: "lightbulb.fill",
             statusText: "项目主题",
-            resource: nil
+            resource: nil,
+            timestamp: nil
         )
     }
 
@@ -326,7 +353,8 @@ struct TreeBuilder {
             processLabel: processLabel(for: moment),
             processIcon: processIcon(for: moment),
             statusText: momentStatusText(moment),
-            resource: nil
+            resource: nil,
+            timestamp: moment.timestamp
         )
     }
 
@@ -377,7 +405,7 @@ struct TreeBuilder {
         case "question": return "Q"
         case "answer": return "A"
         case "decision", "deepen": return "Decision"
-        case "method": return "Method"
+        case "method": return "线索"
         case "evidence": return "Evidence"
         case "revise": return "Revision"
         case "branch": return "Stage"
@@ -411,11 +439,8 @@ struct TreeBuilder {
         }
     }
 
-    private func parentID(for moment: ThinkingMoment, visibleMomentIDs: Set<UUID>) -> String {
-        if let parentMomentID = moment.parentMomentID, visibleMomentIDs.contains(parentMomentID) {
-            return "moment-\(parentMomentID)"
-        }
-        return Self.stageNodeID(moment.stageOrder)
+    private func transitionStartNodeID(for stageOrder: Int) -> String {
+        stageOrder == 1 ? Self.rootID : Self.stageNodeID(stageOrder - 1)
     }
 
     private func fieldDisplayValue(_ field: BriefField, brief: DesignBriefSnapshot) -> String? {

@@ -7,7 +7,9 @@ final class LiveLLMService: LLMServiceProtocol {
     func streamChat(
         messages: [ChatPayloadMessage],
         briefSnapshot: DesignBriefSnapshot?,
-        currentStage: ProgressStageSnapshot?
+        currentStage: ProgressStageSnapshot?,
+        mode: ClarificationMode,
+        resourceCards: [ResourceCard]
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             Task {
@@ -16,7 +18,9 @@ final class LiveLLMService: LLMServiceProtocol {
                     let apiMessages = self.buildAPIMessages(
                         messages: messages,
                         briefSnapshot: briefSnapshot,
-                        currentStage: currentStage
+                        currentStage: currentStage,
+                        mode: mode,
+                        resourceCards: resourceCards
                     )
 
                     // 2. 调用流式 API
@@ -35,7 +39,9 @@ final class LiveLLMService: LLMServiceProtocol {
                     let mockStream = self.fallback.streamChat(
                         messages: messages,
                         briefSnapshot: briefSnapshot,
-                        currentStage: currentStage
+                        currentStage: currentStage,
+                        mode: mode,
+                        resourceCards: resourceCards
                     )
 
                     Task {
@@ -58,17 +64,11 @@ final class LiveLLMService: LLMServiceProtocol {
     private func buildAPIMessages(
         messages: [ChatPayloadMessage],
         briefSnapshot: DesignBriefSnapshot?,
-        currentStage: ProgressStageSnapshot?
+        currentStage: ProgressStageSnapshot?,
+        mode: ClarificationMode,
+        resourceCards: [ResourceCard]
     ) -> [ChatCompletionMessage] {
         var result: [ChatCompletionMessage] = []
-        let stageOrder = currentStage?.order ?? 1
-        let latestUserMessage = messages.last(where: { $0.role == "user" })?.content
-        let resourceCards = ResourceRecommendationService().recommend(
-            currentStageOrder: stageOrder,
-            briefSnapshot: briefSnapshot,
-            recentMessage: latestUserMessage,
-            limit: 5
-        )
 
         // 1. System prompt
         result.append(ChatCompletionMessage(
@@ -82,7 +82,8 @@ final class LiveLLMService: LLMServiceProtocol {
             content: SocraticPromptTemplates.contextPrompt(
                 brief: briefSnapshot,
                 currentStage: currentStage,
-                resourceCards: resourceCards
+                resourceCards: resourceCards,
+                mode: mode
             )
         ))
 

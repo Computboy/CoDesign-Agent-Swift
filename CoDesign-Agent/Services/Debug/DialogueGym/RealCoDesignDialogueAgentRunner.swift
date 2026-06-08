@@ -179,10 +179,20 @@ final class RealCoDesignDialogueAgentRunner: DialogueAgentRunning {
         // ⑦ Stream agent response via LiveLLMService
         let assistantText: String
         do {
+            let mode = ClarificationMode.detect(from: userText)
+            let resourceCards = ResourceRecommendationService().recommend(
+                currentStageOrder: activeStage?.order ?? 1,
+                briefSnapshot: briefSnapshot,
+                recentMessage: userText,
+                limit: mode == .stuckScaffold ? 2 : 5,
+                mode: mode
+            )
             let stream = llmService.streamChat(
                 messages: messages,
                 briefSnapshot: briefSnapshot,
-                currentStage: activeStage
+                currentStage: activeStage,
+                mode: mode,
+                resourceCards: resourceCards
             )
             var full = ""
             for try await token in stream {

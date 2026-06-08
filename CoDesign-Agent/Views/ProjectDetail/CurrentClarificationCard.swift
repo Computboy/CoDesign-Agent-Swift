@@ -36,6 +36,10 @@ struct CurrentClarificationCard: View {
         return sorted.last(where: { $0.role == "assistant" })?.content ?? ""
     }
 
+    private var usesMethodScaffold: Bool {
+        latestAssistantText.contains("线索：") && latestAssistantText.contains("追问：")
+    }
+
     /// Whether quick actions should be disabled (streaming or no conversation yet)
     private var quickActionsDisabled: Bool {
         isStreaming || cardState == .welcome
@@ -85,7 +89,7 @@ struct CurrentClarificationCard: View {
                 title: "我还不确定",
                 icon: "questionmark.circle",
                 tint: .warning,
-                prompt: "我还不确定：请不要直接给例子，也不要给 A/B/C 选项。请用“线索：……”加“追问：……”的方式，把这个问题拆得更容易思考。"
+                prompt: "我还不确定。请进入“线索 + 提问”模式：先基于当前阶段和方法资源卡给我一条能理解的思考线索，再只问一个开放问题。不要给 A/B/C 选项，不要直接替我回答。"
             ),
             ClarificationQuickAction(
                 title: "换个角度问",
@@ -122,6 +126,18 @@ struct CurrentClarificationCard: View {
                     title: "当前方法",
                     subtitle: "点击展开方法说明。"
                 )
+
+                if usesMethodScaffold {
+                    Label("本轮使用方法线索辅助追问", systemImage: "sparkles")
+                        .font(AppTheme.Typography.caption.weight(.medium))
+                        .foregroundStyle(Color.primaryAccent)
+                        .padding(.horizontal, 10)
+                        .frame(height: AppTheme.Layout.badgeHeight)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.primaryAccent.opacity(0.07))
+                        )
+                }
 
                 switch cardState {
                 case .welcome:

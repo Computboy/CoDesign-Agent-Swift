@@ -162,7 +162,7 @@ struct TreeNodeView: View {
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.primaryAccent)
 
-                Text("问题")
+                Text("Q")
                     .font(.system(size: 9, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.textTertiary)
             }

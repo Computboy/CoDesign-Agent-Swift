@@ -11,22 +11,27 @@ struct ResourceRecommendationService {
         currentStageOrder: Int,
         brief: DesignBrief?,
         recentMessage: String?,
-        limit: Int = 3
+        limit: Int = 3,
+        mode: ClarificationMode = .normal
     ) -> [ResourceCard] {
         let context = keywordContext(brief: brief, recentMessage: recentMessage)
         let missingFields = missingBriefFields(for: currentStageOrder, brief: brief)
-        let problemTypes = detectedProblemTypes(
+        var problemTypes = detectedProblemTypes(
             context: context,
             brief: brief,
             missingFields: missingFields
         )
+        if mode == .stuckScaffold {
+            problemTypes.insert("user_stuck")
+        }
 
         return rankedRecommendations(
             currentStageOrder: currentStageOrder,
             context: context,
             missingFields: missingFields,
             problemTypes: problemTypes,
-            limit: limit
+            limit: limit,
+            mode: mode
         )
     }
 
@@ -34,23 +39,28 @@ struct ResourceRecommendationService {
         currentStageOrder: Int,
         briefSnapshot: DesignBriefSnapshot?,
         recentMessage: String?,
-        limit: Int = 3
+        limit: Int = 3,
+        mode: ClarificationMode = .normal
     ) -> [ResourceCard] {
         let snapshot = briefSnapshot ?? DesignBriefSnapshot()
         let context = keywordContext(snapshot: snapshot, recentMessage: recentMessage)
         let missingFields = missingBriefFields(for: currentStageOrder, snapshot: snapshot)
-        let problemTypes = detectedProblemTypes(
+        var problemTypes = detectedProblemTypes(
             context: context,
             snapshot: snapshot,
             missingFields: missingFields
         )
+        if mode == .stuckScaffold {
+            problemTypes.insert("user_stuck")
+        }
 
         return rankedRecommendations(
             currentStageOrder: currentStageOrder,
             context: context,
             missingFields: missingFields,
             problemTypes: problemTypes,
-            limit: limit
+            limit: limit,
+            mode: mode
         )
     }
 
@@ -59,7 +69,8 @@ struct ResourceRecommendationService {
         context: String,
         missingFields: [BriefField],
         problemTypes: Set<String>,
-        limit: Int
+        limit: Int,
+        mode: ClarificationMode
     ) -> [ResourceCard] {
         let normalizedLimit = max(1, limit)
         let scored = resources.map { resource in
@@ -70,7 +81,8 @@ struct ResourceRecommendationService {
                     stageOrder: currentStageOrder,
                     context: context,
                     missingFields: missingFields,
-                    problemTypes: problemTypes
+                    problemTypes: problemTypes,
+                    mode: mode
                 )
             )
         }
@@ -85,7 +97,9 @@ struct ResourceRecommendationService {
             return lhs.1 > rhs.1
         }
 
-        let primaryContent = scored.map(\.0).first { $0.cardRole == .content }
+        let primaryContent = mode == .stuckScaffold
+            ? nil
+            : scored.map(\.0).first { $0.cardRole == .content }
         var selected: [ResourceCard] = []
         if let primaryContent {
             selected.append(primaryContent)
@@ -93,6 +107,7 @@ struct ResourceRecommendationService {
 
         for resource in scored.map(\.0) where selected.count < normalizedLimit {
             guard !selected.contains(resource) else { continue }
+            guard mode != .stuckScaffold || isScaffoldResource(resource, stageOrder: currentStageOrder) else { continue }
             if selected.contains(where: { $0.cardRole == .content }) && resource.cardRole == .content {
                 continue
             }
@@ -101,6 +116,17 @@ struct ResourceRecommendationService {
 
         if !selected.isEmpty {
             return selected
+        }
+
+        let stageFallback = resources
+            .filter { resource in
+                resource.relatedStages.contains(currentStageOrder) &&
+                (mode != .stuckScaffold || isScaffoldResource(resource, stageOrder: currentStageOrder))
+            }
+            .sorted { $0.priority > $1.priority }
+
+        if !stageFallback.isEmpty {
+            return Array(stageFallback.prefix(normalizedLimit))
         }
 
         return Array(
@@ -116,7 +142,8 @@ struct ResourceRecommendationService {
         stageOrder: Int,
         context: String,
         missingFields: [BriefField],
-        problemTypes: Set<String>
+        problemTypes: Set<String>,
+        mode: ClarificationMode
     ) -> Int {
         var result = resource.relatedStages.contains(stageOrder) ? 30 : 0
         let recommendedIDs = StageDefinition.all
@@ -172,8 +199,31 @@ struct ResourceRecommendationService {
             result -= 6
         }
 
+        if mode == .stuckScaffold {
+            if isScaffoldResource(resource, stageOrder: stageOrder) {
+                result += 36
+            } else {
+                result -= 24
+            }
+
+            if resource.cardRole == .content && resource.relatedStages.contains(stageOrder) {
+                result += 8
+            }
+        }
+
         result += min(max(resource.priority, 0), 100) / 10
         return result
+    }
+
+    private func isScaffoldResource(_ resource: ResourceCard, stageOrder: Int) -> Bool {
+        switch resource.cardRole {
+        case .scaffoldingStrategy, .questionStrategy, .cognitiveDepth:
+            return true
+        case .content:
+            return resource.relatedStages.contains(stageOrder)
+        default:
+            return resource.type == .method
+        }
     }
 
     private func missingBriefFields(for stageOrder: Int, brief: DesignBrief?) -> [BriefField] {

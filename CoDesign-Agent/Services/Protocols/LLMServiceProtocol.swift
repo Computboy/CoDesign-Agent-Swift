@@ -4,6 +4,8 @@ protocol LLMServiceProtocol {
     func streamChat(
         messages: [ChatPayloadMessage],
         briefSnapshot: DesignBriefSnapshot?,
-        currentStage: ProgressStageSnapshot?
+        currentStage: ProgressStageSnapshot?,
+        mode: ClarificationMode,
+        resourceCards: [ResourceCard]
     ) -> AsyncThrowingStream<String, Error>
 }
