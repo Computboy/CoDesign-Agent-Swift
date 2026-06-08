@@ -65,9 +65,9 @@ struct ThinkingTreeView: View {
                     }
                 }
                 .frame(width: graph.contentSize.width, height: graph.contentSize.height)
-                .scaleEffect(scale)
+                .scaleEffect(scale, anchor: .topLeading)
                 .offset(offset)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .clipped()
                 .contentShape(Rectangle())
                 .gesture(panGesture)
@@ -81,16 +81,15 @@ struct ThinkingTreeView: View {
                 treeToolbar
                     .padding(mode == .embedded ? 10 : AppTheme.spacingLarge)
             }
-            .overlay(alignment: .leading) {
+            .overlay(alignment: .topLeading) {
                 rootCenteredZoomControl(graph: graph, viewport: geo.size)
-                    .padding(.leading, mode == .embedded ? 8 : 16)
+                    .position(zoomControlCenter(in: geo.size))
             }
             .onAppear {
                 lastViewportSize = geo.size
-                seedExpandedTransitionIfNeeded()
                 if !hasInitializedViewport {
                     DispatchQueue.main.async {
-                        locateCurrentStage(in: geo.size, preserveScale: false)
+                        fitTreeToViewport(in: geo.size, preserveScale: false)
                     }
                 }
             }
@@ -98,7 +97,7 @@ struct ThinkingTreeView: View {
                 lastViewportSize = newSize
                 guard hasInitializedViewport else { return }
                 DispatchQueue.main.async {
-                    locateCurrentStage(in: newSize, preserveScale: true)
+                    fitTreeToViewport(in: newSize, preserveScale: true)
                 }
             }
         }
@@ -156,26 +155,26 @@ struct ThinkingTreeView: View {
         switch mode {
         case .embedded:
             let stageSpacing = clamp(
-                (viewport.height - 220) / CGFloat(max(visibleStageLimit, 1)),
-                min: 145,
-                max: 180
+                (viewport.height - 170) / CGFloat(max(visibleStageLimit, 1)),
+                min: 96,
+                max: 132
             )
             return TreeLayoutEngine(
                 stageSpacing: stageSpacing,
-                sideBranchSpacing: 220,
-                sideNodeVerticalSpacing: 96,
+                sideBranchSpacing: 270,
+                sideNodeVerticalSpacing: 42,
                 topPadding: 82,
                 bottomPadding: 112,
-                contentWidth: max(viewport.width * 1.24, 720)
+                contentWidth: max(viewport.width * 2.05, 1_120)
             )
         case .standalone:
             return TreeLayoutEngine(
-                stageSpacing: 150,
-                sideBranchSpacing: 235,
-                sideNodeVerticalSpacing: 104,
+                stageSpacing: 128,
+                sideBranchSpacing: 330,
+                sideNodeVerticalSpacing: 46,
                 topPadding: 110,
                 bottomPadding: 150,
-                contentWidth: max(viewport.width * 1.45, 1180)
+                contentWidth: max(viewport.width * 1.65, 1280)
             )
         }
     }
@@ -276,7 +275,6 @@ struct ThinkingTreeView: View {
         } else {
             HStack(spacing: 8) {
                 toolbarButton("定位当前阶段", icon: "scope") {
-                    expandedTransitionOrders.insert(project.currentStageOrder)
                     locateCurrentStage(in: lastViewportSize, preserveScale: true)
                 }
 
@@ -285,7 +283,7 @@ struct ThinkingTreeView: View {
                 }
 
                 toolbarButton("\(Int(scale * 100))%", icon: "plus.magnifyingglass") {
-                    setScaleCenteredOnRoot(scale + 0.12, viewport: lastViewportSize, animated: true)
+                    setScalePreservingViewportCenter(scale + 0.12, viewport: lastViewportSize, animated: true)
                 }
             }
             .padding(7)
@@ -348,7 +346,7 @@ struct ThinkingTreeView: View {
                 value: Binding(
                     get: { Double(scale) },
                     set: { newValue in
-                        setScaleCenteredOnRoot(CGFloat(newValue), graph: graph, viewport: viewport, animated: false)
+                        setScalePreservingViewportCenter(CGFloat(newValue), graph: graph, viewport: viewport, animated: false)
                     }
                 ),
                 in: Double(minimumScale)...Double(maximumScale)
@@ -376,6 +374,18 @@ struct ThinkingTreeView: View {
                 .strokeBorder(Color.primaryAccent.opacity(0.12), lineWidth: 1)
         )
         .coDesignShadow(.card)
+    }
+
+    private func zoomControlCenter(in viewport: CGSize) -> CGPoint {
+        let controlHeight: CGFloat = mode == .embedded ? 184 : 218
+        let halfHeight = controlHeight / 2
+        let minY = halfHeight + 14
+        let maxY = max(minY, viewport.height - halfHeight - 14)
+
+        return CGPoint(
+            x: mode == .embedded ? 42 : 48,
+            y: clamp(viewport.height / 2, min: minY, max: maxY)
+        )
     }
 
     private var treeBackground: some View {
@@ -420,11 +430,6 @@ struct ThinkingTreeView: View {
                 expandedTransitionOrders.insert(order)
             }
         }
-    }
-
-    private func seedExpandedTransitionIfNeeded() {
-        guard expandedTransitionOrders.isEmpty else { return }
-        expandedTransitionOrders.insert(project.currentStageOrder)
     }
 
     private func beginEditing(_ node: TreeNode) {
@@ -525,6 +530,15 @@ struct ThinkingTreeView: View {
         }
     }
 
+    private func isBranchNode(_ node: TreeNode) -> Bool {
+        switch node.kind {
+        case .question, .field, .process, .evidence, .revision:
+            return true
+        case .root, .stage:
+            return false
+        }
+    }
+
     // MARK: - Drawing
 
     private func drawEdges(context: GraphicsContext, graph: TreeData) {
@@ -534,20 +548,7 @@ struct ThinkingTreeView: View {
                 continue
             }
 
-            var path = Path()
-            path.move(to: from.position)
-
-            let dy = abs(to.position.y - from.position.y)
-            let isTrunk = (from.kind == .root || from.kind == .stage) && to.kind == .stage
-            if isTrunk {
-                path.addLine(to: to.position)
-            } else {
-                path.addCurve(
-                    to: to.position,
-                    control1: CGPoint(x: from.position.x, y: from.position.y - max(dy * 0.34, 24)),
-                    control2: CGPoint(x: to.position.x, y: to.position.y + max(dy * 0.18, 18))
-                )
-            }
+            let path = edgePath(from: from, to: to, graph: graph)
 
             context.stroke(
                 path,
@@ -555,6 +556,67 @@ struct ThinkingTreeView: View {
                 style: edgeStroke(edge)
             )
         }
+    }
+
+    private func edgePath(from: TreeNode, to: TreeNode, graph: TreeData) -> Path {
+        let trunkX = graph.contentSize.width / 2
+        let isTrunk = (from.kind == .root || from.kind == .stage) && to.kind == .stage
+
+        var path = Path()
+
+        if isTrunk {
+            path.move(to: from.position)
+            path.addLine(to: to.position)
+            return path
+        }
+
+        if isBranchNode(to), from.kind == .question {
+            path.move(to: from.position)
+            path.addCurve(
+                to: to.position,
+                control1: CGPoint(x: trunkX, y: from.position.y - 18),
+                control2: CGPoint(x: to.position.x, y: to.position.y + 18)
+            )
+            return path
+        }
+
+        if isBranchNode(to), (from.kind == .root || from.kind == .stage) {
+            let anchor = CGPoint(x: trunkX, y: to.position.y)
+            path.move(to: anchor)
+            path.addCurve(
+                to: to.position,
+                control1: CGPoint(x: trunkX, y: to.position.y),
+                control2: CGPoint(x: (trunkX + to.position.x) / 2, y: to.position.y)
+            )
+            return path
+        }
+
+        if isBranchNode(from), isBranchNode(to) {
+            let sourceAnchor = CGPoint(x: trunkX, y: from.position.y)
+            let targetAnchor = CGPoint(x: trunkX, y: to.position.y)
+            path.move(to: from.position)
+            path.addCurve(
+                to: sourceAnchor,
+                control1: CGPoint(x: (from.position.x + trunkX) / 2, y: from.position.y),
+                control2: sourceAnchor
+            )
+            path.addLine(to: targetAnchor)
+            path.addCurve(
+                to: to.position,
+                control1: targetAnchor,
+                control2: CGPoint(x: (trunkX + to.position.x) / 2, y: to.position.y)
+            )
+            return path
+        }
+
+        let dy = abs(to.position.y - from.position.y)
+        path.move(to: from.position)
+        path.addCurve(
+            to: to.position,
+            control1: CGPoint(x: from.position.x, y: from.position.y - max(dy * 0.34, 24)),
+            control2: CGPoint(x: to.position.x, y: to.position.y + max(dy * 0.18, 18))
+        )
+        return path
     }
 
     private func edgeColor(_ edge: TreeEdge, to node: TreeNode) -> Color {
@@ -602,10 +664,16 @@ struct ThinkingTreeView: View {
     private var magnificationGesture: some Gesture {
         MagnificationGesture()
             .onChanged { value in
-                scale = clampedScale(lastScale * value)
+                setScalePreservingViewportCenter(
+                    lastScale * value,
+                    viewport: lastViewportSize,
+                    animated: false,
+                    commit: false
+                )
             }
             .onEnded { _ in
                 lastScale = scale
+                lastOffset = offset
             }
     }
 
@@ -628,7 +696,6 @@ struct ThinkingTreeView: View {
 
     private func locateStage(_ stageOrder: Int, in viewport: CGSize, preserveScale: Bool) {
         guard viewport.width > 0, viewport.height > 0 else { return }
-        seedExpandedTransitionIfNeeded()
         let graph = layoutGraph(for: viewport)
         let targetID = TreeBuilder.stageNodeID(stageOrder)
         guard let node = graph.node(for: targetID) else { return }
@@ -655,23 +722,122 @@ struct ThinkingTreeView: View {
     private func resetViewport(in viewport: CGSize) {
         guard viewport.width > 0, viewport.height > 0 else { return }
         let graph = layoutGraph(for: viewport)
-        let nextScale = fitScale(for: graph, viewport: viewport)
+        guard let root = graph.node(for: TreeBuilder.rootID) else { return }
+        let nextScale = resetScale(for: graph, viewport: viewport)
+        let nextOffset = offsetToPlace(
+            root.position,
+            at: centeredRootAnchor(in: viewport),
+            graph: graph,
+            viewport: viewport,
+            scale: nextScale
+        )
 
         withAnimation(AppTheme.Animation.standard) {
             scale = nextScale
             lastScale = nextScale
-            offset = .zero
-            lastOffset = .zero
+            offset = nextOffset
+            lastOffset = nextOffset
+            hasInitializedViewport = true
+        }
+    }
+
+    private func fitTreeToViewport(in viewport: CGSize, preserveScale: Bool) {
+        guard viewport.width > 0, viewport.height > 0 else { return }
+        let graph = layoutGraph(for: viewport)
+        guard let root = graph.node(for: TreeBuilder.rootID) else { return }
+        let nextScale = preserveScale ? clampedScale(scale) : initialFitScale(for: graph, viewport: viewport)
+        let nextOffset = offsetToPlace(
+            root.position,
+            at: rootAnchor(in: viewport),
+            graph: graph,
+            viewport: viewport,
+            scale: nextScale
+        )
+
+        withAnimation(AppTheme.Animation.standard) {
+            scale = nextScale
+            lastScale = nextScale
+            offset = nextOffset
+            lastOffset = nextOffset
             hasInitializedViewport = true
         }
     }
 
     private func fitScale(for graph: TreeData, viewport: CGSize) -> CGFloat {
-        let horizontalInset: CGFloat = mode == .embedded ? 34 : 72
-        let verticalInset: CGFloat = mode == .embedded ? 42 : 90
-        let widthScale = max(viewport.width - horizontalInset, 1) / max(graph.contentSize.width, 1)
-        let heightScale = max(viewport.height - verticalInset, 1) / max(graph.contentSize.height, 1)
-        return clampedScale(min(widthScale, heightScale))
+        let bounds = graphBounds(for: graph)
+        let horizontalInset: CGFloat = mode == .embedded ? 28 : 64
+        let verticalInset: CGFloat = mode == .embedded ? 36 : 84
+        let widthScale = max(viewport.width - horizontalInset * 2, 1) / max(bounds.width, 1)
+        let heightScale = max(viewport.height - verticalInset * 2, 1) / max(bounds.height, 1)
+        return clampedScale(min(widthScale, heightScale, 1))
+    }
+
+    private func initialFitScale(for graph: TreeData, viewport: CGSize) -> CGFloat {
+        guard let root = graph.node(for: TreeBuilder.rootID) else {
+            return fitScale(for: graph, viewport: viewport)
+        }
+
+        let bounds = graphBounds(for: graph)
+        let horizontalInset: CGFloat = mode == .embedded ? 30 : 72
+        let widthScale = max(viewport.width - horizontalInset * 2, 1) / max(bounds.width, 1)
+        let availableHeight = max(rootAnchor(in: viewport).y - topViewportInset, 1)
+        let rootToTopSpan = max(root.position.y - bounds.minY, 1)
+        let heightScale = availableHeight / rootToTopSpan
+
+        let fittedScale = min(widthScale, heightScale, 1)
+        return clampedScale(max(fittedScale, minimumReadableScale))
+    }
+
+    private func resetScale(for graph: TreeData, viewport: CGSize) -> CGFloat {
+        max(fitScale(for: graph, viewport: viewport), minimumReadableScale)
+    }
+
+    private var minimumReadableScale: CGFloat {
+        mode == .embedded ? 0.58 : 0.72
+    }
+
+    private func graphBounds(for graph: TreeData) -> CGRect {
+        guard let first = graph.nodes.first else {
+            return CGRect(origin: .zero, size: graph.contentSize)
+        }
+
+        var minX = first.position.x
+        var maxX = first.position.x
+        var minY = first.position.y
+        var maxY = first.position.y
+
+        for node in graph.nodes.dropFirst() {
+            minX = min(minX, node.position.x)
+            maxX = max(maxX, node.position.x)
+            minY = min(minY, node.position.y)
+            maxY = max(maxY, node.position.y)
+        }
+
+        let horizontalPadding: CGFloat = graph.nodes.contains(where: isBranchNode) ? (mode == .embedded ? 122 : 150) : 122
+        let verticalPadding: CGFloat = mode == .embedded ? 64 : 78
+        return CGRect(
+            x: minX - horizontalPadding,
+            y: minY - verticalPadding,
+            width: max(maxX - minX + horizontalPadding * 2, 1),
+            height: max(maxY - minY + verticalPadding * 2, 1)
+        )
+    }
+
+    private var topViewportInset: CGFloat {
+        mode == .embedded ? 44 : 72
+    }
+
+    private func rootAnchor(in viewport: CGSize) -> CGPoint {
+        CGPoint(
+            x: viewport.width / 2,
+            y: mode == .embedded
+                ? viewport.height / 2
+                : viewport.height - 116
+        )
+    }
+
+    private func centeredRootAnchor(in viewport: CGSize) -> CGPoint {
+        CGPoint(x: viewport.width / 2, y: viewport.height / 2)
     }
 
     private func offsetToPlace(
@@ -681,16 +847,10 @@ struct ThinkingTreeView: View {
         viewport: CGSize,
         scale: CGFloat
     ) -> CGSize {
-        let contentCenter = CGPoint(x: graph.contentSize.width / 2, y: graph.contentSize.height / 2)
-        let viewportCenter = CGPoint(x: viewport.width / 2, y: viewport.height / 2)
         return CGSize(
-            width: desired.x - viewportCenter.x - (point.x - contentCenter.x) * scale,
-            height: desired.y - viewportCenter.y - (point.y - contentCenter.y) * scale
+            width: desired.x - point.x * scale,
+            height: desired.y - point.y * scale
         )
-    }
-
-    private func setScale(_ value: CGFloat) {
-        setScaleCenteredOnRoot(value, viewport: lastViewportSize, animated: true)
     }
 
     private func setScaleCenteredOnRoot(_ value: CGFloat, viewport: CGSize, animated: Bool) {
@@ -735,6 +895,80 @@ struct ThinkingTreeView: View {
         } else {
             updates()
         }
+    }
+
+    private func setScalePreservingViewportCenter(
+        _ value: CGFloat,
+        viewport: CGSize,
+        animated: Bool,
+        commit: Bool = true
+    ) {
+        guard viewport.width > 0, viewport.height > 0 else {
+            let nextScale = clampedScale(value)
+            scale = nextScale
+            if commit {
+                lastScale = nextScale
+            }
+            return
+        }
+        let graph = layoutGraph(for: viewport)
+        setScalePreservingViewportCenter(
+            value,
+            graph: graph,
+            viewport: viewport,
+            animated: animated,
+            commit: commit
+        )
+    }
+
+    private func setScalePreservingViewportCenter(
+        _ value: CGFloat,
+        graph: TreeData,
+        viewport: CGSize,
+        animated: Bool,
+        commit: Bool = true
+    ) {
+        let nextScale = clampedScale(value)
+        let nextOffset = offsetPreservingViewportPoint(
+            CGPoint(x: viewport.width / 2, y: viewport.height / 2),
+            graph: graph,
+            viewport: viewport,
+            nextScale: nextScale
+        )
+
+        let updates = {
+            scale = nextScale
+            offset = nextOffset
+            if commit {
+                lastScale = nextScale
+                lastOffset = nextOffset
+            }
+            hasInitializedViewport = true
+        }
+
+        if animated {
+            withAnimation(AppTheme.Animation.quick, updates)
+        } else {
+            updates()
+        }
+    }
+
+    private func offsetPreservingViewportPoint(
+        _ point: CGPoint,
+        graph: TreeData,
+        viewport: CGSize,
+        nextScale: CGFloat
+    ) -> CGSize {
+        let currentScale = max(scale, 0.0001)
+        let anchoredContentPoint = CGPoint(
+            x: (point.x - offset.width) / currentScale,
+            y: (point.y - offset.height) / currentScale
+        )
+
+        return CGSize(
+            width: point.x - anchoredContentPoint.x * nextScale,
+            height: point.y - anchoredContentPoint.y * nextScale
+        )
     }
 
     private func clampedScale(_ value: CGFloat) -> CGFloat {

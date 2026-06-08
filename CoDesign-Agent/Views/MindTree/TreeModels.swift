@@ -183,15 +183,22 @@ struct TreeBuilder {
         for stageOrder in momentsByTransition.keys.sorted() {
             let transitionMoments = momentsByTransition[stageOrder] ?? []
             let previousStageID = transitionStartNodeID(for: stageOrder)
-            var previousNodeID = previousStageID
+            var latestQuestionID: String?
 
             for moment in transitionMoments {
                 let node = momentNode(moment, brief: brief, project: project)
                 nodes.append(node)
 
-                let parentID = moment.parentMomentID.flatMap { parentID in
+                let explicitParentID = moment.parentMomentID.flatMap { parentID in
                     transitionMoments.contains { $0.id == parentID } ? "moment-\(parentID)" : nil
-                } ?? previousNodeID
+                }
+                let fallbackParentID: String
+                if node.kind == .question {
+                    fallbackParentID = previousStageID
+                } else {
+                    fallbackParentID = latestQuestionID ?? previousStageID
+                }
+                let parentID = explicitParentID ?? fallbackParentID
 
                 edges.append(
                     TreeEdge(
@@ -201,18 +208,10 @@ struct TreeBuilder {
                         style: moment.isActiveBranch ? (node.kind == .evidence ? .evidence : .active) : .archived
                     )
                 )
-                previousNodeID = node.id
-            }
 
-            if previousNodeID != previousStageID {
-                edges.append(
-                    TreeEdge(
-                        id: "\(previousNodeID)-\(Self.stageNodeID(stageOrder))-return",
-                        fromID: previousNodeID,
-                        toID: Self.stageNodeID(stageOrder),
-                        style: .transition
-                    )
-                )
+                if node.kind == .question {
+                    latestQuestionID = node.id
+                }
             }
         }
 
