@@ -22,6 +22,8 @@ struct TreeNodeView: View {
             rootContent
         case .stage:
             stageContent
+        case .question:
+            questionContent
         case .field:
             processContent(width: 174)
         case .process:
@@ -143,6 +145,37 @@ struct TreeNodeView: View {
     }
 
     // MARK: - Process Nodes
+
+    private var questionContent: some View {
+        ZStack {
+            Circle()
+                .fill(Color.cardBackground.opacity(0.98))
+                .frame(width: 58, height: 58)
+                .shadow(color: Color.primaryAccent.opacity(0.10), radius: 8, y: 3)
+
+            Circle()
+                .strokeBorder(Color.primaryAccent.opacity(0.28), lineWidth: 1.2)
+                .frame(width: 58, height: 58)
+
+            VStack(spacing: 2) {
+                Image(systemName: "questionmark")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.primaryAccent)
+
+                Text("问题")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.textTertiary)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if node.isArchived {
+                Circle()
+                    .fill(Color(red: 0.58, green: 0.53, blue: 0.48))
+                    .frame(width: 10, height: 10)
+                    .offset(x: -4, y: -4)
+            }
+        }
+    }
 
     private func processContent(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 7) {

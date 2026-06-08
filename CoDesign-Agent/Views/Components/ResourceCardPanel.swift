@@ -32,7 +32,7 @@ struct ResourceCardPanel: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+        VStack(alignment: .leading, spacing: isExpanded ? AppTheme.spacingSmall : 0) {
             Button {
                 withAnimation(.easeInOut(duration: 0.22)) {
                     isExpanded.toggle()
@@ -41,11 +41,12 @@ struct ResourceCardPanel: View {
                 HStack(alignment: .center, spacing: AppTheme.spacingSmall) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(title)
-                            .font(AppTheme.Typography.headline)
+                            .font(AppTheme.Typography.caption.weight(.semibold))
                             .foregroundStyle(Color.textPrimary)
                         Text(statusText)
-                            .font(AppTheme.Typography.caption)
+                            .font(.system(size: 10.5, weight: .medium, design: .rounded))
                             .foregroundStyle(Color.textTertiary)
+                            .lineLimit(1)
                     }
 
                     Spacer(minLength: AppTheme.spacingSmall)
@@ -86,19 +87,18 @@ struct ResourceCardPanel: View {
                     }
                     .transition(.opacity)
                 }
-            } else if let primaryResource = recommendations.first {
-                collapsedPreview(primaryResource)
             }
         }
-        .padding(AppTheme.Layout.cardPadding)
+        .padding(.horizontal, AppTheme.spacingMedium)
+        .padding(.vertical, isExpanded ? AppTheme.spacingMedium : 9)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+            RoundedRectangle(cornerRadius: isExpanded ? AppTheme.cornerRadiusLarge : AppTheme.cornerRadiusSmall, style: .continuous)
                 .fill(Color.elevatedCardBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.52), lineWidth: AppTheme.Border.medium)
+            RoundedRectangle(cornerRadius: isExpanded ? AppTheme.cornerRadiusLarge : AppTheme.cornerRadiusSmall, style: .continuous)
+                .strokeBorder(Color.orange.opacity(isExpanded ? 0.42 : 0.22), lineWidth: AppTheme.Border.thin)
         )
         .coDesignShadow(.card)
         .task(id: "\(project.currentStageOrder)-\(latestSearchContext)") {
@@ -131,56 +131,6 @@ struct ResourceCardPanel: View {
             return onlinePapers.isEmpty ? "network" : "checkmark.circle.fill"
         }
         return "books.vertical"
-    }
-
-    private func collapsedPreview(_ resource: ResourceCard) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Text(resource.type.displayName)
-                    .font(AppTheme.Typography.caption.weight(.semibold))
-                    .foregroundStyle(Color.orange)
-
-                Text(resource.cardRole.displayName)
-                    .font(AppTheme.Typography.caption)
-                    .foregroundStyle(Color.textTertiary)
-
-                Spacer(minLength: 0)
-            }
-
-            Text(resource.title)
-                .font(AppTheme.Typography.caption.weight(.semibold))
-                .foregroundStyle(Color.textPrimary)
-                .lineLimit(1)
-
-            Text(resource.summary)
-                .font(AppTheme.Typography.caption)
-                .foregroundStyle(Color.textSecondary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(alignment: .top, spacing: 6) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.orange)
-                    .padding(.top, 2)
-
-                Text("为什么使用：\(resource.promptTriggerProblem)")
-                    .font(AppTheme.Typography.caption)
-                    .foregroundStyle(Color.textTertiary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(AppTheme.spacingMedium)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.72))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.16), lineWidth: AppTheme.Border.thin)
-        )
     }
 
     private func loadOnlinePapers() async {

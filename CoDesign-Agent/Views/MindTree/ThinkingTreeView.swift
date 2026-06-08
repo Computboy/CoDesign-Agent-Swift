@@ -114,7 +114,8 @@ struct ThinkingTreeView: View {
             ThinkingNodeDetailSheet(
                 node: node,
                 project: project,
-                onAdoptEvidence: adoptEvidence
+                onAdoptEvidence: adoptEvidence,
+                onEditNode: beginEditing
             )
             .frame(
                 minWidth: mode == .embedded ? 340 : 420,
@@ -407,6 +408,7 @@ struct ThinkingTreeView: View {
             if mode == .standalone {
                 toggleStage(order)
             } else {
+                toggleStage(order)
                 locateStage(order, in: lastViewportSize, preserveScale: true)
             }
         }
@@ -425,8 +427,14 @@ struct ThinkingTreeView: View {
 
     private func seedExpandedStageIfNeeded() {
         guard expandedStageOrders.isEmpty else { return }
-        guard mode == .standalone else { return }
         expandedStageOrders.insert(project.currentStageOrder)
+    }
+
+    private func beginEditing(_ node: TreeNode) {
+        selectedNode = nil
+        DispatchQueue.main.async {
+            editingNode = node
+        }
     }
 
     private func adoptEvidence(_ resource: ResourceCard, stageOrder: Int) {
@@ -487,7 +495,7 @@ struct ThinkingTreeView: View {
         switch node.kind {
         case .root: return 6
         case .stage: return 5
-        case .field, .process, .evidence, .revision: return 4
+        case .question, .field, .process, .evidence, .revision: return 4
         }
     }
 

@@ -5,6 +5,7 @@ struct ThinkingNodeDetailSheet: View {
     let node: TreeNode
     let project: Project
     var onAdoptEvidence: (ResourceCard, Int) -> Void = { _, _ in }
+    var onEditNode: (TreeNode) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
     @State private var isResourceModuleExpanded = true
@@ -21,6 +22,8 @@ struct ThinkingNodeDetailSheet: View {
                         rootContent
                     case .stage:
                         stageContent
+                    case .question:
+                        questionContent
                     case .field:
                         fieldContent
                     case .process:
@@ -43,6 +46,16 @@ struct ThinkingNodeDetailSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
+                }
+                if node.isEditable && !node.isArchived {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            dismiss()
+                            onEditNode(node)
+                        } label: {
+                            Label("回溯修改", systemImage: "arrow.uturn.backward")
+                        }
+                    }
                 }
             }
         }
@@ -158,6 +171,51 @@ struct ThinkingNodeDetailSheet: View {
     }
 
     // MARK: - Process Content
+
+    private var questionContent: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+            CoDesignSectionHeader(title: "澄清问题")
+            CoDesignCard {
+                VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+                    Text(node.content)
+                        .font(AppTheme.Typography.body.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
+
+                    if let answer = nextAnswerForQuestion {
+                        Divider()
+                        Text("后续回答")
+                            .font(AppTheme.Typography.caption.weight(.semibold))
+                            .foregroundStyle(Color.textTertiary)
+                        Text(answer.content)
+                            .font(AppTheme.Typography.body)
+                            .foregroundStyle(Color.textSecondary)
+                    } else {
+                        Text("这个问题还没有匹配到后续回答。")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(Color.textTertiary)
+                    }
+                }
+            }
+
+            if node.isEditable && !node.isArchived {
+                Button {
+                    dismiss()
+                    onEditNode(node)
+                } label: {
+                    Label("从这个问题回溯修改", systemImage: "arrow.uturn.backward.circle")
+                        .font(AppTheme.Typography.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.warning)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
 
     private var processContent: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
@@ -316,6 +374,8 @@ struct ThinkingNodeDetailSheet: View {
                 return "阶段 \(order): \(definition.name)"
             }
             return "阶段"
+        case .question:
+            return "澄清问题"
         case .field:
             return node.field?.displayName ?? node.content
         case .process:
@@ -333,9 +393,26 @@ struct ThinkingNodeDetailSheet: View {
             return project.name
         case .stage:
             return node.subContent
-        case .field, .process, .evidence, .revision:
+        case .question, .field, .process, .evidence, .revision:
             return node.content
         }
+    }
+
+    private var nextAnswerForQuestion: ThinkingMoment? {
+        guard node.kind == .question,
+              let momentID = node.momentID,
+              let question = project.thinkingMoments.first(where: { $0.id == momentID }) else {
+            return nil
+        }
+
+        return project.thinkingMoments
+            .filter {
+                $0.stageOrder == question.stageOrder &&
+                $0.momType == "answer" &&
+                $0.timestamp > question.timestamp
+            }
+            .sorted { $0.timestamp < $1.timestamp }
+            .first
     }
 
     private func fieldRow(_ field: BriefField, brief: DesignBriefSnapshot) -> some View {

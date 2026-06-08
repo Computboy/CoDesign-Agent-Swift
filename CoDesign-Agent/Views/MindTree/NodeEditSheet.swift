@@ -288,6 +288,7 @@ struct NodeEditSheet: View {
         switch node.kind {
         case .root: return "根节点"
         case .stage: return "阶段节点"
+        case .question: return "问题节点"
         case .field: return "字段节点"
         case .process: return "过程节点"
         case .evidence: return "依据节点"
@@ -299,6 +300,7 @@ struct NodeEditSheet: View {
         switch node.kind {
         case .root: return "lightbulb.fill"
         case .stage: return node.iconSystemName ?? "number.circle.fill"
+        case .question: return "questionmark.circle"
         case .field: return "leaf.fill"
         case .process: return node.iconSystemName ?? "bubble.left"
         case .evidence: return "doc.text.magnifyingglass"

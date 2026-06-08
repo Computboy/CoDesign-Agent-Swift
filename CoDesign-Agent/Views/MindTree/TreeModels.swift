@@ -5,6 +5,7 @@ import SwiftUI
 enum TreeNodeKind {
     case root
     case stage
+    case question
     case field
     case process
     case evidence
@@ -40,6 +41,8 @@ struct TreeNode: Identifiable {
         case .stage:
             guard let order = stageOrder else { return nil }
             return StageDefinition.all.first { $0.order == order }?.iconName
+        case .question:
+            return "questionmark.circle"
         case .field:
             return processIcon ?? "checkmark.seal"
         case .process:
@@ -329,6 +332,7 @@ struct TreeBuilder {
 
     private func nodeKind(for moment: ThinkingMoment, field: BriefField?) -> TreeNodeKind {
         if !moment.isActiveBranch { return .revision }
+        if moment.momType == "question" { return .question }
         if moment.momType == "evidence" { return .evidence }
         if moment.momType == "revise" { return .revision }
         if field != nil || moment.momType == "decision" || moment.momType == "deepen" {

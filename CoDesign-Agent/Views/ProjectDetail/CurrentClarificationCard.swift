@@ -11,6 +11,7 @@ struct CurrentClarificationCard: View {
     let onQuickAction: (String) -> Void
     let onSend: (String) -> Void
     private let responseAreaHeight: CGFloat = 190
+    @State private var showsExampleAction = false
 
     // MARK: - State
 
@@ -68,24 +69,29 @@ struct CurrentClarificationCard: View {
     }
 
     private var quickActions: [ClarificationQuickAction] {
-        [
-            ClarificationQuickAction(
+        var actions: [ClarificationQuickAction] = []
+
+        if showsExampleAction {
+            actions.append(ClarificationQuickAction(
                 title: "给我一个例子",
                 icon: "lightbulb",
                 tint: .primaryAccent,
-                prompt: "给我一个例子：请基于当前阶段和问题，给我一个具体回答示例，帮助我理解应该怎么回答。"
-            ),
+                prompt: "给我一个例子：我需要一点参考。请基于当前阶段给 2-3 个很短的例子作为启发，但不要替我直接决定最终答案。"
+            ))
+        }
+
+        actions.append(contentsOf: [
             ClarificationQuickAction(
                 title: "我还不确定",
                 icon: "questionmark.circle",
                 tint: .warning,
-                prompt: "我还不确定：我现在还不确定，请你把这个问题拆得更简单一点，用更容易回答的方式继续引导我。"
+                prompt: "我还不确定：请不要直接给例子，也不要给 A/B/C 选项。请用“线索：……”加“追问：……”的方式，把这个问题拆得更容易思考。"
             ),
             ClarificationQuickAction(
                 title: "换个角度问",
                 icon: "arrow.triangle.2.circlepath",
                 tint: .info,
-                prompt: "换个角度问：请换一个角度重新追问我这个问题，不要重复刚才的表达。"
+                prompt: "换个角度问：请换一个角度重新追问我这个问题，不要重复刚才的表达，也不要给 A/B/C 选项。"
             ),
             ClarificationQuickAction(
                 title: "生成边界草稿",
@@ -99,7 +105,9 @@ struct CurrentClarificationCard: View {
                 tint: .textSecondary,
                 prompt: "这个问题先跳过，请基于已有信息继续推进到下一个最合理的澄清点。"
             ),
-        ]
+        ])
+
+        return actions
     }
 
     // MARK: - Body
@@ -108,6 +116,12 @@ struct CurrentClarificationCard: View {
         CoDesignCard(style: .normal) {
             VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
                 stageHeader
+
+                ResourceCardPanel(
+                    project: project,
+                    title: "当前方法",
+                    subtitle: "点击展开方法说明。"
+                )
 
                 switch cardState {
                 case .welcome:
@@ -125,16 +139,22 @@ struct CurrentClarificationCard: View {
                     isStreaming: isStreaming,
                     onSend: onSend
                 )
-                ResourceCardPanel(
-                    project: project,
-                    title: "当前方法",
-                    subtitle: "轻量显示 Agent 本轮参考的方法依据。"
-                )
                 quickActionsSection
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: delayedExampleRevealKey) {
+            showsExampleAction = false
+            guard cardState == .hasResponse else { return }
+            try? await Task.sleep(for: .seconds(10))
+            guard !Task.isCancelled else { return }
+            showsExampleAction = true
+        }
+    }
+
+    private var delayedExampleRevealKey: String {
+        "\(isStreaming)-\(project.messages.count)-\(latestAssistantText)"
     }
 
     // MARK: - Stage Header

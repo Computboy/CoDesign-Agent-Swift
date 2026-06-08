@@ -51,7 +51,7 @@ struct TreeLayoutEngine {
                     y: stageY(order: order, rootY: rootY, stageSpacing: effectiveStageSpacing)
                 )
 
-            case .field, .process, .evidence, .revision:
+            case .question, .field, .process, .evidence, .revision:
                 guard let order = updatedNodes[index].stageOrder else { continue }
                 let siblings = sortedSideNodes(nodesByStage[order] ?? [])
                 guard let siblingIndex = siblings.firstIndex(where: { $0.id == updatedNodes[index].id }) else {
@@ -121,11 +121,12 @@ struct TreeLayoutEngine {
 
     private func kindRank(_ kind: TreeNodeKind) -> Int {
         switch kind {
-        case .field: return 0
-        case .process: return 1
-        case .evidence: return 2
-        case .revision: return 3
-        case .root, .stage: return 4
+        case .question: return 0
+        case .field: return 1
+        case .process: return 2
+        case .evidence: return 3
+        case .revision: return 4
+        case .root, .stage: return 5
         }
     }
 
