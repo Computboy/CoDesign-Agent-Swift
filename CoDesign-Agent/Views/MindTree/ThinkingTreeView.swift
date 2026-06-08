@@ -46,7 +46,7 @@ struct ThinkingTreeView: View {
                     }
                     .frame(width: graph.contentSize.width, height: graph.contentSize.height)
 
-                    edgeHitAreas(graph: graph)
+                    edgeHitAreas(graph: graph, viewport: geo.size)
 
                     ForEach(graph.nodes) { node in
                         TreeNodeView(node: node) {
@@ -136,10 +136,14 @@ struct ThinkingTreeView: View {
     // MARK: - Graph
 
     private func layoutGraph(for viewport: CGSize) -> TreeData {
-        let evidence = evidenceResourcesByStage()
+        layoutGraph(for: viewport, expandedTransitions: expandedTransitionOrders)
+    }
+
+    private func layoutGraph(for viewport: CGSize, expandedTransitions: Set<Int>) -> TreeData {
+        let evidence = evidenceResourcesByStage(expandedTransitions: expandedTransitions)
         let raw = TreeBuilder().build(
             project: project,
-            expandedTransitionOrders: expandedTransitionOrders,
+            expandedTransitionOrders: expandedTransitions,
             evidenceResourcesByStage: evidence,
             visibleStageLimit: visibleStageLimit
         )
@@ -179,10 +183,10 @@ struct ThinkingTreeView: View {
         }
     }
 
-    private func evidenceResourcesByStage() -> [Int: [ResourceCard]] {
+    private func evidenceResourcesByStage(expandedTransitions: Set<Int>) -> [Int: [ResourceCard]] {
         let visibleStages = mode == .embedded
-            ? expandedTransitionOrders.union([project.currentStageOrder])
-            : expandedTransitionOrders.union([project.currentStageOrder])
+            ? expandedTransitions.union([project.currentStageOrder])
+            : expandedTransitions.union([project.currentStageOrder])
         var result: [Int: [ResourceCard]] = [:]
         let limit = mode == .embedded ? 2 : 3
         let service = ResourceRecommendationService()
@@ -422,6 +426,50 @@ struct ThinkingTreeView: View {
         selectedNode = node
     }
 
+    private func toggleTransition(_ order: Int, graph: TreeData, viewport: CGSize) {
+        guard viewport.width > 0, viewport.height > 0 else {
+            toggleTransition(order)
+            return
+        }
+
+        var nextExpanded = expandedTransitionOrders
+        if nextExpanded.contains(order) {
+            nextExpanded.remove(order)
+        } else {
+            nextExpanded.insert(order)
+        }
+
+        guard let oldAnchor = transitionAnchorPosition(order: order, in: graph) else {
+            withAnimation(AppTheme.Animation.spring) {
+                expandedTransitionOrders = nextExpanded
+            }
+            return
+        }
+
+        let oldScreenPoint = screenPoint(for: oldAnchor)
+        let nextGraph = layoutGraph(for: viewport, expandedTransitions: nextExpanded)
+        guard let nextAnchor = transitionAnchorPosition(order: order, in: nextGraph) else {
+            withAnimation(AppTheme.Animation.spring) {
+                expandedTransitionOrders = nextExpanded
+            }
+            return
+        }
+
+        let nextOffset = offsetToPlace(
+            nextAnchor,
+            at: oldScreenPoint,
+            graph: nextGraph,
+            viewport: viewport,
+            scale: scale
+        )
+
+        withAnimation(AppTheme.Animation.spring) {
+            expandedTransitionOrders = nextExpanded
+            offset = nextOffset
+            lastOffset = nextOffset
+        }
+    }
+
     private func toggleTransition(_ order: Int) {
         withAnimation(AppTheme.Animation.spring) {
             if expandedTransitionOrders.contains(order) {
@@ -430,6 +478,27 @@ struct ThinkingTreeView: View {
                 expandedTransitionOrders.insert(order)
             }
         }
+    }
+
+    private func transitionAnchorPosition(order: Int, in graph: TreeData) -> CGPoint? {
+        guard let edge = graph.edges.first(where: { $0.togglesTransitionOrder == order }),
+              let from = graph.node(for: edge.fromID),
+              let to = graph.node(for: edge.toID)
+        else {
+            return nil
+        }
+
+        return CGPoint(
+            x: (from.position.x + to.position.x) / 2,
+            y: (from.position.y + to.position.y) / 2
+        )
+    }
+
+    private func screenPoint(for contentPoint: CGPoint) -> CGPoint {
+        CGPoint(
+            x: contentPoint.x * scale + offset.width,
+            y: contentPoint.y * scale + offset.height
+        )
     }
 
     private func beginEditing(_ node: TreeNode) {
@@ -468,7 +537,7 @@ struct ThinkingTreeView: View {
     }
 
     @ViewBuilder
-    private func edgeHitAreas(graph: TreeData) -> some View {
+    private func edgeHitAreas(graph: TreeData, viewport: CGSize) -> some View {
         ForEach(graph.edges.filter { $0.togglesTransitionOrder != nil }) { edge in
             if let from = graph.node(for: edge.fromID),
                let to = graph.node(for: edge.toID),
@@ -489,7 +558,7 @@ struct ThinkingTreeView: View {
                     )
                 )
                 .onTapGesture {
-                    toggleTransition(transitionOrder)
+                    toggleTransition(transitionOrder, graph: graph, viewport: viewport)
                 }
                 .zIndex(1)
             }
