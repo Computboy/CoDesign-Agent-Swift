@@ -119,6 +119,17 @@ struct ResourceRecommendationService {
         problemTypes: Set<String>
     ) -> Int {
         var result = resource.relatedStages.contains(stageOrder) ? 30 : 0
+        let recommendedIDs = StageDefinition.all
+            .first { $0.order == stageOrder }?
+            .recommendedCardIDs ?? []
+
+        if recommendedIDs.contains(resource.id) {
+            result += 34
+        }
+
+        if resource.type == .method {
+            result += 10
+        }
 
         for field in resource.relatedFields where missingFields.contains(field) {
             result += 12

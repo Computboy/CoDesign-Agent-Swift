@@ -161,6 +161,81 @@ struct StageDefinition {
         }
     }
 
+    var recommendedCardIDs: [String] {
+        switch order {
+        case 1:
+            return [
+                "method-persona",
+                "method-empathy-map",
+                "method-user-journey-map",
+                "method-five-whys",
+                "method-problem-statement",
+                "method-how-might-we",
+            ]
+        case 2:
+            return [
+                "method-jobs-to-be-done",
+                "method-insight-statement",
+                "method-how-might-we",
+                "method-assumption-mapping",
+                "method-concept-testing",
+            ]
+        case 3:
+            return [
+                "method-mvp",
+                "method-impact-effort-matrix",
+                "method-assumption-mapping",
+                "method-decision-log",
+            ]
+        case 4:
+            return [
+                "method-prototype",
+                "method-user-journey-map",
+                "method-service-blueprint",
+                "method-crazy-8s",
+                "method-design-critique",
+            ]
+        case 5:
+            return [
+                "method-service-blueprint",
+                "method-decision-log",
+                "method-assumption-mapping",
+                "method-pre-mortem",
+            ]
+        case 6:
+            return [
+                "method-assumption-mapping",
+                "method-impact-effort-matrix",
+                "method-mvp",
+                "method-pre-mortem",
+            ]
+        case 7:
+            return [
+                "method-experiment-plan",
+                "method-usability-testing",
+                "method-mvp",
+                "method-concept-testing",
+            ]
+        case 8:
+            return [
+                "method-pre-mortem",
+                "method-assumption-mapping",
+                "method-five-whys",
+                "method-decision-log",
+            ]
+        case 9:
+            return [
+                "method-decision-log",
+                "method-reflection",
+                "method-retrospective",
+                "method-mvp",
+                "method-impact-effort-matrix",
+            ]
+        default:
+            return []
+        }
+    }
+
     /// 该阶段的思考问题
     var thinkingQuestions: [String] {
         switch order {

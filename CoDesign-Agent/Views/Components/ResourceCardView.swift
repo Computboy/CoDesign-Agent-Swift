@@ -55,9 +55,13 @@ struct ResourceCardView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             recommendationBlock(title: "为什么推荐", text: resource.whyRelevant)
+            recommendationBlock(title: "Agent 动作", text: resource.promptAgentUse)
 
             if isExpanded {
                 recommendationBlock(title: "怎么使用", text: resource.howToUse)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+
+                recommendationBlock(title: "示例问题", text: resource.promptExampleQuestion)
                     .transition(.opacity.combined(with: .move(edge: .top)))
 
                 if let sourceText = resource.sourceDisplayText {

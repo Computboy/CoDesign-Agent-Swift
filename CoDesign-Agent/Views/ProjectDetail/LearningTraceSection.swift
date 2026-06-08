@@ -271,6 +271,7 @@ struct LearningTraceSection: View {
         case "challenge":      return ("questionmark.diamond", Color.warning)
         case "prioritize":     return ("arrow.down.right.and.arrow.up.left", Color.success)
         case "bound":          return ("lock.shield", Color.primaryAccent)
+        case "methodCard":     return ("rectangle.stack.badge.play", Color.orange)
         default:               return ("sparkles", Color.textTertiary)
         }
     }
@@ -284,6 +285,7 @@ struct LearningTraceSection: View {
         case "challenge":      return "反设检查"
         case "prioritize":     return "取舍判断"
         case "bound":          return "可行降级"
+        case "methodCard":     return "方法调用"
         default:               return actionType
         }
     }
@@ -293,6 +295,10 @@ struct LearningTraceSection: View {
     }
 
     private func designActionTitle(for trace: LearningTrace) -> String {
+        if trace.actionType == "methodCard" {
+            return trace.title
+        }
+
         switch trace.stageOrder {
         case 1: return "你锚定了痛点场景"
         case 2: return "你提炼了差异价值"
@@ -308,6 +314,7 @@ struct LearningTraceSection: View {
             case "reframe": return "你重新定义了问题"
             case "boundaryShrink": return "你收缩了项目范围"
             case "converge": return "你形成了设计判断"
+            case "methodCard": return trace.title
             default: return trace.title
             }
         }

@@ -245,6 +245,7 @@ private struct CurrentWorkspaceColumn: View {
 
             ProcessLogDisclosure(
                 messages: project.messages,
+                methodMoments: project.thinkingMoments,
                 isStreaming: chatViewModel.isStreaming,
                 streamingText: chatViewModel.currentStreamingText
             )

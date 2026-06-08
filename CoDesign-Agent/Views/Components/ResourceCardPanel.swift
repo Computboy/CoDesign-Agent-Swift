@@ -2,8 +2,8 @@ import SwiftUI
 
 struct ResourceCardPanel: View {
     let project: Project
-    var title: String = "阶段资源提示"
-    var subtitle: String = "根据当前阶段和缺失字段，补充一张主要参考。"
+    var title: String = "当前方法"
+    var subtitle: String = "Agent 会选择一张方法卡辅助本轮澄清。"
     var allowsOnlineSearch: Bool = false
 
     private let recommendationService = ResourceRecommendationService()
@@ -110,7 +110,7 @@ struct ResourceCardPanel: View {
     private var statusText: String {
         if !allowsOnlineSearch {
             if let first = recommendations.first {
-                return "\(first.cardRole.displayName) · 点击展开资源摘要"
+                return "\(first.title) · 点击展开方法说明"
             }
             return subtitle
         }
@@ -157,6 +157,19 @@ struct ResourceCardPanel: View {
                 .foregroundStyle(Color.textSecondary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color.orange)
+                    .padding(.top, 2)
+
+                Text("为什么使用：\(resource.promptTriggerProblem)")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(Color.textTertiary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(AppTheme.spacingMedium)
         .frame(maxWidth: .infinity, alignment: .leading)

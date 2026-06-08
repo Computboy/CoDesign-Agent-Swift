@@ -8,6 +8,7 @@ import SwiftUI
 /// Features smooth expand/collapse animation with rotation and fade effects.
 struct ProcessLogDisclosure: View {
     let messages: [ChatMessage]
+    var methodMoments: [ThinkingMoment] = []
     let isStreaming: Bool
     let streamingText: String
 
@@ -16,6 +17,22 @@ struct ProcessLogDisclosure: View {
 
     private var sortedMessages: [ChatMessage] {
         messages.sorted { $0.timestamp < $1.timestamp }
+    }
+
+    private var sortedMethodMoments: [ThinkingMoment] {
+        methodMoments
+            .filter { $0.momType == "method" }
+            .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    private var totalRecordCount: Int {
+        messages.count + sortedMethodMoments.count
+    }
+
+    private var processEntries: [ProcessLogEntry] {
+        let messageEntries = sortedMessages.map { ProcessLogEntry.message($0) }
+        let methodEntries = sortedMethodMoments.map { ProcessLogEntry.method($0) }
+        return (messageEntries + methodEntries).sorted { $0.timestamp < $1.timestamp }
     }
 
     var body: some View {
@@ -37,8 +54,8 @@ struct ProcessLogDisclosure: View {
                             .font(AppTheme.Typography.subheadline.weight(.medium))
                             .foregroundStyle(Color.textSecondary)
 
-                        if !messages.isEmpty {
-                            Text("\(messages.count) 条消息")
+                        if totalRecordCount > 0 {
+                            Text("\(totalRecordCount) 条记录")
                                 .font(AppTheme.Typography.caption)
                                 .foregroundStyle(Color.textTertiary)
                         }
@@ -59,15 +76,21 @@ struct ProcessLogDisclosure: View {
                         .padding(.vertical, AppTheme.spacingSmall)
                         .transition(.opacity)
 
-                    if sortedMessages.isEmpty && !isStreaming {
+                    if sortedMessages.isEmpty && sortedMethodMoments.isEmpty && !isStreaming {
                         emptyState
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     } else {
                         ScrollView(.vertical, showsIndicators: false) {
                             LazyVStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
-                                ForEach(sortedMessages) { message in
-                                    ProcessLogMessageRow(message: message)
-                                        .transition(.opacity.combined(with: .move(edge: .leading)))
+                                ForEach(processEntries) { entry in
+                                    switch entry {
+                                    case .message(let message):
+                                        ProcessLogMessageRow(message: message)
+                                            .transition(.opacity.combined(with: .move(edge: .leading)))
+                                    case .method(let moment):
+                                        ProcessLogMethodRow(moment: moment)
+                                            .transition(.opacity.combined(with: .move(edge: .leading)))
+                                    }
                                 }
 
                                 // Streaming message
@@ -195,6 +218,68 @@ struct ProcessLogMessageRow: View {
             }
 
             Spacer(minLength: 0)
+        }
+    }
+}
+
+// MARK: - ProcessLogMethodRow
+
+struct ProcessLogMethodRow: View {
+    let moment: ThinkingMoment
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
+            Image(systemName: "rectangle.stack.badge.play")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.orange)
+                .frame(width: 20, height: 20)
+                .background(
+                    Circle()
+                        .fill(Color.orange.opacity(0.12))
+                )
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: AppTheme.spacingSmall) {
+                    Text("方法调用")
+                        .font(AppTheme.Typography.caption.weight(.semibold))
+                        .foregroundStyle(Color.orange)
+
+                    Text(moment.timestamp, style: .time)
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(Color.textTertiary)
+
+                    Text("S\(moment.stageOrder)")
+                        .font(AppTheme.Typography.captionMono)
+                        .foregroundStyle(Color.textTertiary)
+                }
+
+                Text(moment.content)
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(8)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+private enum ProcessLogEntry: Identifiable {
+    case message(ChatMessage)
+    case method(ThinkingMoment)
+
+    var id: String {
+        switch self {
+        case .message(let message): return "message-\(message.id)"
+        case .method(let moment): return "method-\(moment.id)"
+        }
+    }
+
+    var timestamp: Date {
+        switch self {
+        case .message(let message): return message.timestamp
+        case .method(let moment): return moment.timestamp
         }
     }
 }

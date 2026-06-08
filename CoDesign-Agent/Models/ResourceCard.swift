@@ -79,6 +79,12 @@ struct ResourceCard: Identifiable, Hashable {
     let summary: String
     let whyRelevant: String
     let howToUse: String
+    var triggerProblem: String? = nil
+    var coreIdea: String? = nil
+    var agentUse: String? = nil
+    var displayText: String? = nil
+    var exampleQuestion: String? = nil
+    var processAction: String? = nil
     var sourceURL: URL? = nil
     var year: Int? = nil
     var venue: String? = nil
@@ -98,5 +104,29 @@ struct ResourceCard: Identifiable, Hashable {
 
     var sourceDisplayText: String? {
         source ?? venue
+    }
+
+    var promptTriggerProblem: String {
+        triggerProblem ?? triggerSignals.first ?? whyRelevant
+    }
+
+    var promptCoreIdea: String {
+        coreIdea ?? summary
+    }
+
+    var promptAgentUse: String {
+        agentUse ?? howToUse
+    }
+
+    var userDisplayText: String {
+        displayText ?? summary
+    }
+
+    var promptExampleQuestion: String {
+        exampleQuestion ?? "基于当前阶段，只提出一个能推动设计判断的问题。"
+    }
+
+    var processActionText: String {
+        processAction ?? cardRole.displayName
     }
 }

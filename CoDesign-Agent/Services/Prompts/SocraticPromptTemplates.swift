@@ -146,12 +146,18 @@ enum SocraticPromptTemplates {
         if !resourceCards.isEmpty {
             lines.append("")
             lines.append("## 当前资源卡（内部参考，不要逐条讲给用户）")
-            lines.append("每轮最多使用 1 张内容依据卡；策略卡只用于决定怎么问、问多深和给多少提示。")
+            lines.append("每轮最多选择 1 张最适合的卡作为 selectedCard；它决定当前问题的方法依据。")
+            lines.append("请用卡片生成自然追问，不要把完整方法论解释给用户。")
             for card in resourceCards {
                 lines.append("- \(card.id)｜\(card.cardRole.displayName)｜\(card.title)")
-                lines.append("  核心观点：\(card.summary)")
-                lines.append("  为什么相关：\(card.whyRelevant)")
-                lines.append("  使用方式：\(card.howToUse)")
+                lines.append("  触发问题：\(card.promptTriggerProblem)")
+                lines.append("  核心思想：\(card.promptCoreIdea)")
+                lines.append("  Agent 用法：\(card.promptAgentUse)")
+                lines.append("  示例问题：\(card.promptExampleQuestion)")
+                let fields = card.relatedFields.map(\.displayName).joined(separator: "、")
+                if !fields.isEmpty {
+                    lines.append("  预期推动字段：\(fields)")
+                }
             }
         }
 

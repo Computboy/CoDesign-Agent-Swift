@@ -127,8 +127,8 @@ struct CurrentClarificationCard: View {
                 )
                 ResourceCardPanel(
                     project: project,
-                    title: "当前资源卡",
-                    subtitle: "系统会选择一张主要理论/方法卡辅助下一步澄清。"
+                    title: "当前方法",
+                    subtitle: "轻量显示 Agent 本轮参考的方法依据。"
                 )
                 quickActionsSection
             }

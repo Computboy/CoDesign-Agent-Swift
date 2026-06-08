@@ -67,7 +67,7 @@ final class LiveLLMService: LLMServiceProtocol {
             currentStageOrder: stageOrder,
             briefSnapshot: briefSnapshot,
             recentMessage: latestUserMessage,
-            limit: 3
+            limit: 5
         )
 
         // 1. System prompt

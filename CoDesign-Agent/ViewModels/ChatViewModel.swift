@@ -82,6 +82,12 @@ final class ChatViewModel {
             .sorted { $0.timestamp < $1.timestamp }
             .map { $0.toPayload() }
         let stageSnapshot = nextActiveStage?.toSnapshot()
+        let selectedMethodCard = ResourceRecommendationService().recommend(
+            currentStageOrder: stageSnapshot?.order ?? nextActiveStage?.order ?? activeStageOrder,
+            briefSnapshot: updatedBriefSnapshot,
+            recentMessage: text,
+            limit: 1
+        ).first
 
         isStreaming = true
         currentStreamingText = ""
@@ -107,6 +113,19 @@ final class ChatViewModel {
         let assistantMsg = ChatMessage(role: "assistant", content: currentStreamingText)
         context.insert(assistantMsg)
         project.messages.append(assistantMsg)
+        if let selectedMethodCard {
+            recordMethodInvocation(
+                card: selectedMethodCard,
+                generatedQuestion: assistantMsg.content,
+                stageOrder: nextActiveStage?.order ?? activeStageOrder,
+                context: context
+            )
+            appendMethodLearningTrace(
+                card: selectedMethodCard,
+                stageOrder: nextActiveStage?.order ?? activeStageOrder,
+                context: context
+            )
+        }
         recordThinkingMoment(
             momType: "question",
             content: questionMomentText(from: assistantMsg.content),
@@ -257,6 +276,66 @@ final class ChatViewModel {
         )
         context.insert(moment)
         project.thinkingMoments.append(moment)
+    }
+
+    private func recordMethodInvocation(
+        card: ResourceCard,
+        generatedQuestion: String,
+        stageOrder: Int,
+        context: ModelContext
+    ) {
+        let fields = card.relatedFields.map(\.displayName).joined(separator: "、")
+        let question = questionMomentText(from: generatedQuestion)
+        let content = [
+            "调用方法：\(card.title)",
+            "触发原因：\(card.promptTriggerProblem)",
+            "Agent 动作：\(card.processActionText)",
+            "生成问题：\(question)",
+            fields.isEmpty ? nil : "期望字段：\(fields)",
+        ]
+        .compactMap { $0 }
+        .joined(separator: "\n")
+
+        let isDuplicate = project.thinkingMoments.contains { moment in
+            moment.momType == "method" &&
+            moment.stageOrder == stageOrder &&
+            moment.content.contains(card.title) &&
+            abs(moment.timestamp.timeIntervalSince(Date())) < 8
+        }
+        guard !isDuplicate else { return }
+
+        let moment = ThinkingMoment(
+            momType: "method",
+            content: content,
+            stageOrder: stageOrder,
+            relatedField: card.relatedFields.first?.rawValue,
+            timestamp: Date(),
+            isActiveBranch: true
+        )
+        context.insert(moment)
+        project.thinkingMoments.append(moment)
+    }
+
+    private func appendMethodLearningTrace(
+        card: ResourceCard,
+        stageOrder: Int,
+        context: ModelContext
+    ) {
+        let isDuplicate = project.learningTraces.contains { trace in
+            trace.stageOrder == stageOrder &&
+            trace.actionType == "methodCard" &&
+            trace.title.contains(card.title)
+        }
+        guard !isDuplicate else { return }
+
+        let trace = LearningTrace(
+            stageOrder: stageOrder,
+            actionType: "methodCard",
+            title: "使用 \(card.title)",
+            detail: "本轮 Agent 使用「\(card.title)」作为方法依据：\(card.userDisplayText) 这帮助你完成「\(card.processActionText)」。"
+        )
+        context.insert(trace)
+        project.learningTraces.append(trace)
     }
 
     private func truncatedMomentText(_ text: String, limit: Int = 60) -> String {

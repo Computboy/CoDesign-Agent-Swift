@@ -377,7 +377,7 @@ struct ThinkingNodeDetailSheet: View {
                     .foregroundStyle(Color.secondaryAccent)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("阶段资源卡")
+                    Text("阶段方法卡")
                         .font(AppTheme.Typography.subheadline.weight(.semibold))
                         .foregroundStyle(Color.textPrimary)
 
