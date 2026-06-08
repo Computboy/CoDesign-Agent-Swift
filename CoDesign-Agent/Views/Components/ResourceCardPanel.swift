@@ -34,7 +34,7 @@ struct ResourceCardPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
             Button {
-                withAnimation(AppTheme.Animation.spring) {
+                withAnimation(.easeInOut(duration: 0.22)) {
                     isExpanded.toggle()
                 }
             } label: {
@@ -84,7 +84,7 @@ struct ResourceCardPanel: View {
                             ResourceCardView(resource: resource)
                         }
                     }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.opacity)
                 }
             } else if let primaryResource = recommendations.first {
                 collapsedPreview(primaryResource)

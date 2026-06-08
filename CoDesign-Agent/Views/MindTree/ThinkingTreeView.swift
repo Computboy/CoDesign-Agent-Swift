@@ -81,6 +81,10 @@ struct ThinkingTreeView: View {
                 treeToolbar
                     .padding(mode == .embedded ? 10 : AppTheme.spacingLarge)
             }
+            .overlay(alignment: .leading) {
+                rootCenteredZoomControl(graph: graph, viewport: geo.size)
+                    .padding(.leading, mode == .embedded ? 8 : 16)
+            }
             .onAppear {
                 lastViewportSize = geo.size
                 seedExpandedStageIfNeeded()
@@ -106,12 +110,23 @@ struct ThinkingTreeView: View {
             }
         }
         .coDesignShadow(mode == .embedded ? .card : .elevated)
-        .sheet(item: $selectedNode) { node in
+        .popover(item: $selectedNode, attachmentAnchor: .point(.center), arrowEdge: .trailing) { node in
             ThinkingNodeDetailSheet(
                 node: node,
                 project: project,
                 onAdoptEvidence: adoptEvidence
             )
+            .frame(
+                minWidth: mode == .embedded ? 340 : 420,
+                idealWidth: mode == .embedded ? 420 : 540,
+                maxWidth: mode == .embedded ? 480 : 620,
+                minHeight: 360,
+                idealHeight: mode == .embedded ? 520 : 620,
+                maxHeight: mode == .embedded ? 620 : 720
+            )
+            #if os(iOS)
+            .presentationCompactAdaptation(.popover)
+            #endif
         }
         .sheet(item: $editingNode) { node in
             NodeEditSheet(node: node, project: project)
@@ -269,7 +284,7 @@ struct ThinkingTreeView: View {
                 }
 
                 toolbarButton("\(Int(scale * 100))%", icon: "plus.magnifyingglass") {
-                    setScale(scale + 0.12)
+                    setScaleCenteredOnRoot(scale + 0.12, viewport: lastViewportSize, animated: true)
                 }
             }
             .padding(7)
@@ -314,6 +329,54 @@ struct ThinkingTreeView: View {
         .accessibilityLabel(title)
     }
 
+    private func rootCenteredZoomControl(graph: TreeData, viewport: CGSize) -> some View {
+        VStack(spacing: 8) {
+            Button {
+                setScaleCenteredOnRoot(scale, graph: graph, viewport: viewport, animated: true)
+            } label: {
+                Image(systemName: "smallcircle.filled.circle")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.primaryAccent)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(Color.cardBackground.opacity(0.92)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("以根节点为中心")
+
+            Slider(
+                value: Binding(
+                    get: { Double(scale) },
+                    set: { newValue in
+                        setScaleCenteredOnRoot(CGFloat(newValue), graph: graph, viewport: viewport, animated: false)
+                    }
+                ),
+                in: Double(minimumScale)...Double(maximumScale)
+            )
+            .tint(Color.primaryAccent)
+            .frame(width: mode == .embedded ? 104 : 136)
+            .rotationEffect(.degrees(-90))
+            .frame(width: 28, height: mode == .embedded ? 116 : 148)
+            .accessibilityLabel("缩放范围")
+            .accessibilityValue("\(Int(scale * 100))%")
+
+            Text("\(Int(scale * 100))%")
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.textTertiary)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 7)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.cardBackground.opacity(0.90))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(Color.primaryAccent.opacity(0.12), lineWidth: 1)
+        )
+        .coDesignShadow(.card)
+    }
+
     private var treeBackground: some View {
         LinearGradient(
             colors: [
@@ -344,7 +407,6 @@ struct ThinkingTreeView: View {
             if mode == .standalone {
                 toggleStage(order)
             } else {
-                toggleStage(order)
                 locateStage(order, in: lastViewportSize, preserveScale: true)
             }
         }
@@ -584,9 +646,50 @@ struct ThinkingTreeView: View {
     }
 
     private func setScale(_ value: CGFloat) {
-        withAnimation(AppTheme.Animation.quick) {
+        setScaleCenteredOnRoot(value, viewport: lastViewportSize, animated: true)
+    }
+
+    private func setScaleCenteredOnRoot(_ value: CGFloat, viewport: CGSize, animated: Bool) {
+        guard viewport.width > 0, viewport.height > 0 else {
             scale = clampedScale(value)
             lastScale = scale
+            return
+        }
+        let graph = layoutGraph(for: viewport)
+        setScaleCenteredOnRoot(value, graph: graph, viewport: viewport, animated: animated)
+    }
+
+    private func setScaleCenteredOnRoot(_ value: CGFloat, graph: TreeData, viewport: CGSize, animated: Bool) {
+        let nextScale = clampedScale(value)
+        guard viewport.width > 0,
+              viewport.height > 0,
+              let root = graph.node(for: TreeBuilder.rootID)
+        else {
+            scale = nextScale
+            lastScale = nextScale
+            return
+        }
+
+        let nextOffset = offsetToPlace(
+            root.position,
+            at: CGPoint(x: viewport.width / 2, y: viewport.height / 2),
+            graph: graph,
+            viewport: viewport,
+            scale: nextScale
+        )
+
+        let updates = {
+            scale = nextScale
+            lastScale = nextScale
+            offset = nextOffset
+            lastOffset = nextOffset
+            hasInitializedViewport = true
+        }
+
+        if animated {
+            withAnimation(AppTheme.Animation.quick, updates)
+        } else {
+            updates()
         }
     }
 

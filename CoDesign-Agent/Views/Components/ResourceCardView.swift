@@ -59,14 +59,14 @@ struct ResourceCardView: View {
 
             if isExpanded {
                 recommendationBlock(title: "怎么使用", text: resource.howToUse)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.opacity)
 
                 recommendationBlock(title: "示例问题", text: resource.promptExampleQuestion)
                     .transition(.opacity.combined(with: .move(edge: .top)))
 
                 if let sourceText = resource.sourceDisplayText {
                     recommendationBlock(title: "参考来源", text: sourceText)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .transition(.opacity)
                 }
 
                 if let url = resource.sourceURL {
@@ -93,7 +93,7 @@ struct ResourceCardView: View {
         .coDesignShadow(.card)
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onTapGesture {
-            withAnimation(AppTheme.Animation.spring) {
+            withAnimation(.easeInOut(duration: 0.20)) {
                 isExpanded.toggle()
             }
         }
