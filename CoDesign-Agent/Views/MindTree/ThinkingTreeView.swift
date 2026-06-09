@@ -130,6 +130,7 @@ struct ThinkingTreeView: View {
         }
         .sheet(item: $editingNode) { node in
             NodeEditSheet(node: node, project: project)
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -242,15 +243,15 @@ struct ThinkingTreeView: View {
                     )
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, AppTheme.spacingMedium)
+        .padding(.vertical, AppTheme.spacingSmall)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.cardBackground.opacity(0.92))
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                .fill(Color.cardBackground.opacity(AppTheme.Opacity.nearFull))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.primaryAccent.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                .strokeBorder(Color.primaryAccent.opacity(AppTheme.Opacity.light), lineWidth: 1)
         )
     }
 

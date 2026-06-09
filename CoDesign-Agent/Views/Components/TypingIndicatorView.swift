@@ -8,24 +8,24 @@ struct TypingIndicatorView: View {
     var body: some View {
         HStack {
             Text("AI 正在思考")
-                .font(.caption)
+                .font(AppTheme.Typography.caption)
                 .foregroundStyle(Color.textSecondary)
 
-            HStack(spacing: 2) {
+            HStack(spacing: AppTheme.spacingXXS) {
                 ForEach(0..<3) { index in
                     Circle()
                         .fill(Color.primaryAccent)
                         .frame(width: 4, height: 4)
-                        .opacity(index <= dotCount ? 1.0 : 0.3)
+                        .opacity(index <= dotCount ? 1.0 : AppTheme.Opacity.soft)
                 }
             }
 
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, AppTheme.spacingMedium)
+        .padding(.vertical, AppTheme.spacingSmall)
         .background(Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
         .onReceive(timer) { _ in
             withAnimation(.easeInOut(duration: 0.2)) {
                 dotCount = (dotCount + 1) % 3

@@ -27,9 +27,9 @@ struct DesignBriefPosterView: View {
                 Label("\(Int(project.completionRate * 100))%", systemImage: "chart.bar.fill")
                     .font(AppTheme.Typography.caption.weight(.semibold))
                     .foregroundStyle(Color.primaryAccent)
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, AppTheme.spacingSmall)
                     .frame(height: 30)
-                    .background(Capsule(style: .continuous).fill(Color.primaryAccent.opacity(0.10)))
+                    .background(Capsule(style: .continuous).fill(Color.primaryAccent.opacity(AppTheme.Opacity.light)))
             }
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: AppTheme.spacingMedium)], spacing: AppTheme.spacingMedium) {
@@ -97,7 +97,7 @@ struct DesignBriefPosterView: View {
         .padding(AppTheme.spacingMedium)
         .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
                 .fill(Color.elevatedCardBackground)
         )
     }

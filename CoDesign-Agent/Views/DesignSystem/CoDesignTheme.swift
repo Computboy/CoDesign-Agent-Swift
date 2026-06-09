@@ -19,30 +19,55 @@ extension AppTheme {
         static let callout     = Font.system(.callout, design: .default)
         static let caption     = Font.system(.caption, design: .default)
         static let captionMono = Font.system(.caption, design: .monospaced).weight(.medium)
+
+        // Micro / Tiny — metadata, timestamps, field labels, compact UI
+        static let micro          = Font.system(size: 10, weight: .regular)
+        static let microSemibold  = Font.system(size: 10, weight: .semibold)
+        static let tiny           = Font.system(size: 11, weight: .regular)
+        static let tinySemibold   = Font.system(size: 11, weight: .semibold)
     }
 
     // MARK: - Extended Spacing
+    // Scale: 2 / 4 / 6 / 8 / 12 / 20 / 32 / 48
 
+    static let spacingXXS: CGFloat = 2
     static let spacingXS: CGFloat = 4
-    // spacingSmall (8), spacingMedium (12), spacingLarge (20) already defined
+    static let spacingSM: CGFloat = 6
+    // spacingSmall (8), spacingMedium (12), spacingLarge (20) already defined in Color+Theme
     static let spacingXL: CGFloat = 32
     static let spacingXXL: CGFloat = 48
 
-    // MARK: - Shadows
+    // MARK: - Shadows (3 distinct levels)
 
     enum Shadow {
-        /// Light, unified card shadow — subtle lift without heavy depth.
-        static let cardRadius: CGFloat = 16
-        static let cardY: CGFloat = 6
-        static let cardOpacity: Double = 0.04
+        /// Subtle lift — default card state, barely perceptible.
+        static let cardRadius: CGFloat = 4
+        static let cardY: CGFloat = 1
+        static let cardOpacity: Double = 0.03
 
-        static let elevatedRadius: CGFloat = 16
-        static let elevatedY: CGFloat = 6
-        static let elevatedOpacity: Double = 0.04
+        /// Medium lift — elevated content, clear but restrained.
+        static let elevatedRadius: CGFloat = 8
+        static let elevatedY: CGFloat = 3
+        static let elevatedOpacity: Double = 0.06
 
-        static let focusRadius: CGFloat = 16
-        static let focusY: CGFloat = 6
-        static let focusOpacity: Double = 0.05
+        /// Strong lift — focused / selected / active state.
+        static let focusRadius: CGFloat = 12
+        static let focusY: CGFloat = 4
+        static let focusOpacity: Double = 0.08
+    }
+
+    // MARK: - Opacity Tokens
+
+    enum Opacity {
+        static let hairline: Double = 0.04      // borders, subtle separators
+        static let subtle: Double = 0.06        // card background tints
+        static let light: Double = 0.08         // badge / chip backgrounds
+        static let medium: Double = 0.12        // icon backgrounds, hover states
+        static let noticeable: Double = 0.18    // active borders, selection states
+        static let soft: Double = 0.35          // disabled states
+        static let muted: Double = 0.55         // archived items
+        static let strong: Double = 0.82        // completed-state text
+        static let nearFull: Double = 0.92      // near-opaque overlays
     }
 
     // MARK: - Animation
@@ -62,8 +87,16 @@ extension AppTheme {
         static let inlineSpacing: CGFloat = 8
         static let buttonHeight: CGFloat = 44
         static let buttonHeightSmall: CGFloat = 32
-        static let stagePillHeight: CGFloat = 28
+        static let stagePillHeight: CGFloat = 26
         static let badgeHeight: CGFloat = 22
+
+        // Dense content padding (insight cards, rail rows, editables)
+        static let compactPadding: CGFloat = 10
+
+        // Icon sizes
+        static let iconSmall: CGFloat = 16
+        static let iconMedium: CGFloat = 20
+        static let iconLarge: CGFloat = 24
     }
 
     // MARK: - Border
@@ -72,19 +105,28 @@ extension AppTheme {
         static let thin: CGFloat = 1
         static let medium: CGFloat = 1.5
         static let thick: CGFloat = 2
-        static let color = Color.black.opacity(0.06)
+        static let color: Color = {
+            #if canImport(UIKit)
+            return Color(.separator).opacity(0.5)
+            #else
+            return Color.black.opacity(0.08)
+            #endif
+        }()
     }
 }
 
 // MARK: - View Modifier: Card Shadow
 
 struct CoDesignCardShadow: ViewModifier {
-    enum Level { case card, elevated, focus }
+    enum Level { case none, card, elevated, focus }
 
     let level: Level
 
+    @ViewBuilder
     func body(content: Content) -> some View {
         switch level {
+        case .none:
+            content
         case .card:
             content.shadow(
                 color: Color.black.opacity(AppTheme.Shadow.cardOpacity),
@@ -132,6 +174,10 @@ extension View {
                 Text("Body").font(AppTheme.Typography.body)
                 Text("Caption").font(AppTheme.Typography.caption)
                 Text("Caption Mono").font(AppTheme.Typography.captionMono)
+                Text("Tiny Semibold — field label").font(AppTheme.Typography.tinySemibold)
+                Text("Tiny — helper text").font(AppTheme.Typography.tiny)
+                Text("Micro Semibold — badge").font(AppTheme.Typography.microSemibold)
+                Text("Micro — timestamp").font(AppTheme.Typography.micro)
             }
 
             Divider()
@@ -180,10 +226,10 @@ extension View {
 }
 
 private func colorSwatch(_ name: String, _ color: Color) -> some View {
-    VStack(spacing: 4) {
-        RoundedRectangle(cornerRadius: 6)
+    VStack(spacing: AppTheme.spacingXS) {
+        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall)
             .fill(color)
             .frame(width: 44, height: 44)
-        Text(name).font(.system(size: 9))
+        Text(name).font(AppTheme.Typography.micro)
     }
 }

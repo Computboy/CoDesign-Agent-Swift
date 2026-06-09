@@ -30,7 +30,7 @@ struct CoDesignSectionHeader<Trailing: View>: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingXXS) {
                 Text(title)
                     .font(AppTheme.Typography.headline)
                     .foregroundStyle(Color.textPrimary)

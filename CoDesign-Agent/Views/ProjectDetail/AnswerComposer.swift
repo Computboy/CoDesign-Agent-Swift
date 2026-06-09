@@ -22,8 +22,8 @@ struct AnswerComposer: View {
                 .textFieldStyle(.plain)
                 .lineLimit(1...4)
                 .focused($isInputFocused)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.horizontal, AppTheme.spacingMedium)
+                .padding(.vertical, AppTheme.spacingSmall)
                 .background(
                     RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
                         .fill(Color.elevatedCardBackground)
@@ -49,10 +49,10 @@ struct AnswerComposer: View {
                     }
                 }
                 .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
+                .frame(width: 32, height: 32)
                 .background(
                     Circle()
-                        .fill(canSend ? Color.primaryAccent : Color.textTertiary.opacity(0.45))
+                        .fill(canSend ? Color.primaryAccent : Color.textTertiary.opacity(AppTheme.Opacity.soft))
                 )
             }
             .buttonStyle(.plain)

@@ -11,15 +11,15 @@ struct TreeLegendView: View {
                     isExpanded.toggle()
                 }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: AppTheme.spacingSM) {
                     Image(systemName: "info.circle.fill")
                         .font(.system(size: 11, weight: .semibold))
                     Text("图例")
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                 }
                 .foregroundStyle(Color.textSecondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, AppTheme.spacingMedium)
+                .padding(.vertical, AppTheme.spacingSmall)
                 .background(
                     Capsule(style: .continuous)
                         .fill(.ultraThinMaterial)
@@ -33,28 +33,28 @@ struct TreeLegendView: View {
 
             if isExpanded {
                 legendContent
-                    .padding(16)
+                    .padding(AppTheme.spacingMedium)
                     .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
                             .fill(.ultraThinMaterial)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.3), lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                            .strokeBorder(Color.white.opacity(AppTheme.Opacity.soft), lineWidth: 0.5)
                     )
-                    .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
-                    .padding(.top, 6)
+                    .coDesignShadow(.elevated)
+                    .padding(.top, AppTheme.spacingSM)
                     .transition(.opacity.combined(with: .move(edge: .bottom).combined(with: .scale(scale: 0.95))))
             }
         }
     }
 
     private var legendContent: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
             // Status colors
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
                 Text("状态")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .font(AppTheme.Typography.microSemibold)
                     .foregroundStyle(Color.textTertiary)
                     .textCase(.uppercase)
 
@@ -69,9 +69,9 @@ struct TreeLegendView: View {
                 .opacity(0.3)
 
             // Interaction hints
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingSM) {
                 Text("操作")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .font(AppTheme.Typography.microSemibold)
                     .foregroundStyle(Color.textTertiary)
                     .textCase(.uppercase)
 
@@ -83,7 +83,7 @@ struct TreeLegendView: View {
     }
 
     private func legendRow(color: Color, label: String, dashed: Bool = false) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.spacingSmall) {
             ZStack {
                 Circle()
                     .fill(color.opacity(dashed ? 0.15 : 0.25))
@@ -110,20 +110,20 @@ struct TreeLegendView: View {
             }
 
             Text(label)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(AppTheme.Typography.tiny)
                 .foregroundStyle(Color.textSecondary)
         }
     }
 
     private func hintRow(icon: String, text: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: AppTheme.spacingSmall) {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Color.primaryAccent.opacity(0.7))
-                .frame(width: 16)
+                .foregroundStyle(Color.primaryAccent.opacity(AppTheme.Opacity.strong))
+                .frame(width: AppTheme.Layout.iconSmall)
 
             Text(text)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(AppTheme.Typography.tiny)
                 .foregroundStyle(Color.textTertiary)
         }
     }

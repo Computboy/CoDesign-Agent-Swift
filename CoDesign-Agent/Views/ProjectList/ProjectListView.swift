@@ -48,12 +48,15 @@ struct ProjectListView: View {
                     }
                 }
             }
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         }
         .sheet(isPresented: $isShowingNewProject) {
             NewProjectView()
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showingSettings) {
             APISettingsView()
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -147,7 +150,7 @@ private extension View {
 private struct ProjectCardNavigationButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.985 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .brightness(configuration.isPressed ? -0.015 : 0)
             .animation(AppTheme.Animation.quick, value: configuration.isPressed)
     }

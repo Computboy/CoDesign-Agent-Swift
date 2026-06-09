@@ -61,7 +61,7 @@ struct TreeNodeView: View {
                     Circle()
                         .strokeBorder(.white.opacity(0.46), lineWidth: 1.4)
                 )
-                .shadow(color: Color.primaryAccent.opacity(0.25), radius: 18, y: 7)
+                .shadow(color: Color.primaryAccent.opacity(AppTheme.Opacity.noticeable), radius: 18, y: 7)
 
             VStack(spacing: 3) {
                 Image(systemName: "lightbulb.fill")
@@ -112,15 +112,15 @@ struct TreeNodeView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, AppTheme.spacingMedium)
+        .padding(.vertical, AppTheme.Layout.compactPadding)
         .frame(width: 214, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
                 .fill(stageBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
                 .strokeBorder(
                     node.nodeColor.opacity(node.isGhost ? 0.13 : 0.34),
                     style: node.isGhost
@@ -130,8 +130,8 @@ struct TreeNodeView: View {
         )
         .shadow(
             color: node.kind == .stage && node.statusText == "进行中"
-                ? node.nodeColor.opacity(0.18)
-                : .black.opacity(0.045),
+                ? node.nodeColor.opacity(AppTheme.Opacity.noticeable)
+                : .black.opacity(AppTheme.Opacity.hairline),
             radius: node.statusText == "进行中" ? 14 : 10,
             y: 5
         )
@@ -139,9 +139,9 @@ struct TreeNodeView: View {
 
     private var stageBackground: Color {
         if node.isGhost {
-            return Color.cardBackground.opacity(0.56)
+            return Color.cardBackground.opacity(AppTheme.Opacity.muted)
         }
-        return Color.cardBackground.opacity(0.96)
+        return Color.cardBackground.opacity(AppTheme.Opacity.nearFull)
     }
 
     // MARK: - Process Nodes
@@ -211,11 +211,11 @@ struct TreeNodeView: View {
         .padding(.vertical, 9)
         .frame(width: width, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(node.isArchived ? Color(red: 0.95, green: 0.93, blue: 0.90).opacity(0.78) : Color.cardBackground.opacity(0.95))
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .fill(node.isArchived ? Color(red: 0.95, green: 0.93, blue: 0.90).opacity(AppTheme.Opacity.nearFull) : Color.cardBackground.opacity(AppTheme.Opacity.nearFull))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
                 .strokeBorder(
                     node.nodeColor.opacity(node.isArchived ? 0.28 : 0.22),
                     style: node.isArchived
@@ -266,11 +266,11 @@ struct TreeNodeView: View {
         .padding(.vertical, 9)
         .frame(width: 178, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.secondaryAccent.opacity(node.isGhost ? 0.055 : 0.10))
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .fill(Color.secondaryAccent.opacity(node.isGhost ? 0.055 : AppTheme.Opacity.light))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
                 .strokeBorder(
                     Color.secondaryAccent.opacity(node.isGhost ? 0.18 : 0.34),
                     style: node.isGhost

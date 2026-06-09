@@ -10,7 +10,7 @@ struct InsightsPanel: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 20) {
+            VStack(spacing: AppTheme.spacingLarge) {
                 BriefSummarySection(brief: project.brief)
                 Divider()
                 LearningTraceTimeline(traces: sortedLearningTraces)
@@ -40,12 +40,12 @@ private struct BriefSummarySection: View {
                 ForEach(StageDefinition.all, id: \.order) { def in
                     VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
                         // Stage header
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
                             Text(def.name)
                                 .font(.headline)
                                 .foregroundStyle(Color.textPrimary)
                             Text(def.description)
-                                .font(.caption)
+                                .font(AppTheme.Typography.caption)
                                 .foregroundStyle(Color.textTertiary)
                         }
 
@@ -57,10 +57,11 @@ private struct BriefSummarySection: View {
                     .padding()
                     .background(Color.cardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
+                    .coDesignShadow(.card)
                 }
             } else {
                 Text("暂无设计简报数据")
-                    .font(.subheadline)
+                    .font(AppTheme.Typography.subheadline)
                     .foregroundStyle(Color.textTertiary)
                     .padding()
             }
@@ -130,16 +131,15 @@ private struct BriefFieldRow: View {
         HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
             Image(systemName: fieldIcon)
                 .foregroundStyle(fieldColor)
-                .frame(width: 20)
+                .frame(width: AppTheme.Layout.iconMedium)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingXXS) {
                 Text(fieldDisplayName)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(AppTheme.Typography.subheadline.weight(.medium))
                     .foregroundStyle(Color.textPrimary)
 
                 Text(fieldValue)
-                    .font(.caption)
+                    .font(AppTheme.Typography.caption)
                     .foregroundStyle(isFilled ? Color.textSecondary : Color.textTertiary)
                     .lineLimit(2)
             }
@@ -163,7 +163,7 @@ private struct LearningTraceTimeline: View {
 
             if traces.isEmpty {
                 Text("还没有学习轨迹——开始和 AI 对话，你的设计思维动作会被记录在这里")
-                    .font(.subheadline)
+                    .font(AppTheme.Typography.subheadline)
                     .foregroundStyle(Color.textTertiary)
                     .padding()
             } else {

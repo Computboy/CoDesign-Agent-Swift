@@ -17,7 +17,7 @@ struct AIContextNotice: View {
                 .frame(width: 30, height: 30)
                 .background(
                     Circle()
-                        .fill(Color.secondaryAccent.opacity(0.12))
+                        .fill(Color.secondaryAccent.opacity(AppTheme.Opacity.medium))
                 )
 
             Text("Based on your previous answers, I think your concept is clear enough to discuss MVP boundaries next.")
@@ -34,24 +34,24 @@ struct AIContextNotice: View {
                     .labelStyle(.titleAndIcon)
                     .font(AppTheme.Typography.caption.weight(.medium))
                     .foregroundStyle(Color.primaryAccent)
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, AppTheme.spacingSmall)
                     .frame(height: 30)
                     .background(
                         Capsule(style: .continuous)
-                            .fill(Color.primaryAccent.opacity(0.08))
+                            .fill(Color.primaryAccent.opacity(AppTheme.Opacity.light))
                     )
             }
             .buttonStyle(.plain)
         }
         .padding(.horizontal, AppTheme.Layout.cardPadding)
-        .padding(.vertical, 10)
+        .padding(.vertical, AppTheme.spacingSmall)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
                 .fill(Color.softAccentBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.primaryAccent.opacity(0.16), lineWidth: AppTheme.Border.thin)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                .strokeBorder(Color.primaryAccent.opacity(AppTheme.Opacity.noticeable), lineWidth: AppTheme.Border.thin)
         )
     }
 }

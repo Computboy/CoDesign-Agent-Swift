@@ -20,12 +20,12 @@ struct ProgressPanel: View {
             emptyState
         } else {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 20) {
+                VStack(spacing: AppTheme.spacingLarge) {
                     // Overall progress summary
                     overallProgressSection
 
                     Divider()
-                        .padding(.vertical, 8)
+                        .padding(.vertical, AppTheme.spacingSmall)
 
                     // Stage list
                     stagesSection
@@ -39,7 +39,7 @@ struct ProgressPanel: View {
     // MARK: - Overall Progress Section
 
     private var overallProgressSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
             Text("9 步设计澄清进度")
                 .font(.title2)
                 .fontWeight(.bold)
@@ -53,7 +53,7 @@ struct ProgressPanel: View {
                 Spacer()
 
                 Text("整体完成度")
-                    .font(.subheadline)
+                    .font(AppTheme.Typography.subheadline)
                     .foregroundStyle(.secondary)
             }
 
@@ -63,13 +63,14 @@ struct ProgressPanel: View {
         }
         .padding()
         .background(Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
+        .coDesignShadow(.card)
     }
 
     // MARK: - Stages Section
 
     private var stagesSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppTheme.spacingMedium) {
             ForEach(sortedStages) { stage in
                 StageNodeView(stage: stage)
             }
@@ -79,7 +80,7 @@ struct ProgressPanel: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: AppTheme.spacingMedium) {
             Image(systemName: "chart.bar.xaxis")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
@@ -89,7 +90,7 @@ struct ProgressPanel: View {
                 .foregroundStyle(.primary)
 
             Text("请先创建项目或开始对话")
-                .font(.subheadline)
+                .font(AppTheme.Typography.subheadline)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

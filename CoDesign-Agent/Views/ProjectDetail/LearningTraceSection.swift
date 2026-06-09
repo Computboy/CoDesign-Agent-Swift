@@ -101,35 +101,35 @@ struct LearningTraceSection: View {
                     .foregroundStyle(color)
                     .frame(width: 36, height: 36)
                     .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(color.opacity(0.12))
+                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                            .fill(color.opacity(AppTheme.Opacity.medium))
                     )
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: AppTheme.spacingXXS) {
                     Text(designActionTitle(for: trace))
                         .font(AppTheme.Typography.subheadline.weight(.semibold))
                         .foregroundStyle(Color.textPrimary)
 
                     Text(actionDisplayName(for: trace.actionType))
-                        .font(.system(size: 10))
+                        .font(AppTheme.Typography.micro)
                         .foregroundStyle(Color.textTertiary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, AppTheme.spacingSM)
+                        .padding(.vertical, AppTheme.spacingXXS)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(color.opacity(0.08))
+                                .fill(color.opacity(AppTheme.Opacity.light))
                         )
                 }
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 2) {
+                VStack(alignment: .trailing, spacing: AppTheme.spacingXXS) {
                     Text("阶段 \(trace.stageOrder)")
                         .font(AppTheme.Typography.caption.weight(.medium))
                         .foregroundStyle(color)
 
                     Text(trace.timestamp.formatted(date: .abbreviated, time: .shortened))
-                        .font(.system(size: 10))
+                        .font(AppTheme.Typography.micro)
                         .foregroundStyle(Color.textTertiary)
                 }
 
@@ -221,40 +221,40 @@ struct LearningTraceSection: View {
                     .foregroundStyle(isSelected ? color : color.opacity(0.65))
                     .frame(width: 30, height: 30)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(isSelected ? color.opacity(0.14) : color.opacity(0.08))
+                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                            .fill(isSelected ? color.opacity(AppTheme.Opacity.medium) : color.opacity(AppTheme.Opacity.light))
                     )
 
-                Spacer(minLength: 2)
+                Spacer(minLength: AppTheme.spacingXXS)
 
                 Text(shortTitle(for: trace))
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(AppTheme.Typography.tinySemibold)
                     .foregroundStyle(isSelected ? Color.textPrimary : Color.textSecondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: 4) {
+                HStack(spacing: AppTheme.spacingXS) {
                     Text("S\(trace.stageOrder)")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(AppTheme.Typography.micro)
                         .foregroundStyle(Color.textTertiary)
                 }
             }
-            .padding(12)
-            .frame(width: 130, height: 96, alignment: .topLeading)
+            .padding(AppTheme.spacingMedium)
+            .frame(width: 128, height: 88, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
                     .fill(isSelected
-                        ? color.opacity(0.06)
+                        ? color.opacity(AppTheme.Opacity.subtle)
                         : Color.elevatedCardBackground)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
                     .strokeBorder(
-                        isSelected ? color.opacity(0.24) : AppTheme.Border.color,
+                        isSelected ? color.opacity(AppTheme.Opacity.noticeable) : AppTheme.Border.color,
                         lineWidth: isSelected ? AppTheme.Border.medium : AppTheme.Border.thin
                     )
             )
-            .shadow(color: isSelected ? color.opacity(0.08) : Color.clear, radius: 6, x: 0, y: 2)
+            .coDesignShadow(isSelected ? .focus : .card)
             .scaleEffect(isSelected ? 1.03 : 1.0)
         }
         .buttonStyle(.plain)
@@ -271,7 +271,7 @@ struct LearningTraceSection: View {
         case "challenge":      return ("questionmark.diamond", Color.warning)
         case "prioritize":     return ("arrow.down.right.and.arrow.up.left", Color.success)
         case "bound":          return ("lock.shield", Color.primaryAccent)
-        case "methodCard":     return ("rectangle.stack.badge.play", Color.orange)
+        case "methodCard":     return ("rectangle.stack.badge.play", Color.warning)
         default:               return ("sparkles", Color.textTertiary)
         }
     }

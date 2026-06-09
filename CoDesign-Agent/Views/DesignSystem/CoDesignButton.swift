@@ -71,7 +71,7 @@ struct CoDesignButton: View {
             .overlay(overlayView)
         }
         .disabled(effectiveDisabled)
-        .opacity(effectiveDisabled ? 0.5 : 1.0)
+        .opacity(effectiveDisabled ? AppTheme.Opacity.soft : 1.0)
         .animation(AppTheme.Animation.quick, value: effectiveDisabled)
         .buttonStyle(.plain)
     }
@@ -96,9 +96,9 @@ struct CoDesignButton: View {
 
     private var horizontalPadding: CGFloat {
         switch style {
-        case .primary:   return 20
-        case .secondary: return 16
-        case .ghost:     return 12
+        case .primary:   return AppTheme.spacingLarge
+        case .secondary: return AppTheme.spacingMedium
+        case .ghost:     return AppTheme.spacingSmall
         }
     }
 
@@ -106,9 +106,13 @@ struct CoDesignButton: View {
     private var backgroundView: some View {
         switch style {
         case .primary:
-            Color.primaryAccent
+            LinearGradient(
+                colors: [Color.primaryAccent, Color.primaryAccent.opacity(0.88)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         case .secondary:
-            Color.primaryAccent.opacity(0.1)
+            Color.primaryAccent.opacity(AppTheme.Opacity.medium)
         case .ghost:
             Color.clear
         }
@@ -153,11 +157,11 @@ struct CoDesignSmallButton: View {
                     .font(AppTheme.Typography.caption.weight(.medium))
             }
             .foregroundStyle(isFilled ? Color.white : Color.primaryAccent)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, AppTheme.Layout.compactPadding)
             .frame(height: AppTheme.Layout.buttonHeightSmall)
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                    .fill(isFilled ? Color.primaryAccent : Color.primaryAccent.opacity(0.1))
+                    .fill(isFilled ? Color.primaryAccent : Color.primaryAccent.opacity(AppTheme.Opacity.medium))
             )
         }
         .buttonStyle(.plain)

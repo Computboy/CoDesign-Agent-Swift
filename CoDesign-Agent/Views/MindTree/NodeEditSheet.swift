@@ -61,7 +61,7 @@ struct NodeEditSheet: View {
                                 .font(AppTheme.Typography.body)
                                 .padding(8)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 8)
+                                    RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall)
                                         .fill(Color.softAccentBackground)
                                 )
                         }

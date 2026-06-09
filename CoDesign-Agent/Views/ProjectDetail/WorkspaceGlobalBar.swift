@@ -17,7 +17,7 @@ struct WorkspaceGlobalBar: View {
             compactLayout
         }
         .padding(.horizontal, AppTheme.spacingLarge)
-        .padding(.vertical, 6)
+        .padding(.vertical, AppTheme.spacingSM)
         .background(.ultraThinMaterial)
     }
 
@@ -58,10 +58,10 @@ struct WorkspaceGlobalBar: View {
     private var autonomyControl: some View {
         HStack(spacing: AppTheme.spacingSmall) {
             Text("AI 引导")
-            VStack(spacing: 2) {
+            VStack(spacing: AppTheme.spacingXXS) {
                 autonomyTrack
                 Text("平衡")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(AppTheme.Typography.micro)
                     .foregroundStyle(Color.primaryAccent)
             }
             Text("用户主导")
@@ -69,7 +69,7 @@ struct WorkspaceGlobalBar: View {
         .font(AppTheme.Typography.caption)
         .foregroundStyle(Color.textTertiary)
         .padding(.horizontal, AppTheme.spacingSmall)
-        .frame(height: 32)
+        .frame(height: AppTheme.Layout.buttonHeightSmall)
         .background(
             Capsule(style: .continuous)
                 .fill(Color.elevatedCardBackground.opacity(0.78))
@@ -99,17 +99,17 @@ struct WorkspaceGlobalBar: View {
     private var contextLoopBadge: some View {
         HStack(spacing: AppTheme.spacingXS) {
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 10, weight: .semibold))
+                .font(AppTheme.Typography.microSemibold)
             Text("上下文循环已激活")
                 .lineLimit(1)
         }
         .font(AppTheme.Typography.caption.weight(.medium))
-        .foregroundStyle(Color.primaryAccent.opacity(0.82))
-        .padding(.horizontal, 10)
-        .frame(height: 32)
+        .foregroundStyle(Color.primaryAccent.opacity(AppTheme.Opacity.strong))
+        .padding(.horizontal, AppTheme.spacingSmall)
+        .frame(height: AppTheme.Layout.buttonHeightSmall)
         .background(
             Capsule(style: .continuous)
-                .fill(Color.primaryAccent.opacity(0.06))
+                .fill(Color.primaryAccent.opacity(AppTheme.Opacity.subtle))
         )
     }
 
@@ -124,13 +124,13 @@ struct WorkspaceGlobalBar: View {
             Label("思维树", systemImage: ProjectDetailTab.mindTree.systemImage)
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(selectedTab == .mindTree ? Color.white : Color.primaryAccent)
-                .padding(.horizontal, 12)
-                .frame(height: 32)
+                .padding(.horizontal, AppTheme.spacingMedium)
+                .frame(height: AppTheme.Layout.buttonHeightSmall)
                 .background(
                     Capsule(style: .continuous)
                         .fill(selectedTab == .mindTree
                               ? Color.primaryAccent
-                              : Color.primaryAccent.opacity(0.08))
+                              : Color.primaryAccent.opacity(AppTheme.Opacity.light))
                 )
         }
         .buttonStyle(.plain)
@@ -147,13 +147,13 @@ struct WorkspaceGlobalBar: View {
             Label("成果看板", systemImage: ProjectDetailTab.visualBoard.systemImage)
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(selectedTab == .visualBoard ? Color.white : Color.primaryAccent)
-                .padding(.horizontal, 12)
-                .frame(height: 32)
+                .padding(.horizontal, AppTheme.spacingMedium)
+                .frame(height: AppTheme.Layout.buttonHeightSmall)
                 .background(
                     Capsule(style: .continuous)
                         .fill(selectedTab == .visualBoard
                               ? Color.primaryAccent
-                              : Color.primaryAccent.opacity(0.08))
+                              : Color.primaryAccent.opacity(AppTheme.Opacity.light))
                 )
         }
         .buttonStyle(.plain)
@@ -170,13 +170,13 @@ struct WorkspaceGlobalBar: View {
             Label("作品档案", systemImage: ProjectDetailTab.portfolio.systemImage)
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(selectedTab == .portfolio ? Color.white : Color.primaryAccent)
-                .padding(.horizontal, 12)
-                .frame(height: 32)
+                .padding(.horizontal, AppTheme.spacingMedium)
+                .frame(height: AppTheme.Layout.buttonHeightSmall)
                 .background(
                     Capsule(style: .continuous)
                         .fill(selectedTab == .portfolio
                               ? Color.primaryAccent
-                              : Color.primaryAccent.opacity(0.08))
+                              : Color.primaryAccent.opacity(AppTheme.Opacity.light))
                 )
         }
         .buttonStyle(.plain)
@@ -191,8 +191,8 @@ struct WorkspaceGlobalBar: View {
             Label("导出简报", systemImage: "square.and.arrow.up")
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(Color.white)
-                .padding(.horizontal, 12)
-                .frame(height: 32)
+                .padding(.horizontal, AppTheme.spacingMedium)
+                .frame(height: AppTheme.Layout.buttonHeightSmall)
                 .background(
                     Capsule(style: .continuous)
                         .fill(Color.primaryAccent)
@@ -223,7 +223,7 @@ struct WorkspaceGlobalBar: View {
             Image(systemName: "ellipsis.circle")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(Color.textSecondary)
-                .frame(width: 32, height: 32)
+                .frame(width: AppTheme.Layout.buttonHeightSmall, height: AppTheme.Layout.buttonHeightSmall)
                 .background(
                     Circle()
                         .fill(Color.elevatedCardBackground)

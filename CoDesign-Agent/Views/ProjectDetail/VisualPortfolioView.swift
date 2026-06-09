@@ -49,7 +49,7 @@ struct VisualPortfolioView: View {
                     .padding(AppTheme.spacingLarge)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.elevatedCardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous))
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: AppTheme.spacingMedium)], spacing: AppTheme.spacingMedium) {
                     ForEach(sortedLearningTraces) { trace in

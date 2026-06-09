@@ -4,7 +4,7 @@ import SwiftUI
 
 extension Color {
 
-    // MARK: 基础背景
+    // MARK: Surface Hierarchy (3 levels)
 
     static let appBackground: Color = {
         #if canImport(UIKit)
@@ -30,15 +30,22 @@ extension Color {
         #endif
     }()
 
-    static let panelBackground = Color(red: 0.973, green: 0.980, blue: 0.988)
+    /// Adaptive panel surface — light: cool neutral gray, dark: system secondary bg.
+    static let panelBackground: Color = {
+        #if canImport(UIKit)
+        return Color(.secondarySystemBackground)
+        #else
+        return Color(red: 0.97, green: 0.97, blue: 0.98)
+        #endif
+    }()
 
-    // MARK: 品牌色
+    // MARK: Accent Colors (desaturated for calm, professional feel)
 
-    static let primaryAccent = Color(red: 0.35, green: 0.47, blue: 0.93)   // 柔和蓝紫
-    static let secondaryAccent = Color(red: 0.58, green: 0.44, blue: 0.86) // 柔和紫
-    static let softAccentBackground = Color(red: 0.94, green: 0.95, blue: 0.99)
+    static let primaryAccent = Color(red: 0.36, green: 0.45, blue: 0.84)   // restrained blue
+    static let secondaryAccent = Color(red: 0.52, green: 0.44, blue: 0.76) // muted slate-purple
+    static let softAccentBackground = Color(red: 0.95, green: 0.96, blue: 0.99)
 
-    // MARK: 文本色
+    // MARK: Text Colors
 
     static let textPrimary: Color = {
         #if canImport(UIKit)
@@ -64,23 +71,25 @@ extension Color {
         #endif
     }()
 
-    // MARK: 状态色
+    // MARK: Status Colors (desaturated — forest green, dark amber, serious red)
 
-    static let success = Color(red: 0.30, green: 0.78, blue: 0.47)   // 绿
-    static let warning = Color(red: 0.95, green: 0.75, blue: 0.25)   // 琥珀黄
-    static let danger = Color(red: 0.91, green: 0.36, blue: 0.36)    // 红
-    static let info = Color(red: 0.35, green: 0.63, blue: 0.90)      // 蓝
+    static let success = Color(red: 0.27, green: 0.69, blue: 0.42)   // forest green
+    static let warning = Color(red: 0.86, green: 0.68, blue: 0.22)   // dark amber
+    static let danger = Color(red: 0.82, green: 0.33, blue: 0.33)    // serious red
+    static let info = Color(red: 0.32, green: 0.58, blue: 0.82)      // slate blue
 
-    // MARK: 阶段状态色
+    // MARK: Stage Status Colors
 
-    static let stageNotStarted = Color(red: 0.78, green: 0.78, blue: 0.80)   // 灰
-    static let stageActive = Color(red: 0.35, green: 0.47, blue: 0.93)       // 蓝紫（同 primaryAccent）
-    static let stageCompleted = Color(red: 0.30, green: 0.78, blue: 0.47)    // 绿（同 success）
-    static let stageNeedsReview = Color(red: 0.95, green: 0.75, blue: 0.25)  // 黄（同 warning）
+    static let stageNotStarted = Color(red: 0.78, green: 0.78, blue: 0.80)   // muted gray (unique)
 
-    // MARK: 聊天角色色
+    /// Aliases — canonical tokens are the source of truth.
+    static let stageActive = Color.primaryAccent
+    static let stageCompleted = Color.success
+    static let stageNeedsReview = Color.warning
 
-    static let userBubbleBackground = Color(red: 0.35, green: 0.47, blue: 0.93)    // 蓝紫
+    // MARK: Chat Role Colors
+
+    static let userBubbleBackground = Color.primaryAccent
     static let assistantBubbleBackground: Color = {
         #if canImport(UIKit)
         return Color(.secondarySystemBackground)
@@ -88,11 +97,19 @@ extension Color {
         return Color(red: 0.93, green: 0.93, blue: 0.95)
         #endif
     }()
-    static let reflectionCardBackground = Color(red: 0.96, green: 0.94, blue: 0.99) // 淡紫
 
-    // MARK: 阶段状态 → Color 映射
+    /// Neutral surface — purple tint removed for calm interface.
+    static let reflectionCardBackground: Color = {
+        #if canImport(UIKit)
+        return Color(.secondarySystemBackground)
+        #else
+        return Color(red: 0.97, green: 0.97, blue: 0.97)
+        #endif
+    }()
 
-    /// 根据 StageStatus 返回对应颜色（用于 StageNodeView / ProgressPanel）
+    // MARK: Stage Status → Color Mapping
+
+    /// Returns the appropriate color for a given stage status.
     static func stageColor(for status: StageStatus) -> Color {
         switch status {
         case .notStarted:  return .stageNotStarted
@@ -102,7 +119,7 @@ extension Color {
         }
     }
 
-    /// 根据 String 状态返回对应颜色（兼容 Model 层直接使用）
+    /// String-based status color lookup (for Model layer convenience).
     static func stageColor(for status: String) -> Color {
         switch status {
         case "notStarted":  return .stageNotStarted
@@ -117,16 +134,14 @@ extension Color {
 // MARK: - AppTheme Token
 
 enum AppTheme {
-    // 圆角
-    static let cornerRadiusSmall: CGFloat = 14
-    static let cornerRadiusMedium: CGFloat = 20
-    static let cornerRadiusLarge: CGFloat = 24
+    // Corner Radii — tight professional scale: 8 < 12 < 16 < 20
+    static let cornerRadiusSmall: CGFloat = 8
+    static let cornerRadiusMedium: CGFloat = 12
+    static let cornerRadiusLarge: CGFloat = 16
+    static let cornerRadiusXL: CGFloat = 20
 
-    // 间距
+    // Spacing — extended scale: 2/4/6/8/12/20/32/48
     static let spacingSmall: CGFloat = 8
     static let spacingMedium: CGFloat = 12
     static let spacingLarge: CGFloat = 20
-
-    // 阴影
-    static let cardShadowRadius: CGFloat = 8
 }

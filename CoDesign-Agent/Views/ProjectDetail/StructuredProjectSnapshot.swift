@@ -50,11 +50,11 @@ struct StructuredProjectSnapshot: View {
                         Label("编辑快照", systemImage: "pencil.line")
                             .font(AppTheme.Typography.caption.weight(.medium))
                             .foregroundStyle(Color.primaryAccent)
-                            .padding(.horizontal, 10)
+                            .padding(.horizontal, AppTheme.spacingSmall)
                             .frame(height: AppTheme.Layout.buttonHeightSmall)
                             .background(
                                 Capsule(style: .continuous)
-                                    .fill(Color.primaryAccent.opacity(0.08))
+                                    .fill(Color.primaryAccent.opacity(AppTheme.Opacity.light))
                             )
                     }
                     .buttonStyle(.plain)
@@ -162,11 +162,11 @@ private struct FieldSnapshotCard: View {
                     .foregroundStyle(Color.primaryAccent)
                     .frame(width: 28, height: 28)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.primaryAccent.opacity(0.10))
+                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                            .fill(Color.primaryAccent.opacity(AppTheme.Opacity.light))
                     )
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: AppTheme.spacingXXS) {
                     Text(field.displayName)
                         .font(AppTheme.Typography.caption.weight(.semibold))
                         .foregroundStyle(Color.textPrimary)
@@ -207,15 +207,15 @@ private struct FieldSnapshotCard: View {
                 CoDesignStatusBadge(status: statusBadge.status, text: statusBadge.text)
             }
         }
-        .padding(14)
+        .padding(AppTheme.Layout.compactPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
                 .fill(Color.cardBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.primaryAccent.opacity(0.10), lineWidth: AppTheme.Border.thin)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .strokeBorder(Color.primaryAccent.opacity(AppTheme.Opacity.light), lineWidth: AppTheme.Border.thin)
         )
         .coDesignShadow(.card)
     }

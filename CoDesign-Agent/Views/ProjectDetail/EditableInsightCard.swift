@@ -184,7 +184,7 @@ struct EditableInsightCard: View {
         return VStack {
             cardBody
         }
-        .padding(14)
+        .padding(AppTheme.Layout.compactPadding)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
                 .fill(Color.elevatedCardBackground)
@@ -201,10 +201,10 @@ struct EditableInsightCard: View {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(accentColor)
                     .frame(width: 4)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, AppTheme.spacingSmall)
             }
         }
-        .shadow(color: Color.black.opacity(0.02), radius: 8, x: 0, y: 2)
+        .coDesignShadow(.card)
     }
 
     @ViewBuilder
@@ -253,11 +253,11 @@ struct EditableInsightCard: View {
 
             // Rejected hint
             if isRejected {
-                HStack(spacing: 4) {
+                HStack(spacing: AppTheme.spacingXS) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(AppTheme.Typography.micro)
                     Text("已标记为需修正，可点击编辑调整")
-                        .font(.system(size: 10))
+                        .font(AppTheme.Typography.micro)
                 }
                 .foregroundStyle(Color.warning)
                 .fixedSize(horizontal: false, vertical: true)
@@ -278,12 +278,12 @@ struct EditableInsightCard: View {
                             onReject()
                         } label: {
                             Image(systemName: "exclamationmark.triangle")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Color.warning.opacity(0.85))
-                                .frame(width: 26, height: 26)
+                                .font(AppTheme.Typography.tinySemibold)
+                                .foregroundStyle(Color.warning.opacity(AppTheme.Opacity.strong))
+                                .frame(width: AppTheme.Layout.badgeHeight, height: AppTheme.Layout.badgeHeight)
                                 .background(
                                     Circle()
-                                        .fill(Color.warning.opacity(0.08))
+                                        .fill(Color.warning.opacity(AppTheme.Opacity.light))
                                 )
                         }
                         .buttonStyle(.plain)
@@ -295,7 +295,7 @@ struct EditableInsightCard: View {
                     quietFieldButton("手动填写", icon: "pencil", tint: .primaryAccent, action: onEdit)
 
                     Text("等待对话补全")
-                        .font(.system(size: 10))
+                        .font(AppTheme.Typography.micro)
                         .foregroundStyle(Color.textTertiary)
                 }
             }
@@ -303,33 +303,33 @@ struct EditableInsightCard: View {
     }
 
     private func evidenceChip(_ quote: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
             Button {
                 withAnimation(AppTheme.Animation.quick) {
                     isEvidenceExpanded.toggle()
                 }
             } label: {
                 Label("Evidence", systemImage: "quote.bubble")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(AppTheme.Typography.microSemibold)
                     .foregroundStyle(Color.primaryAccent)
-                    .padding(.horizontal, 8)
-                    .frame(height: 22)
+                    .padding(.horizontal, AppTheme.spacingSmall)
+                    .frame(height: AppTheme.Layout.badgeHeight)
                     .background(
                         Capsule(style: .continuous)
-                            .fill(Color.primaryAccent.opacity(0.08))
+                            .fill(Color.primaryAccent.opacity(AppTheme.Opacity.light))
                     )
             }
             .buttonStyle(.plain)
 
             if isEvidenceExpanded {
                 Text(quote)
-                    .font(.system(size: 10))
+                    .font(AppTheme.Typography.micro)
                     .foregroundStyle(Color.textSecondary)
-                    .padding(8)
+                    .padding(AppTheme.spacingSmall)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
                         RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                            .fill(Color.primaryAccent.opacity(0.06))
+                            .fill(Color.primaryAccent.opacity(AppTheme.Opacity.subtle))
                     )
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -344,13 +344,13 @@ struct EditableInsightCard: View {
     ) -> some View {
         Button(action: action) {
             Label(title, systemImage: icon)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(tint.opacity(0.9))
-                .padding(.horizontal, 8)
-                .frame(height: 26)
+                .font(AppTheme.Typography.tinySemibold)
+                .foregroundStyle(tint.opacity(AppTheme.Opacity.strong))
+                .padding(.horizontal, AppTheme.spacingSmall)
+                .frame(height: AppTheme.Layout.badgeHeight)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(tint.opacity(0.08))
+                        .fill(tint.opacity(AppTheme.Opacity.light))
                 )
         }
         .buttonStyle(.plain)

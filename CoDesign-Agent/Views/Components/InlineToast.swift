@@ -57,10 +57,10 @@ struct InlineToast: View {
             .padding(.vertical, AppTheme.spacingSmall)
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall)
-                    .fill(type.color.opacity(0.1))
+                    .fill(type.color.opacity(AppTheme.Opacity.light))
                     .overlay(
                         RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall)
-                            .stroke(type.color.opacity(0.3), lineWidth: 1)
+                            .stroke(type.color.opacity(AppTheme.Opacity.soft), lineWidth: 1)
                     )
             )
             .transition(.move(edge: .top).combined(with: .opacity))

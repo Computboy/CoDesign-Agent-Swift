@@ -39,7 +39,7 @@ struct DesignJourneyTimelineView: View {
                     .foregroundStyle(isCurrent ? Color.white : Color.stageColor(for: status))
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
                 HStack(spacing: AppTheme.spacingSmall) {
                     Text(definition.name)
                         .font(AppTheme.Typography.subheadline.weight(.semibold))
@@ -59,12 +59,12 @@ struct DesignJourneyTimelineView: View {
         }
         .padding(AppTheme.spacingMedium)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(isCurrent ? Color.primaryAccent.opacity(0.08) : Color.elevatedCardBackground)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .fill(isCurrent ? Color.primaryAccent.opacity(AppTheme.Opacity.light) : Color.elevatedCardBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(isCurrent ? Color.primaryAccent.opacity(0.32) : AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .strokeBorder(isCurrent ? Color.primaryAccent.opacity(AppTheme.Opacity.soft) : AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
         )
     }
 

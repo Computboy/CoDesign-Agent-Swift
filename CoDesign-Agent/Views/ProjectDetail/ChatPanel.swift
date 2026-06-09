@@ -16,11 +16,11 @@ struct ChatPanel: View {
             // 错误提示
             if let errorMessage = chatViewModel.errorMessage {
                 Text(errorMessage)
-                    .font(.caption)
+                    .font(AppTheme.Typography.caption)
                     .foregroundStyle(Color.danger)
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    .background(Color.danger.opacity(0.1))
+                    .padding(.horizontal, AppTheme.spacingMedium)
+                    .padding(.vertical, AppTheme.spacingSmall)
+                    .background(Color.danger.opacity(AppTheme.Opacity.medium))
             }
 
             Divider()
@@ -35,7 +35,7 @@ struct ChatPanel: View {
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: AppTheme.spacingMedium) {
                     if project.messages.isEmpty && !chatViewModel.isStreaming {
                         emptyState
                     }
@@ -50,13 +50,14 @@ struct ChatPanel: View {
                     if chatViewModel.isStreaming && !chatViewModel.currentStreamingText.isEmpty {
                         HStack {
                             Text(chatViewModel.currentStreamingText)
+                                .font(AppTheme.Typography.body)
                                 .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, AppTheme.spacingMedium)
+                            .padding(.vertical, AppTheme.spacingSmall)
                             .background(Color.cardBackground)
                             .foregroundStyle(Color.textPrimary)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .frame(width: 280, alignment: .leading)
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous))
+                            .frame(maxWidth: 300, alignment: .leading)
                             Spacer()
                         }
                         .id("streaming")
@@ -95,27 +96,27 @@ struct ChatPanel: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppTheme.spacingMedium) {
             Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 48))
+                .font(.system(size: 36))
                 .foregroundStyle(Color.textTertiary)
 
             Text("从一个模糊想法开始")
-                .font(.headline)
+                .font(AppTheme.Typography.headline)
                 .foregroundStyle(Color.textSecondary)
 
             Text("AI 会通过追问帮你逐步澄清设计任务")
-                .font(.subheadline)
+                .font(AppTheme.Typography.subheadline)
                 .foregroundStyle(Color.textTertiary)
                 .multilineTextAlignment(.center)
         }
-        .padding(.vertical, 40)
+        .padding(.vertical, AppTheme.spacingXXL)
     }
 
     // MARK: - Input Area
 
     private var inputArea: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: AppTheme.spacingMedium) {
             TextField("输入你的想法...", text: $inputText, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...4)
@@ -139,12 +140,12 @@ struct ChatPanel: View {
                 }
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.title)
+                    .font(.title2)
                     .foregroundStyle(canSend ? Color.primaryAccent : Color.textTertiary)
             }
             .disabled(!canSend)
         }
-        .padding()
+        .padding(AppTheme.spacingMedium)
         .background(Color.appBackground)
         .task {
             refocusWhenReady()

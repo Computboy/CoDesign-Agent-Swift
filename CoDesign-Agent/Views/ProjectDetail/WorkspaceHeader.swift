@@ -79,7 +79,7 @@ struct WorkspaceHeader: View {
                         ProgressView(value: project.completionRate)
                             .progressViewStyle(.linear)
                             .tint(.primaryAccent)
-                            .frame(width: 60)
+                            .frame(width: 72)
                     }
                 }
 

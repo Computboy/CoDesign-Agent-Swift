@@ -88,7 +88,7 @@ struct ClarificationWorkspaceView: View {
             }
             .padding(.horizontal, AppTheme.spacingMedium)
             .padding(.vertical, AppTheme.spacingSmall)
-            .padding(.bottom, 40)
+            .padding(.bottom, AppTheme.spacingXL)
         }
         .coDesignHideScrollIndicators()
     }
@@ -114,7 +114,7 @@ private struct DesignBriefDisclosurePanel: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.primaryAccent)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: AppTheme.spacingXXS) {
                     Text("设计产物 / Design Brief")
                         .font(AppTheme.Typography.subheadline.weight(.semibold))
                         .foregroundStyle(Color.textPrimary)

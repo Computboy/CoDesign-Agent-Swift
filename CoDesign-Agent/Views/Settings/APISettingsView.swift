@@ -121,6 +121,7 @@ struct APISettingsView: View {
             #if DEBUG
             .sheet(isPresented: $showDialogueGym) {
                 DialogueGymDebugView()
+                    .presentationDragIndicator(.visible)
             }
             #endif
         }

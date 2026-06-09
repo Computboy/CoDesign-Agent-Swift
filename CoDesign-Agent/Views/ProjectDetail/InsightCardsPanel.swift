@@ -62,6 +62,7 @@ struct InsightCardsPanel: View {
                         showToast("\(field.displayName) 编辑已保存", type: .success)
                     }
                 )
+                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -202,22 +203,22 @@ struct InsightCardsPanel: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Color.warning)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingXXS) {
                 Text("本轮未可靠提取，已保留原字段")
                     .font(AppTheme.Typography.caption.weight(.semibold))
                     .foregroundStyle(Color.warning)
                 if let value = log.candidateValue {
                     Text(value)
-                        .font(.system(size: 10))
+                        .font(AppTheme.Typography.micro)
                         .foregroundStyle(Color.textTertiary)
                         .lineLimit(2)
                 }
             }
         }
-        .padding(10)
+        .padding(AppTheme.Layout.compactPadding)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .fill(Color.warning.opacity(0.08))
+                .fill(Color.warning.opacity(AppTheme.Opacity.light))
         )
     }
 }
@@ -252,22 +253,22 @@ private struct ExtractionReviewView: View {
                     reviewRow(log)
                 }
             }
-            .padding(10)
+            .padding(AppTheme.Layout.compactPadding)
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                    .fill(Color.primaryAccent.opacity(0.06))
+                    .fill(Color.primaryAccent.opacity(AppTheme.Opacity.subtle))
             )
         }
     }
 
     private func reviewRow(_ log: ExtractionAuditLog) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: AppTheme.spacingSM) {
             HStack(alignment: .firstTextBaseline) {
                 Text(fieldTitle(log.fieldName))
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(AppTheme.Typography.tinySemibold)
                     .foregroundStyle(Color.textPrimary)
                 Text("Needs Review · \(Int((log.confidence * 100).rounded()))%")
-                    .font(.system(size: 10))
+                    .font(AppTheme.Typography.micro)
                     .foregroundStyle(Color.warning)
                 Spacer()
             }
@@ -286,7 +287,7 @@ private struct ExtractionReviewView: View {
 
             if let quote = log.evidenceQuote, !quote.isEmpty {
                 Text("“\(quote)”")
-                    .font(.system(size: 10))
+                    .font(AppTheme.Typography.micro)
                     .foregroundStyle(Color.textTertiary)
                     .lineLimit(2)
             }
@@ -318,7 +319,7 @@ private struct ExtractionReviewView: View {
                 }
             }
         }
-        .padding(8)
+        .padding(AppTheme.spacingSmall)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
                 .fill(Color.elevatedCardBackground)
@@ -333,13 +334,13 @@ private struct ExtractionReviewView: View {
     ) -> some View {
         Button(action: action) {
             Label(title, systemImage: icon)
-                .font(.system(size: 10, weight: .medium))
+                .font(AppTheme.Typography.micro)
                 .foregroundStyle(tint)
-                .padding(.horizontal, 7)
-                .frame(height: 24)
+                .padding(.horizontal, AppTheme.spacingSM)
+                .frame(height: AppTheme.Layout.badgeHeight)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(tint.opacity(0.08))
+                        .fill(tint.opacity(AppTheme.Opacity.light))
                 )
         }
         .buttonStyle(.plain)
@@ -366,23 +367,23 @@ private struct ExtractionAuditDisclosure: View {
     var body: some View {
         if !rejectedLogs.isEmpty {
             DisclosureGroup {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: AppTheme.spacingSM) {
                     ForEach(rejectedLogs, id: \.id) { log in
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: AppTheme.spacingXXS) {
                             Text("\(fieldTitle(log.fieldName)) · Rejected · \(Int((log.confidence * 100).rounded()))%")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(AppTheme.Typography.microSemibold)
                                 .foregroundStyle(Color.textSecondary)
                             Text(log.validationNotes.isEmpty ? (log.candidateValue ?? "") : log.validationNotes)
-                                .font(.system(size: 10))
+                                .font(AppTheme.Typography.micro)
                                 .foregroundStyle(Color.textTertiary)
                                 .lineLimit(2)
                         }
                     }
                 }
-                .padding(.top, 4)
+                .padding(.top, AppTheme.spacingXS)
             } label: {
                 Text("Extraction Audit")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(AppTheme.Typography.tinySemibold)
                     .foregroundStyle(Color.textTertiary)
             }
         }

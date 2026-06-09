@@ -55,7 +55,7 @@ struct DesignCompletionReviewCard: View {
                 // Updated time
                 HStack(spacing: AppTheme.spacingXS) {
                     Image(systemName: "clock")
-                        .font(.system(size: 11))
+                        .font(AppTheme.Typography.tiny)
                         .foregroundStyle(Color.textTertiary)
                     Text("更新于 \(project.updatedAt.formatted(date: .abbreviated, time: .shortened))")
                         .font(AppTheme.Typography.caption)
@@ -76,11 +76,11 @@ struct DesignCompletionReviewCard: View {
         HStack(alignment: .top, spacing: AppTheme.spacingMedium) {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(Color.success.opacity(0.9))
+                .foregroundStyle(Color.success.opacity(AppTheme.Opacity.strong))
                 .frame(width: 42, height: 42)
                 .background(
                     Circle()
-                        .fill(Color.success.opacity(0.08))
+                        .fill(Color.success.opacity(AppTheme.Opacity.light))
                 )
 
             VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
@@ -118,13 +118,13 @@ struct DesignCompletionReviewCard: View {
                 ForEach(Array(keyFields.enumerated()), id: \.offset) { index, field in
                     HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
                         Circle()
-                            .fill(Color.primaryAccent.opacity(0.35))
+                            .fill(Color.primaryAccent.opacity(AppTheme.Opacity.soft))
                             .frame(width: 5, height: 5)
                             .padding(.top, 7)
 
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: AppTheme.spacingXXS) {
                             Text(field.label)
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(AppTheme.Typography.tinySemibold)
                                 .foregroundStyle(Color.textTertiary)
                             Text(field.value)
                                 .font(AppTheme.Typography.caption)
@@ -145,7 +145,7 @@ struct DesignCompletionReviewCard: View {
             .padding(.vertical, AppTheme.spacingXS)
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                    .fill(Color.panelBackground.opacity(0.72))
+                    .fill(Color.panelBackground)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)

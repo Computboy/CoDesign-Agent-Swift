@@ -33,7 +33,7 @@ struct ProjectEmptyStateView: View {
                     HStack {
                         Spacer()
                         Image(systemName: "sparkles")
-                            .font(.system(size: 40))
+                            .font(.system(size: 36))
                             .foregroundStyle(Color.primaryAccent.opacity(0.7))
                         Spacer()
                     }
@@ -74,7 +74,7 @@ struct ProjectEmptyStateView: View {
             Spacer()
 
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 40))
+                .font(.system(size: 36))
                 .foregroundStyle(Color.textTertiary)
 
             Text("没有找到匹配的项目")

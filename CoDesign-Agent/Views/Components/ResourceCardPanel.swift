@@ -39,12 +39,12 @@ struct ResourceCardPanel: View {
                 }
             } label: {
                 HStack(alignment: .center, spacing: AppTheme.spacingSmall) {
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: AppTheme.spacingXXS) {
                         Text(title)
                             .font(AppTheme.Typography.caption.weight(.semibold))
                             .foregroundStyle(Color.textPrimary)
                         Text(statusText)
-                            .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                            .font(AppTheme.Typography.micro)
                             .foregroundStyle(Color.textTertiary)
                             .lineLimit(1)
                     }
@@ -54,11 +54,11 @@ struct ResourceCardPanel: View {
                     if isSearchingPapers {
                         ProgressView()
                             .controlSize(.small)
-                            .tint(Color.orange)
+                            .tint(Color.warning)
                     } else {
                         Image(systemName: panelIconName)
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(allowsOnlineSearch && !onlinePapers.isEmpty ? Color.success : Color.orange)
+                            .foregroundStyle(allowsOnlineSearch && !onlinePapers.isEmpty ? Color.success : Color.warning)
                     }
 
                     Image(systemName: "chevron.down")
@@ -77,8 +77,8 @@ struct ResourceCardPanel: View {
                         .foregroundStyle(Color.textTertiary)
                         .padding(AppTheme.spacingMedium)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.white.opacity(0.88))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(Color.elevatedCardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous))
                 } else {
                     VStack(spacing: AppTheme.spacingSmall) {
                         ForEach(recommendations) { resource in
@@ -90,7 +90,7 @@ struct ResourceCardPanel: View {
             }
         }
         .padding(.horizontal, AppTheme.spacingMedium)
-        .padding(.vertical, isExpanded ? AppTheme.spacingMedium : 9)
+        .padding(.vertical, isExpanded ? AppTheme.spacingMedium : AppTheme.spacingSmall)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: isExpanded ? AppTheme.cornerRadiusLarge : AppTheme.cornerRadiusSmall, style: .continuous)
@@ -98,7 +98,7 @@ struct ResourceCardPanel: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: isExpanded ? AppTheme.cornerRadiusLarge : AppTheme.cornerRadiusSmall, style: .continuous)
-                .strokeBorder(Color.orange.opacity(isExpanded ? 0.42 : 0.22), lineWidth: AppTheme.Border.thin)
+                .strokeBorder(Color.warning.opacity(isExpanded ? AppTheme.Opacity.soft : AppTheme.Opacity.noticeable), lineWidth: AppTheme.Border.thin)
         )
         .coDesignShadow(.card)
         .task(id: "\(project.currentStageOrder)-\(latestSearchContext)") {

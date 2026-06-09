@@ -110,7 +110,7 @@ struct StageRailPanel: View {
                 .padding(AppTheme.spacingMedium)
                 .background(
                     RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                        .fill(Color.primaryAccent.opacity(activeStage.status == "active" ? 0.045 : 0.03))
+                        .fill(Color.primaryAccent.opacity(activeStage.status == "active" ? AppTheme.Opacity.hairline : AppTheme.Opacity.subtle))
                 )
             }
         }
@@ -143,33 +143,33 @@ private struct StageRailRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
-            VStack(spacing: 4) {
+            VStack(spacing: AppTheme.spacingXS) {
                 ZStack {
                     Circle()
-                        .fill(isActive ? Color.primaryAccent.opacity(0.08) : tint.opacity(0.08))
-                        .frame(width: 34, height: 34)
+                        .fill(isActive ? Color.primaryAccent.opacity(AppTheme.Opacity.light) : tint.opacity(AppTheme.Opacity.light))
+                        .frame(width: 32, height: 32)
 
                     Image(systemName: definition?.iconName ?? "circle.grid.3x3")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(isActive ? Color.primaryAccent.opacity(0.9) : tint.opacity(0.8))
+                        .foregroundStyle(isActive ? Color.primaryAccent.opacity(AppTheme.Opacity.strong) : tint.opacity(AppTheme.Opacity.strong))
                 }
 
                 if !isLast {
                     Rectangle()
-                        .fill(Color.black.opacity(0.045))
-                        .frame(width: 1, height: 16)
+                        .fill(AppTheme.Border.color)
+                        .frame(width: 1, height: 12)
                 }
             }
-            .frame(width: 34)
+            .frame(width: 32)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingXXS) {
                 HStack(spacing: AppTheme.spacingXS) {
                     Text("Stage \(stage.order)")
                         .font(AppTheme.Typography.captionMono)
                         .foregroundStyle(isActive ? Color.primaryAccent : Color.textTertiary)
 
                     Image(systemName: statusIcon)
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(AppTheme.Typography.micro)
                         .foregroundStyle(tint)
                 }
 
@@ -179,7 +179,7 @@ private struct StageRailRow: View {
                     .lineLimit(1)
 
                 Text(definition?.shortSubtitle ?? "设计澄清")
-                    .font(.system(size: 11))
+                    .font(AppTheme.Typography.tiny)
                     .foregroundStyle(Color.textTertiary)
                     .lineLimit(1)
             }
@@ -187,14 +187,14 @@ private struct StageRailRow: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, AppTheme.spacingSmall)
-        .padding(.vertical, 10)
+        .padding(.vertical, AppTheme.Layout.compactPadding)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .fill(isActive ? Color.primaryAccent.opacity(0.045) : Color.clear)
+                .fill(isActive ? Color.primaryAccent.opacity(AppTheme.Opacity.hairline) : Color.clear)
         )
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .strokeBorder(isActive ? Color.primaryAccent.opacity(0.18) : Color.clear, lineWidth: AppTheme.Border.thin)
+                .strokeBorder(isActive ? Color.primaryAccent.opacity(AppTheme.Opacity.noticeable) : Color.clear, lineWidth: AppTheme.Border.thin)
         )
     }
 }

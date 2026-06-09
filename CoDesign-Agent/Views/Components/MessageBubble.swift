@@ -17,12 +17,14 @@ struct MessageBubble: View {
                     Text(message.content)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .font(AppTheme.Typography.body)
+            .padding(.horizontal, AppTheme.spacingMedium)
+            .padding(.vertical, AppTheme.spacingSmall)
             .background(backgroundColor)
             .foregroundStyle(textColor)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .frame(maxWidth: 280, alignment: message.role == "user" ? .trailing : .leading)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous))
+            .frame(maxWidth: 300, alignment: message.role == "user" ? .trailing : .leading)
+            .coDesignShadow(.card)
 
             if message.role == "assistant" {
                 Spacer()

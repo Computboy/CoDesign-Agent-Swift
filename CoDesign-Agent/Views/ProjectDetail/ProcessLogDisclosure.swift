@@ -180,14 +180,14 @@ struct ProcessLogMessageRow: View {
             Image(systemName: roleIcon)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(roleColor)
-                .frame(width: 20, height: 20)
+                .frame(width: AppTheme.Layout.iconMedium, height: AppTheme.Layout.iconMedium)
                 .background(
                     Circle()
-                        .fill(roleColor.opacity(0.1))
+                        .fill(roleColor.opacity(AppTheme.Opacity.medium))
                 )
 
             // Content
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
                 HStack(spacing: AppTheme.spacingSmall) {
                     Text(roleLabel)
                         .font(AppTheme.Typography.caption.weight(.semibold))
@@ -231,18 +231,18 @@ struct ProcessLogMethodRow: View {
         HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
             Image(systemName: "rectangle.stack.badge.play")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.orange)
-                .frame(width: 20, height: 20)
+                .foregroundStyle(Color.warning)
+                .frame(width: AppTheme.Layout.iconMedium, height: AppTheme.Layout.iconMedium)
                 .background(
                     Circle()
-                        .fill(Color.orange.opacity(0.12))
+                        .fill(Color.warning.opacity(AppTheme.Opacity.medium))
                 )
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
                 HStack(spacing: AppTheme.spacingSmall) {
                     Text("方法调用")
                         .font(AppTheme.Typography.caption.weight(.semibold))
-                        .foregroundStyle(Color.orange)
+                        .foregroundStyle(Color.warning)
 
                     Text(moment.timestamp, style: .time)
                         .font(AppTheme.Typography.caption)

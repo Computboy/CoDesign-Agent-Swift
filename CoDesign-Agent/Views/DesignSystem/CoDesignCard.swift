@@ -27,8 +27,10 @@ struct CoDesignCard<Content: View>: View {
         case elevated
         /// Left accent border + tinted background
         case highlighted(Color)
-        /// Stroke border, no fill
+        /// Stroke border, no fill, no shadow
         case bordered
+        /// No background, no shadow, hairline border — for nested panel content
+        case minimal
     }
 
     let style: Style
@@ -62,6 +64,8 @@ struct CoDesignCard<Content: View>: View {
             Color.elevatedCardBackground
         case .bordered:
             Color.clear
+        case .minimal:
+            Color.clear
         }
     }
 
@@ -88,6 +92,9 @@ struct CoDesignCard<Content: View>: View {
         case .bordered:
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
                 .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
+        case .minimal:
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                .strokeBorder(AppTheme.Border.color.opacity(0.5), lineWidth: AppTheme.Border.thin)
         }
     }
 
@@ -101,8 +108,8 @@ struct CoDesignCard<Content: View>: View {
             return CoDesignCardShadow(level: .elevated)
         case .highlighted:
             return CoDesignCardShadow(level: .card)
-        case .bordered:
-            return CoDesignCardShadow(level: .card)
+        case .bordered, .minimal:
+            return CoDesignCardShadow(level: .none)
         }
     }
 }

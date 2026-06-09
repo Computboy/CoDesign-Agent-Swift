@@ -51,16 +51,16 @@ struct CoDesignStagePill: View {
             Group {
                 if let iconName = state.iconName, state != .active {
                     Image(systemName: iconName)
-                        .font(.system(size: isCompact ? 9 : 10, weight: .bold))
+                        .font(.system(size: isCompact ? 8 : 9, weight: .bold))
                 } else {
                     Text(String(format: "%d", order))
                         .font(AppTheme.Typography.captionMono)
                 }
             }
-            .frame(width: isCompact ? 16 : 20, height: isCompact ? 16 : 20)
+            .frame(width: isCompact ? 14 : 18, height: isCompact ? 14 : 18)
             .background(
                 Circle()
-                    .fill(state.tint.opacity(state == .locked ? 0.15 : 0.2))
+                    .fill(state.tint.opacity(state == .locked ? AppTheme.Opacity.medium : AppTheme.Opacity.noticeable))
             )
             .foregroundStyle(state.tint)
 
@@ -72,19 +72,19 @@ struct CoDesignStagePill: View {
                     .lineLimit(1)
             }
         }
-        .padding(.horizontal, isCompact ? 6 : 10)
+        .padding(.horizontal, isCompact ? AppTheme.spacingSM : AppTheme.spacingSmall)
         .frame(height: AppTheme.Layout.stagePillHeight)
         .background(
             Capsule(style: .continuous)
                 .fill(state == .active
-                    ? state.tint.opacity(0.15)
-                    : Color.textTertiary.opacity(0.08)
+                    ? state.tint.opacity(AppTheme.Opacity.medium)
+                    : Color.textTertiary.opacity(AppTheme.Opacity.light)
                 )
         )
         .overlay(
             Capsule(style: .continuous)
                 .strokeBorder(
-                    state == .active ? state.tint.opacity(0.5) : Color.clear,
+                    state == .active ? state.tint.opacity(AppTheme.Opacity.noticeable) : Color.clear,
                     lineWidth: AppTheme.Border.thin
                 )
         )

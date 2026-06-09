@@ -109,7 +109,7 @@ struct ProjectCard: View {
 
                 // Divider
                 Rectangle()
-                    .fill(Color.textTertiary.opacity(0.12))
+                    .fill(Color.textTertiary.opacity(AppTheme.Opacity.medium))
                     .frame(height: 1)
                     .padding(.vertical, AppTheme.spacingXS)
 
@@ -141,7 +141,7 @@ struct ProjectCard: View {
                         ProgressView(value: project.completionRate)
                             .progressViewStyle(.linear)
                             .tint(.primaryAccent)
-                            .frame(width: 48)
+                            .frame(width: 56)
                     }
                 }
             }

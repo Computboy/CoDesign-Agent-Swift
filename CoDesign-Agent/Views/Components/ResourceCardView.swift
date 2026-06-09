@@ -73,25 +73,25 @@ struct ResourceCardView: View {
                     Link(destination: url) {
                         Label("查看来源", systemImage: "arrow.up.right.square")
                             .font(AppTheme.Typography.caption.weight(.semibold))
-                            .foregroundStyle(Color.orange)
+                            .foregroundStyle(Color.warning)
                     }
-                    .padding(.top, 2)
+                    .padding(.top, AppTheme.spacingXXS)
                 }
             }
         }
         .padding(AppTheme.spacingMedium)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
                 .fill(Color.elevatedCardBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.28), lineWidth: AppTheme.Border.thin)
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                .strokeBorder(Color.warning.opacity(AppTheme.Opacity.noticeable), lineWidth: AppTheme.Border.thin)
         )
         .scaleEffect(isExpanded ? 1.01 : 1.0)
         .coDesignShadow(.card)
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous))
         .onTapGesture {
             withAnimation(.easeInOut(duration: 0.20)) {
                 isExpanded.toggle()
@@ -119,7 +119,7 @@ struct ResourceCardView: View {
     }
 
     private func recommendationBlock(title: String, text: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: AppTheme.spacingXXS) {
             Text(title)
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(Color.textPrimary)

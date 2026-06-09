@@ -64,16 +64,16 @@ struct ReflectionCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
             // Header: icon + title
-            HStack(spacing: 8) {
+            HStack(spacing: AppTheme.spacingSmall) {
                 Image(systemName: iconAndColor.0)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(iconAndColor.1)
                     .frame(width: 30, height: 30)
                     .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(iconAndColor.1.opacity(0.08))
+                        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                            .fill(iconAndColor.1.opacity(AppTheme.Opacity.light))
                     )
 
                 Text(displayTitle)
@@ -90,20 +90,20 @@ struct ReflectionCard: View {
                 .lineLimit(nil)
 
             // Footer: stage + timestamp
-            HStack(spacing: 12) {
+            HStack(spacing: AppTheme.spacingMedium) {
                 Label("阶段 \(trace.stageOrder)", systemImage: "number")
-                    .font(.caption)
+                    .font(AppTheme.Typography.caption)
                     .foregroundStyle(Color.textTertiary)
 
                 Label(trace.timestamp.formatted(date: .abbreviated, time: .shortened),
                       systemImage: "clock")
-                    .font(.caption)
+                    .font(AppTheme.Typography.caption)
                     .foregroundStyle(Color.textTertiary)
 
                 Spacer()
             }
         }
-        .padding()
+        .padding(AppTheme.Layout.cardPadding)
         .background(Color.elevatedCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous))
         .overlay(

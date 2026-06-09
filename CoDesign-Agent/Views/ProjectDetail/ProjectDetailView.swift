@@ -35,7 +35,7 @@ struct ProjectDetailView: View {
                         }
                     }
                 }
-                .padding(.horizontal, AppTheme.spacingLarge)
+                .padding(.horizontal, AppTheme.spacingMedium)
                 .padding(.vertical, AppTheme.spacingSmall)
                 .background(Color.appBackground)
             }

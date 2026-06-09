@@ -131,11 +131,11 @@ struct CurrentClarificationCard: View {
                     Label("本轮使用方法线索辅助追问", systemImage: "sparkles")
                         .font(AppTheme.Typography.caption.weight(.medium))
                         .foregroundStyle(Color.primaryAccent)
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, AppTheme.spacingSmall)
                         .frame(height: AppTheme.Layout.badgeHeight)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(Color.primaryAccent.opacity(0.07))
+                                .fill(Color.primaryAccent.opacity(AppTheme.Opacity.light))
                         )
                 }
 
@@ -186,11 +186,11 @@ struct CurrentClarificationCard: View {
                     Text("Stage \(stage.order) · \(stage.name)")
                         .font(AppTheme.Typography.caption.weight(.medium))
                         .foregroundStyle(Color.primaryAccent)
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, AppTheme.spacingSmall)
                         .frame(height: AppTheme.Layout.badgeHeight)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(Color.primaryAccent.opacity(0.07))
+                                .fill(Color.primaryAccent.opacity(AppTheme.Opacity.light))
                         )
                 } else {
                     Text("设计澄清")
@@ -356,7 +356,7 @@ struct CurrentClarificationCard: View {
         .padding(AppTheme.spacingMedium)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .fill(Color.panelBackground.opacity(0.75))
+                .fill(Color.panelBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
@@ -381,7 +381,7 @@ struct CurrentClarificationCard: View {
         .padding(AppTheme.spacingMedium)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .fill(Color.panelBackground.opacity(0.75))
+                .fill(Color.panelBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
@@ -407,7 +407,7 @@ struct CurrentClarificationCard: View {
                             .frame(height: AppTheme.Layout.buttonHeightSmall)
                             .background(
                                 Capsule()
-                                    .fill(action.tint.opacity(quickActionsDisabled ? 0.04 : 0.07))
+                                    .fill(action.tint.opacity(quickActionsDisabled ? AppTheme.Opacity.hairline : AppTheme.Opacity.light))
                             )
                             .foregroundStyle(quickActionsDisabled ? Color.textTertiary : action.tint.opacity(0.88))
                     }

@@ -6,15 +6,15 @@ struct StageNodeView: View {
     private var statusColor: Color {
         switch stage.status {
         case "notStarted":
-            return Color.gray
+            return Color.stageNotStarted
         case "active":
             return Color.primaryAccent
         case "completed":
-            return Color.green
+            return Color.success
         case "needsReview":
-            return Color.orange
+            return Color.warning
         default:
-            return Color.gray
+            return Color.stageNotStarted
         }
     }
 
@@ -38,35 +38,31 @@ struct StageNodeView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
             // Header: stage number + name + status
-            HStack(spacing: 12) {
+            HStack(spacing: AppTheme.spacingMedium) {
                 Text(stageNumber)
-                    .font(.system(.title3, design: .monospaced))
-                    .fontWeight(.bold)
+                    .font(AppTheme.Typography.headline)
                     .foregroundStyle(statusColor)
 
                 Text(stage.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+                    .font(AppTheme.Typography.headline)
+                    .foregroundStyle(Color.textPrimary)
 
                 Spacer()
 
                 Text(statusText)
-                    .font(.caption)
-                    .fontWeight(.medium)
+                    .font(AppTheme.Typography.caption.weight(.medium))
                     .foregroundStyle(statusColor)
             }
 
             // Progress bar
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    // Background
                     Capsule()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(Color.stageNotStarted.opacity(AppTheme.Opacity.medium))
                         .frame(height: 6)
 
-                    // Fill
                     Capsule()
                         .fill(statusColor)
                         .frame(width: geometry.size.width * stage.completionRatio, height: 6)
@@ -78,14 +74,13 @@ struct StageNodeView: View {
             HStack {
                 Spacer()
                 Text("\(Int(stage.completionRatio * 100))%")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
+                    .font(AppTheme.Typography.caption.weight(.medium))
+                    .foregroundStyle(Color.textSecondary)
             }
         }
-        .padding()
+        .padding(AppTheme.Layout.cardPadding)
         .background(Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous))
     }
 }
 

@@ -14,7 +14,7 @@ import SwiftUI
 /// }
 /// ```
 struct CoDesignFlowLayout: Layout {
-    var spacing: CGFloat = 8
+    var spacing: CGFloat = AppTheme.spacingSmall
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let result = arrangeSubviews(proposal: proposal, subviews: subviews)
