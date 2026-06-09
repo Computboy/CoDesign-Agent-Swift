@@ -541,9 +541,6 @@ private struct StructuredAssistantText: View {
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else {
                 flush()
-                if result.last?.isSpacer != true {
-                    result.append(StructuredAssistantLine(isSpacer: true))
-                }
                 continue
             }
 
@@ -563,24 +560,12 @@ private struct StructuredAssistantText: View {
         }
 
         flush()
-        while result.last?.isSpacer == true {
-            result.removeLast()
-        }
         return result
     }
 
     private func splitLongParagraph(_ value: String) -> [StructuredAssistantLine] {
-        let separators = CharacterSet(charactersIn: "。？！；")
-        let chunks = value
-            .components(separatedBy: separators)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        guard chunks.count > 1 else {
-            return [StructuredAssistantLine(body: value)]
-        }
-
-        return chunks.prefix(6).map { StructuredAssistantLine(body: $0) }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? [] : [StructuredAssistantLine(body: trimmed)]
     }
 
     private func parseTaggedLine(_ line: String) -> StructuredAssistantLine? {
