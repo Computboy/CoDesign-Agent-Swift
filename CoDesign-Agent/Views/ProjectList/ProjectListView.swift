@@ -48,7 +48,9 @@ struct ProjectListView: View {
                     }
                 }
             }
+            #if os(iOS)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            #endif
         }
         .sheet(isPresented: $isShowingNewProject) {
             NewProjectView()
