@@ -492,7 +492,7 @@ private struct StreamingPlainAssistantText: View {
         Text(displayedText)
             .font(font)
             .foregroundStyle(Color.textPrimary)
-            .lineSpacing(6)
+            .lineSpacing(3)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .onAppear {
@@ -538,36 +538,37 @@ private struct StructuredAssistantText: View {
 
     var body: some View {
         let lines = formattedLines
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                 if line.isSpacer {
-                    Color.clear.frame(height: 2)
+                    Color.clear.frame(height: 1)
                 } else if let label = line.label {
                     HStack(alignment: .top, spacing: 8) {
                         Circle()
                             .fill(labelTint(for: label).opacity(0.72))
                             .frame(width: 5, height: 5)
-                            .padding(.top, 10)
+                            .padding(.top, 8)
 
                         Text(line.body)
                             .font(font)
                             .foregroundStyle(Color.textPrimary)
-                            .lineSpacing(5)
+                            .lineSpacing(3)
                             .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } else if let attributed = try? AttributedString(markdown: line.body) {
                     Text(attributed)
                         .font(font)
                         .foregroundStyle(Color.textPrimary)
-                        .lineSpacing(5)
+                        .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     Text(line.body)
                         .font(font)
                         .foregroundStyle(Color.textPrimary)
-                        .lineSpacing(5)
+                        .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -586,15 +587,58 @@ private struct StructuredAssistantText: View {
             return splitLongParagraph(text)
         }
 
-        return rawLines.map { raw in
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return StructuredAssistantLine(isSpacer: true) }
-            if let parsed = parseTaggedLine(trimmed) {
-                return parsed
-            } else {
-                return StructuredAssistantLine(body: trimmed)
+        return reflow(rawLines)
+    }
+
+    private func reflow(_ rawLines: [String]) -> [StructuredAssistantLine] {
+        var result: [StructuredAssistantLine] = []
+        var pendingLabel: String?
+        var pendingBody: [String] = []
+
+        func flush() {
+            let body = pendingBody
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            if let pendingLabel, !body.isEmpty {
+                result.append(StructuredAssistantLine(label: pendingLabel, body: naturalSentence(label: pendingLabel, body: body)))
+            } else if !body.isEmpty {
+                result.append(StructuredAssistantLine(body: body))
             }
+            pendingLabel = nil
+            pendingBody.removeAll()
         }
+
+        for raw in rawLines {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                flush()
+                if result.last?.isSpacer != true {
+                    result.append(StructuredAssistantLine(isSpacer: true))
+                }
+                continue
+            }
+
+            if let parsed = parseTaggedLine(trimmed) {
+                flush()
+                result.append(parsed)
+                continue
+            }
+
+            if let labelOnly = parseLabelOnlyLine(trimmed) {
+                flush()
+                pendingLabel = labelOnly
+                continue
+            }
+
+            pendingBody.append(trimmed)
+        }
+
+        flush()
+        while result.last?.isSpacer == true {
+            result.removeLast()
+        }
+        return result
     }
 
     private func splitLongParagraph(_ value: String) -> [StructuredAssistantLine] {
@@ -621,6 +665,12 @@ private struct StructuredAssistantText: View {
             return StructuredAssistantLine(label: label, body: naturalSentence(label: label, body: body))
         }
         return nil
+    }
+
+    private func parseLabelOnlyLine(_ line: String) -> String? {
+        let knownLabels = ["理解", "线索", "追问", "例子", "下一步", "这个问题会决定"]
+        let normalized = line.trimmingCharacters(in: CharacterSet(charactersIn: "：: "))
+        return knownLabels.contains(normalized) ? normalized : nil
     }
 
     private func naturalSentence(label: String, body: String) -> String {
