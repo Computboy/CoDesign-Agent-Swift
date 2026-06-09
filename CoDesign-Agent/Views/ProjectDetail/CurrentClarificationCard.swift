@@ -262,7 +262,6 @@ struct CurrentClarificationCard: View {
             } else {
                 AssistantResponseViewport(
                     text: streamingText,
-                    isStreaming: true,
                     font: questionFont,
                     height: responseAreaHeight
                 )
@@ -290,7 +289,6 @@ struct CurrentClarificationCard: View {
             } else {
                 AssistantResponseViewport(
                     text: latestAssistantText,
-                    isStreaming: false,
                     font: questionFont,
                     height: responseAreaHeight
                 )
@@ -434,7 +432,6 @@ private struct ClarificationQuickAction: Identifiable {
 
 private struct AssistantResponseViewport: View {
     let text: String
-    let isStreaming: Bool
     let font: Font
     let height: CGFloat
 
@@ -445,13 +442,8 @@ private struct AssistantResponseViewport: View {
             ScrollViewReader { scrollProxy in
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
-                        if isStreaming {
-                            StreamingPlainAssistantText(text: text, font: font)
-                                .frame(width: proxy.size.width, alignment: .topLeading)
-                        } else {
-                            StructuredAssistantText(text: text, font: font)
-                                .frame(width: proxy.size.width, alignment: .topLeading)
-                        }
+                        StructuredAssistantText(text: text, font: font)
+                            .frame(width: proxy.size.width, alignment: .topLeading)
 
                         Color.clear
                             .frame(height: 1)
@@ -481,94 +473,28 @@ private struct AssistantResponseViewport: View {
     }
 }
 
-private struct StreamingPlainAssistantText: View {
-    let text: String
-    let font: Font
-
-    @State private var displayedText = ""
-    @State private var revealTask: Task<Void, Never>?
-
-    var body: some View {
-        Text(displayedText)
-            .font(font)
-            .foregroundStyle(Color.textPrimary)
-            .lineSpacing(3)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .onAppear {
-                reveal(toward: text)
-            }
-            .onChange(of: text) { _, newValue in
-                reveal(toward: newValue)
-            }
-            .onDisappear {
-                revealTask?.cancel()
-            }
-    }
-
-    private func reveal(toward target: String) {
-        revealTask?.cancel()
-
-        guard target.hasPrefix(displayedText) else {
-            displayedText = target
-            return
-        }
-
-        let suffix = String(target.dropFirst(displayedText.count))
-        guard !suffix.isEmpty else { return }
-
-        revealTask = Task { @MainActor in
-            var buffer = displayedText
-            var index = suffix.startIndex
-
-            while index < suffix.endIndex && !Task.isCancelled {
-                let nextIndex = suffix.index(index, offsetBy: suffix.count > 80 ? 4 : 1, limitedBy: suffix.endIndex) ?? suffix.endIndex
-                buffer.append(contentsOf: suffix[index..<nextIndex])
-                displayedText = buffer
-                index = nextIndex
-                try? await Task.sleep(for: .milliseconds(suffix.count > 80 ? 6 : 10))
-            }
-        }
-    }
-}
-
 private struct StructuredAssistantText: View {
     let text: String
     let font: Font
 
     var body: some View {
         let lines = formattedLines
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 7) {
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                 if line.isSpacer {
-                    Color.clear.frame(height: 1)
-                } else if let label = line.label {
-                    HStack(alignment: .top, spacing: 8) {
-                        Circle()
-                            .fill(labelTint(for: label).opacity(0.72))
-                            .frame(width: 5, height: 5)
-                            .padding(.top, 8)
-
-                        Text(line.body)
-                            .font(font)
-                            .foregroundStyle(Color.textPrimary)
-                            .lineSpacing(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Color.clear.frame(height: 2)
                 } else if let attributed = try? AttributedString(markdown: line.body) {
                     Text(attributed)
                         .font(font)
                         .foregroundStyle(Color.textPrimary)
-                        .lineSpacing(3)
+                        .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     Text(line.body)
                         .font(font)
                         .foregroundStyle(Color.textPrimary)
-                        .lineSpacing(3)
+                        .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -601,7 +527,9 @@ private struct StructuredAssistantText: View {
                 .filter { !$0.isEmpty }
                 .joined(separator: " ")
             if let pendingLabel, !body.isEmpty {
-                result.append(StructuredAssistantLine(label: pendingLabel, body: naturalSentence(label: pendingLabel, body: body)))
+                result.append(StructuredAssistantLine(body: naturalSentence(label: pendingLabel, body: body)))
+            } else if let pendingLabel {
+                result.append(StructuredAssistantLine(body: "\(pendingLabel)："))
             } else if !body.isEmpty {
                 result.append(StructuredAssistantLine(body: body))
             }
@@ -662,7 +590,7 @@ private struct StructuredAssistantText: View {
             let label = String(line[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
             let body = String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
             guard knownLabels.contains(label), !body.isEmpty else { continue }
-            return StructuredAssistantLine(label: label, body: naturalSentence(label: label, body: body))
+            return StructuredAssistantLine(body: naturalSentence(label: label, body: body))
         }
         return nil
     }
@@ -678,17 +606,17 @@ private struct StructuredAssistantText: View {
 
         switch label {
         case "理解":
-            return prefixedSentence("我先确认一下：", body: trimmed)
+            return prefixedSentence("理解：", body: trimmed)
         case "线索":
-            return prefixedSentence("现在缺的线索是：", body: trimmed)
+            return prefixedSentence("线索：", body: trimmed)
         case "这个问题会决定":
             return prefixedSentence("这个问题会决定：", body: trimmed)
         case "选项":
-            return prefixedSentence("可以这样看：", body: trimmed)
+            return prefixedSentence("参考：", body: trimmed)
         case "追问":
-            return prefixedSentence("所以这轮只问一个问题：", body: trimmed)
+            return prefixedSentence("追问：", body: trimmed)
         case "例子":
-            return prefixedSentence("比如：", body: trimmed)
+            return prefixedSentence("例子：", body: trimmed)
         case "下一步":
             return prefixedSentence("接下来：", body: trimmed)
         default:
@@ -699,17 +627,6 @@ private struct StructuredAssistantText: View {
     private func prefixedSentence(_ prefix: String, body: String) -> String {
         guard !body.hasPrefix(prefix) else { return body }
         return prefix + body
-    }
-
-    private func labelTint(for label: String) -> Color {
-        switch label {
-        case "理解": return .primaryAccent
-        case "线索": return .warning
-        case "这个问题会决定": return .primaryAccent
-        case "选项", "例子": return .secondaryAccent
-        case "追问": return .success
-        default: return .textSecondary
-        }
     }
 }
 
