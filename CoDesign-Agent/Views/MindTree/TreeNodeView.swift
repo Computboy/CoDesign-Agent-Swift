@@ -164,9 +164,11 @@ struct TreeNodeView: View {
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.primaryAccent)
 
-                Text("Q")
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                Text("问题节点")
+                    .font(.system(size: 7.5, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.textTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
         }
         .overlay(alignment: .bottomTrailing) {

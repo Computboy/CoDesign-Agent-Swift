@@ -152,8 +152,8 @@ struct TreeLayoutEngine {
         let corridorHeight = max(abs(fromY - toY), stageSpacing)
         let yJitter = deterministicUnit(for: node.id + "-y") * 2
 
-        if node.kind == .question {
-            let questionNodes = siblings.filter { $0.kind == .question }
+        if node.kind == .question && !node.isArchived {
+            let questionNodes = siblings.filter { $0.kind == .question && !$0.isArchived }
             let questionIndex = questionNodes.firstIndex(where: { $0.id == node.id }) ?? 0
             let fraction = CGFloat(questionIndex + 1) / CGFloat(max(questionNodes.count + 1, 2))
             return CGPoint(
@@ -162,7 +162,7 @@ struct TreeLayoutEngine {
             )
         }
 
-        let sideNodes = siblings.filter { $0.kind != .question }
+        let sideNodes = siblings.filter { $0.kind != .question || $0.isArchived }
         let sideIndex = sideNodes.firstIndex(where: { $0.id == node.id }) ?? siblingIndex
         let side = preferredSide(for: node, ordinal: sideIndex)
         let sameSideNodes = sideNodes.enumerated()
@@ -233,7 +233,9 @@ struct TreeLayoutEngine {
             return ordinal.isMultiple(of: 2) ? 1 : -1
         case .field, .revision:
             return ordinal.isMultiple(of: 2) ? -1 : 1
-        case .root, .stage, .question:
+        case .question:
+            return node.isArchived ? 1 : 0
+        case .root, .stage:
             return 0
         }
     }

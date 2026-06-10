@@ -21,7 +21,9 @@ struct AssistantResponseTextView: View {
         .foregroundStyle(foregroundColor)
         .lineSpacing(lineSpacing)
         .multilineTextAlignment(.leading)
+        .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(1)
     }
 }
 

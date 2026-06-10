@@ -31,6 +31,7 @@ final class ChatViewModel {
         context.insert(userMsg)
         project.messages.append(userMsg)
         project.updatedAt = Date()
+        let clarificationMode = ClarificationMode.detect(from: text)
 
         // ② 快照当前状态（用于后续 diff）
         let previousBrief = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
@@ -39,13 +40,16 @@ final class ChatViewModel {
         let activeStage = currentActiveStage()
         let activeStageOrder = activeStage?.order ?? project.currentStageOrder
 
-        recordThinkingMoment(
-            momType: "answer",
-            content: truncatedMomentText(text),
-            stageOrder: activeStageOrder,
-            relatedField: nil,
-            context: context
-        )
+        if shouldRecordFormalAnswer(text: text, mode: clarificationMode) {
+            recordThinkingMoment(
+                momType: "answer",
+                content: truncatedMomentText(text),
+                stageOrder: activeStageOrder,
+                relatedField: nil,
+                parentMomentID: parentForNewMoment(stageOrder: activeStageOrder, momType: "answer"),
+                context: context
+            )
+        }
         try? context.save()
 
         // ④ 先抽取并更新状态，再生成下一问。
@@ -82,7 +86,6 @@ final class ChatViewModel {
             .sorted { $0.timestamp < $1.timestamp }
             .map { $0.toPayload() }
         let stageSnapshot = nextActiveStage?.toSnapshot()
-        let clarificationMode = ClarificationMode.detect(from: text)
         let selectedResourceCards = ResourceRecommendationService().recommend(
             currentStageOrder: stageSnapshot?.order ?? nextActiveStage?.order ?? activeStageOrder,
             briefSnapshot: updatedBriefSnapshot,
@@ -132,13 +135,17 @@ final class ChatViewModel {
                 context: context
             )
         }
-        recordThinkingMoment(
-            momType: "question",
-            content: questionMomentText(from: assistantMsg.content),
-            stageOrder: nextActiveStage?.order ?? activeStageOrder,
-            relatedField: nil,
-            context: context
-        )
+        if shouldRecordFormalQuestion(mode: clarificationMode, assistantText: assistantMsg.content) {
+            let questionStageOrder = nextActiveStage?.order ?? activeStageOrder
+            recordThinkingMoment(
+                momType: "question",
+                content: questionMomentText(from: assistantMsg.content),
+                stageOrder: questionStageOrder,
+                relatedField: nil,
+                parentMomentID: parentForNewMoment(stageOrder: questionStageOrder, momType: "question"),
+                context: context
+            )
+        }
         currentStreamingText = ""
         isStreaming = false
 
@@ -190,6 +197,7 @@ final class ChatViewModel {
                     content: "确认：\(field.displayName)",
                     stageOrder: stageOrder,
                     relatedField: field.rawValue,
+                    parentMomentID: parentForNewMoment(stageOrder: stageOrder, momType: "decision"),
                     context: context
                 )
             }
@@ -250,17 +258,51 @@ final class ChatViewModel {
             ?? sortedStages.first { $0.stageStatusValue == .notStarted }
     }
 
+    private func shouldRecordFormalAnswer(text: String, mode: ClarificationMode) -> Bool {
+        guard mode == .normal else { return false }
+        return !ThinkingTreeMomentProjector.isStuckAnswer(text)
+    }
+
+    private func shouldRecordFormalQuestion(mode: ClarificationMode, assistantText: String) -> Bool {
+        guard mode != .stuckScaffold else { return false }
+        let question = questionMomentText(from: assistantText)
+        return !ThinkingTreeMomentProjector.isScaffoldQuestion(question)
+    }
+
+    private func parentForNewMoment(stageOrder: Int, momType: String) -> UUID? {
+        switch momType {
+        case "answer", "decision", "deepen", "method", "evidence":
+            return lastActiveQuestionMoment(stageOrder: stageOrder)?.id
+        default:
+            return nil
+        }
+    }
+
+    private func lastActiveQuestionMoment(stageOrder: Int) -> ThinkingMoment? {
+        project.thinkingMoments
+            .filter {
+                $0.stageOrder == stageOrder &&
+                $0.momType == "question" &&
+                $0.isActiveBranch &&
+                ThinkingTreeMomentProjector.isVisibleInTree($0)
+            }
+            .sorted { $0.timestamp < $1.timestamp }
+            .last
+    }
+
     // MARK: - Thinking Moment Recording
 
+    @discardableResult
     private func recordThinkingMoment(
         momType: String,
         content: String,
         stageOrder: Int,
         relatedField: String?,
+        parentMomentID: UUID? = nil,
         context: ModelContext
-    ) {
+    ) -> ThinkingMoment? {
         let normalized = truncatedMomentText(content)
-        guard !normalized.isEmpty else { return }
+        guard !normalized.isEmpty else { return nil }
 
         let now = Date()
         let isDuplicate = project.thinkingMoments.contains { moment in
@@ -270,18 +312,20 @@ final class ChatViewModel {
             moment.relatedField == relatedField &&
             abs(moment.timestamp.timeIntervalSince(now)) < 4
         }
-        guard !isDuplicate else { return }
+        guard !isDuplicate else { return nil }
 
         let moment = ThinkingMoment(
             momType: momType,
             content: normalized,
             stageOrder: stageOrder,
             relatedField: relatedField,
+            parentMomentID: parentMomentID,
             timestamp: now,
             isActiveBranch: true
         )
         context.insert(moment)
         project.thinkingMoments.append(moment)
+        return moment
     }
 
     private func recordMethodInvocation(
@@ -322,6 +366,7 @@ final class ChatViewModel {
             content: content,
             stageOrder: stageOrder,
             relatedField: card.relatedFields.first?.rawValue,
+            parentMomentID: parentForNewMoment(stageOrder: stageOrder, momType: "method"),
             timestamp: Date(),
             isActiveBranch: true
         )

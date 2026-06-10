@@ -62,6 +62,20 @@ struct ThinkingTreeView: View {
                                     }
                                 }
                         )
+                        .popover(
+                            isPresented: Binding(
+                                get: { selectedNode?.id == node.id },
+                                set: { isPresented in
+                                    if !isPresented && selectedNode?.id == node.id {
+                                        selectedNode = nil
+                                    }
+                                }
+                            ),
+                            attachmentAnchor: .rect(.bounds),
+                            arrowEdge: .trailing
+                        ) {
+                            nodeDetailPopover(node)
+                        }
                     }
                 }
                 .frame(width: graph.contentSize.width, height: graph.contentSize.height)
@@ -109,29 +123,30 @@ struct ThinkingTreeView: View {
             }
         }
         .coDesignShadow(mode == .embedded ? .card : .elevated)
-        .popover(item: $selectedNode, attachmentAnchor: .point(.center), arrowEdge: .trailing) { node in
-            ThinkingNodeDetailSheet(
-                node: node,
-                project: project,
-                onAdoptEvidence: adoptEvidence,
-                onEditNode: beginEditing
-            )
-            .frame(
-                minWidth: mode == .embedded ? 340 : 420,
-                idealWidth: mode == .embedded ? 420 : 540,
-                maxWidth: mode == .embedded ? 480 : 620,
-                minHeight: 360,
-                idealHeight: mode == .embedded ? 520 : 620,
-                maxHeight: mode == .embedded ? 620 : 720
-            )
-            #if os(iOS)
-            .presentationCompactAdaptation(.popover)
-            #endif
-        }
         .sheet(item: $editingNode) { node in
             NodeEditSheet(node: node, project: project)
                 .presentationDragIndicator(.visible)
         }
+    }
+
+    private func nodeDetailPopover(_ node: TreeNode) -> some View {
+        ThinkingNodeDetailSheet(
+            node: node,
+            project: project,
+            onAdoptEvidence: adoptEvidence,
+            onEditNode: beginEditing
+        )
+        .frame(
+            minWidth: mode == .embedded ? 340 : 420,
+            idealWidth: mode == .embedded ? 420 : 540,
+            maxWidth: mode == .embedded ? 480 : 620,
+            minHeight: 360,
+            idealHeight: mode == .embedded ? 520 : 620,
+            maxHeight: mode == .embedded ? 620 : 720
+        )
+        #if os(iOS)
+        .presentationCompactAdaptation(.popover)
+        #endif
     }
 
     // MARK: - Graph
@@ -141,10 +156,11 @@ struct ThinkingTreeView: View {
     }
 
     private func layoutGraph(for viewport: CGSize, expandedTransitions: Set<Int>) -> TreeData {
-        let evidence = evidenceResourcesByStage(expandedTransitions: expandedTransitions)
+        let effectiveExpandedTransitions = expandedTransitions.union(autoExpandedArchivedTransitionOrders)
+        let evidence = evidenceResourcesByStage(expandedTransitions: effectiveExpandedTransitions)
         let raw = TreeBuilder().build(
             project: project,
-            expandedTransitionOrders: expandedTransitions,
+            expandedTransitionOrders: effectiveExpandedTransitions,
             evidenceResourcesByStage: evidence,
             visibleStageLimit: visibleStageLimit
         )
@@ -153,7 +169,18 @@ struct ThinkingTreeView: View {
     }
 
     private var visibleStageLimit: Int {
-        mode == .embedded ? project.currentStageOrder : 9
+        guard mode == .embedded else { return 9 }
+        let archivedMaxOrder = autoExpandedArchivedTransitionOrders.max() ?? project.currentStageOrder
+        let expandedMaxOrder = expandedTransitionOrders.max() ?? project.currentStageOrder
+        return min(max(project.currentStageOrder, archivedMaxOrder, expandedMaxOrder), 9)
+    }
+
+    private var autoExpandedArchivedTransitionOrders: Set<Int> {
+        Set(
+            project.thinkingMoments
+                .filter { !$0.isActiveBranch && (1...9).contains($0.stageOrder) }
+                .map(\.stageOrder)
+        )
     }
 
     private func layoutEngine(for viewport: CGSize) -> TreeLayoutEngine {
@@ -526,6 +553,7 @@ struct ThinkingTreeView: View {
             content: resource.title,
             stageOrder: stageOrder,
             relatedField: nil,
+            parentMomentID: lastActiveQuestionMoment(stageOrder: stageOrder)?.id,
             timestamp: Date(),
             isActiveBranch: true
         )
@@ -535,6 +563,18 @@ struct ThinkingTreeView: View {
         expandedTransitionOrders.insert(stageOrder)
         try? modelContext.save()
         selectedNode = nil
+    }
+
+    private func lastActiveQuestionMoment(stageOrder: Int) -> ThinkingMoment? {
+        project.thinkingMoments
+            .filter {
+                $0.stageOrder == stageOrder &&
+                $0.momType == "question" &&
+                $0.isActiveBranch &&
+                ThinkingTreeMomentProjector.isVisibleInTree($0)
+            }
+            .sorted { $0.timestamp < $1.timestamp }
+            .last
     }
 
     @ViewBuilder
@@ -568,8 +608,8 @@ struct ThinkingTreeView: View {
 
     private func transitionLabel(order: Int) -> some View {
         let count = transitionNodeCount(order)
-        let isExpanded = expandedTransitionOrders.contains(order)
-        return Text(isExpanded ? "已展开 · \(count) 个节点" : "点击展开问题链")
+        let isExpanded = isTransitionExpanded(order)
+        return Text(isExpanded ? "已展开 · \(count) 个问题/节点" : "点击展开问题链")
             .font(.system(size: mode == .embedded ? 8.5 : 10, weight: .semibold, design: .rounded))
             .foregroundStyle(isExpanded ? Color.primaryAccent : Color.textTertiary)
             .padding(.horizontal, 7)
@@ -587,8 +627,14 @@ struct ThinkingTreeView: View {
             )
     }
 
+    private func isTransitionExpanded(_ order: Int) -> Bool {
+        expandedTransitionOrders.contains(order) || autoExpandedArchivedTransitionOrders.contains(order)
+    }
+
     private func transitionNodeCount(_ order: Int) -> Int {
-        project.thinkingMoments.filter { $0.stageOrder == order }.count +
+        ThinkingTreeMomentProjector.visibleMoments(
+            project.thinkingMoments.filter { $0.stageOrder == order }
+        ).count +
         project.learningTraces.filter { $0.stageOrder == order }.count
     }
 
@@ -691,7 +737,7 @@ struct ThinkingTreeView: View {
 
     private func edgeColor(_ edge: TreeEdge, to node: TreeNode) -> Color {
         if let order = edge.togglesTransitionOrder,
-           expandedTransitionOrders.contains(order) {
+           isTransitionExpanded(order) {
             return Color.primaryAccent.opacity(0.82)
         }
 
@@ -711,7 +757,7 @@ struct ThinkingTreeView: View {
 
     private func edgeStroke(_ edge: TreeEdge) -> StrokeStyle {
         if let order = edge.togglesTransitionOrder,
-           expandedTransitionOrders.contains(order) {
+           isTransitionExpanded(order) {
             return StrokeStyle(lineWidth: 3.0, lineCap: .round)
         }
 

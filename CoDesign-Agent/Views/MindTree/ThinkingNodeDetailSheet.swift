@@ -53,7 +53,7 @@ struct ThinkingNodeDetailSheet: View {
                             dismiss()
                             onEditNode(node)
                         } label: {
-                            Label("回溯修改", systemImage: "arrow.uturn.backward")
+                            Label(node.kind == .question ? "修改回答" : "回溯修改", systemImage: "arrow.uturn.backward")
                         }
                     }
                 }
@@ -177,24 +177,59 @@ struct ThinkingNodeDetailSheet: View {
             CoDesignSectionHeader(title: "澄清问题")
             CoDesignCard {
                 VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+                    Text("原问题")
+                        .font(AppTheme.Typography.caption.weight(.semibold))
+                        .foregroundStyle(Color.textTertiary)
+
                     Text(node.content)
                         .font(AppTheme.Typography.body.weight(.semibold))
                         .foregroundStyle(Color.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     if let answer = nextAnswerForQuestion {
                         Divider()
-                        Text("后续回答")
+                        Text("当前回答")
                             .font(AppTheme.Typography.caption.weight(.semibold))
                             .foregroundStyle(Color.textTertiary)
                         Text(answer.content)
                             .font(AppTheme.Typography.body)
                             .foregroundStyle(Color.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     } else {
-                        Text("这个问题还没有匹配到后续回答。")
+                        Text("这个问题还没有匹配到你的回答，可以从这里补写。")
                             .font(AppTheme.Typography.caption)
                             .foregroundStyle(Color.textTertiary)
                     }
                 }
+            }
+
+            if !archivedAnswersForQuestion.isEmpty {
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+                        ForEach(archivedAnswersForQuestion, id: \.id) { answer in
+                            Text(answer.content)
+                                .font(AppTheme.Typography.body)
+                                .foregroundStyle(Color.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(AppTheme.spacingSmall)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                                        .fill(Color.warning.opacity(0.06))
+                                )
+                        }
+                    }
+                    .padding(.top, AppTheme.spacingSmall)
+                } label: {
+                    Label("旧回答 / 旧分支", systemImage: "clock.arrow.circlepath")
+                        .font(AppTheme.Typography.caption.weight(.semibold))
+                        .foregroundStyle(Color.warning)
+                }
+                .padding(AppTheme.spacingMedium)
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
+                        .fill(Color.warning.opacity(0.06))
+                )
             }
 
             if node.isEditable && !node.isArchived {
@@ -202,7 +237,7 @@ struct ThinkingNodeDetailSheet: View {
                     dismiss()
                     onEditNode(node)
                 } label: {
-                    Label("从这个问题回溯修改", systemImage: "arrow.uturn.backward.circle")
+                    Label("从这个问题回溯修改回答", systemImage: "arrow.uturn.backward.circle")
                         .font(AppTheme.Typography.caption.weight(.semibold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -379,7 +414,7 @@ struct ThinkingNodeDetailSheet: View {
             }
             return "阶段"
         case .question:
-            return "澄清问题"
+            return "问题节点"
         case .field:
             return node.field?.displayName ?? node.content
         case .process:
@@ -409,14 +444,17 @@ struct ThinkingNodeDetailSheet: View {
             return nil
         }
 
-        return project.thinkingMoments
-            .filter {
-                $0.stageOrder == question.stageOrder &&
-                $0.momType == "answer" &&
-                $0.timestamp > question.timestamp
-            }
-            .sorted { $0.timestamp < $1.timestamp }
-            .first
+        return ThinkingTreeMomentProjector.pairedAnswer(for: question, in: project.thinkingMoments)
+    }
+
+    private var archivedAnswersForQuestion: [ThinkingMoment] {
+        guard node.kind == .question,
+              let momentID = node.momentID,
+              let question = project.thinkingMoments.first(where: { $0.id == momentID }) else {
+            return []
+        }
+
+        return ThinkingTreeMomentProjector.archivedAnswers(for: question, in: project.thinkingMoments)
     }
 
     private func fieldRow(_ field: BriefField, brief: DesignBriefSnapshot) -> some View {

@@ -105,6 +105,137 @@ struct TreeData {
     }
 }
 
+// MARK: - Moment Projection
+
+/// Projects the raw thinking log into the user-facing tree.
+/// Answers and scaffold turns stay in SwiftData for audit/detail views, but
+/// they are not rendered as standalone tree nodes.
+struct ThinkingTreeMomentProjector {
+    static func visibleMoments(_ moments: [ThinkingMoment]) -> [ThinkingMoment] {
+        moments
+            .sorted { $0.timestamp < $1.timestamp }
+            .filter { isVisibleInTree($0) }
+    }
+
+    static func isVisibleInTree(_ moment: ThinkingMoment) -> Bool {
+        switch moment.momType {
+        case "answer", "method", "scaffold":
+            return false
+        case "question":
+            return !isScaffoldQuestion(moment.content)
+        default:
+            return true
+        }
+    }
+
+    static func pairedAnswer(for question: ThinkingMoment, in moments: [ThinkingMoment]) -> ThinkingMoment? {
+        if let direct = moments
+            .filter({
+                $0.parentMomentID == question.id &&
+                $0.momType == "answer" &&
+                $0.isActiveBranch
+            })
+            .sorted(by: { $0.timestamp < $1.timestamp })
+            .last {
+            return direct
+        }
+
+        var latestAnswer: ThinkingMoment?
+        let laterMoments = moments
+            .filter { $0.stageOrder == question.stageOrder && $0.timestamp > question.timestamp }
+            .sorted { $0.timestamp < $1.timestamp }
+
+        for moment in laterMoments {
+            if question.isActiveBranch && !moment.isActiveBranch {
+                continue
+            }
+
+            switch moment.momType {
+            case "answer":
+                guard !isStuckAnswer(moment.content) else { continue }
+                latestAnswer = moment
+            case "question":
+                if isScaffoldQuestion(moment.content) {
+                    continue
+                }
+                return latestAnswer
+            default:
+                continue
+            }
+        }
+
+        return latestAnswer
+    }
+
+    static func archivedAnswers(for question: ThinkingMoment, in moments: [ThinkingMoment]) -> [ThinkingMoment] {
+        let direct = moments.filter {
+            $0.parentMomentID == question.id &&
+            $0.momType == "answer" &&
+            !$0.isActiveBranch
+        }
+        let inferred = moments.filter {
+            $0.parentMomentID == nil &&
+            $0.stageOrder == question.stageOrder &&
+            $0.momType == "answer" &&
+            !$0.isActiveBranch &&
+            $0.timestamp > question.timestamp
+        }
+        let all = direct + inferred
+        var seen = Set<UUID>()
+        return all
+            .filter { seen.insert($0.id).inserted }
+            .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    static func isStuckAnswer(_ content: String) -> Bool {
+        if ClarificationMode.detect(from: content) == .stuckScaffold {
+            return true
+        }
+
+        let normalized = content
+            .replacingOccurrences(of: " ", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        return [
+            "我还不确定",
+            "我还不太确定",
+            "不确定",
+            "我不知道",
+            "不知道",
+            "想不出来",
+            "没想好",
+            "卡住了",
+            "不会答",
+            "没有思路",
+            "没思路",
+            "请进入线索+提问模式",
+            "线索+提问模式"
+        ].contains { normalized.contains($0) }
+    }
+
+    static func isScaffoldQuestion(_ content: String) -> Bool {
+        let normalized = content
+            .replacingOccurrences(of: " ", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        return [
+            "线索追问",
+            "引导追问",
+            "线索：",
+            "追问：",
+            "先回想",
+            "先想一个",
+            "任务片段",
+            "方法线索",
+            "从一个具体例子开始"
+        ].contains { marker in
+            normalized.contains(marker.replacingOccurrences(of: " ", with: "").lowercased())
+        }
+    }
+}
+
 // MARK: - Tree Builder
 
 /// Builds a persistent process projection from Project state.
@@ -182,23 +313,22 @@ struct TreeBuilder {
         let momentsByTransition = Dictionary(grouping: visibleMoments.filter { (1...9).contains($0.stageOrder) }, by: \.stageOrder)
         for stageOrder in momentsByTransition.keys.sorted() {
             let transitionMoments = momentsByTransition[stageOrder] ?? []
+            let projectedMoments = ThinkingTreeMomentProjector.visibleMoments(transitionMoments)
             let previousStageID = transitionStartNodeID(for: stageOrder)
             var latestQuestionID: String?
 
-            for moment in transitionMoments {
+            for moment in projectedMoments {
                 let node = momentNode(moment, brief: brief, project: project)
                 nodes.append(node)
 
-                let explicitParentID = moment.parentMomentID.flatMap { parentID in
-                    transitionMoments.contains { $0.id == parentID } ? "moment-\(parentID)" : nil
-                }
-                let fallbackParentID: String
-                if node.kind == .question {
-                    fallbackParentID = previousStageID
-                } else {
-                    fallbackParentID = latestQuestionID ?? previousStageID
-                }
-                let parentID = explicitParentID ?? fallbackParentID
+                let parentID = parentNodeID(
+                    for: moment,
+                    node: node,
+                    allMoments: transitionMoments,
+                    projectedMoments: projectedMoments,
+                    previousStageID: previousStageID,
+                    latestQuestionID: latestQuestionID
+                )
 
                 edges.append(
                     TreeEdge(
@@ -358,8 +488,8 @@ struct TreeBuilder {
     }
 
     private func nodeKind(for moment: ThinkingMoment, field: BriefField?) -> TreeNodeKind {
-        if !moment.isActiveBranch { return .revision }
         if moment.momType == "question" { return .question }
+        if !moment.isActiveBranch { return .revision }
         if moment.momType == "evidence" { return .evidence }
         if moment.momType == "revise" { return .revision }
         if field != nil || moment.momType == "decision" || moment.momType == "deepen" {
@@ -401,8 +531,8 @@ struct TreeBuilder {
 
     private func processLabel(for moment: ThinkingMoment) -> String {
         switch moment.momType {
-        case "question": return "Q"
-        case "answer": return "A"
+        case "question": return "问题节点"
+        case "answer": return "答案节点"
         case "decision", "deepen": return "Decision"
         case "method": return "依据"
         case "evidence": return "Evidence"
@@ -429,13 +559,57 @@ struct TreeBuilder {
         if !moment.isActiveBranch { return "旧分支 v\(moment.branchVersion)" }
         switch moment.momType {
         case "question": return "问题"
-        case "answer": return "回答"
+        case "answer": return "答案"
         case "decision", "deepen": return "判断"
         case "method": return "依据"
         case "evidence": return "依据"
         case "revise": return "回溯"
         default: return "过程"
         }
+    }
+
+    private func parentNodeID(
+        for moment: ThinkingMoment,
+        node: TreeNode,
+        allMoments: [ThinkingMoment],
+        projectedMoments: [ThinkingMoment],
+        previousStageID: String,
+        latestQuestionID: String?
+    ) -> String {
+        if let visibleParent = visibleParentID(
+            for: moment,
+            allMoments: allMoments,
+            projectedMoments: projectedMoments
+        ) {
+            return visibleParent
+        }
+
+        if node.kind == .question && node.isActiveBranch {
+            return previousStageID
+        }
+
+        return latestQuestionID ?? previousStageID
+    }
+
+    private func visibleParentID(
+        for moment: ThinkingMoment,
+        allMoments: [ThinkingMoment],
+        projectedMoments: [ThinkingMoment]
+    ) -> String? {
+        guard let parentID = moment.parentMomentID,
+              let parent = allMoments.first(where: { $0.id == parentID }) else {
+            return nil
+        }
+
+        if projectedMoments.contains(where: { $0.id == parent.id }) {
+            return "moment-\(parent.id)"
+        }
+
+        return visibleParentID(
+            for: parent,
+            allMoments: allMoments,
+            projectedMoments: projectedMoments
+        )
     }
 
     private func transitionStartNodeID(for stageOrder: Int) -> String {
