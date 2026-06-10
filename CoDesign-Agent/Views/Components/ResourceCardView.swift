@@ -8,7 +8,7 @@ struct ResourceCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
             HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
-                Text(resource.type.displayName)
+                Text(typeLabel)
                     .font(AppTheme.Typography.caption.weight(.semibold))
                     .foregroundStyle(typeColor)
                     .padding(.horizontal, 8)
@@ -18,7 +18,7 @@ struct ResourceCardView: View {
                             .fill(typeColor.opacity(0.10))
                     )
 
-                Text(resource.cardRole.displayName)
+                Text(roleLabel)
                     .font(AppTheme.Typography.caption.weight(.semibold))
                     .foregroundStyle(Color.textTertiary)
                     .padding(.horizontal, 8)
@@ -48,24 +48,30 @@ struct ResourceCardView: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(resource.summary)
+            Text(resource.userDisplayText)
                 .font(AppTheme.Typography.caption)
                 .foregroundStyle(Color.textSecondary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
 
-            recommendationBlock(title: "为什么推荐", text: resource.whyRelevant)
-            recommendationBlock(title: "Agent 动作", text: resource.promptAgentUse)
+            recommendationBlock(title: "核心观点", text: resource.promptCoreIdea)
+            recommendationBlock(title: "为什么与当前阶段相关", text: resource.whyRelevant)
 
             if isExpanded {
-                recommendationBlock(title: "怎么使用", text: resource.howToUse)
+                recommendationBlock(title: "它帮助完成的设计判断", text: resource.processActionText)
                     .transition(.opacity)
 
-                recommendationBlock(title: "示例问题", text: resource.promptExampleQuestion)
+                recommendationBlock(title: "AI 可以怎样用", text: resource.promptRAGUse)
+                    .transition(.opacity)
+
+                recommendationBlock(title: "可能追问", text: resource.promptExampleQuestion)
                     .transition(.opacity.combined(with: .move(edge: .top)))
 
+                recommendationBlock(title: "依据说明", text: resource.evidenceDisplayText)
+                    .transition(.opacity)
+
                 if let sourceText = resource.sourceDisplayText {
-                    recommendationBlock(title: "参考来源", text: sourceText)
+                    recommendationBlock(title: "来源简写", text: sourceText)
                         .transition(.opacity)
                 }
 
@@ -97,7 +103,22 @@ struct ResourceCardView: View {
                 isExpanded.toggle()
             }
         }
-        .accessibilityHint(isExpanded ? "点击收起资源说明" : "点击展开怎么使用")
+        .accessibilityHint(isExpanded ? "点击收起设计依据说明" : "点击查看 AI 为什么这样问")
+    }
+
+    private var typeLabel: String {
+        resource.type == .paper ? "RAG" : resource.type.displayName
+    }
+
+    private var roleLabel: String {
+        switch resource.cardRole {
+        case .content:
+            return "设计依据"
+        case .questionStrategy, .cognitiveDepth, .scaffoldingStrategy:
+            return resource.cardRole.displayName
+        default:
+            return resource.cardRole.displayName
+        }
     }
 
     private var metaText: String? {

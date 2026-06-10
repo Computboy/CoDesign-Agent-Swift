@@ -2,8 +2,8 @@ import SwiftUI
 
 struct ResourceCardPanel: View {
     let project: Project
-    var title: String = "当前方法"
-    var subtitle: String = "Agent 会选择一张方法卡辅助本轮澄清。"
+    var title: String = "本轮设计依据"
+    var subtitle: String = "Agent 会调用本地知识库辅助本轮追问。"
     var allowsOnlineSearch: Bool = false
 
     private let recommendationService = ResourceRecommendationService()
@@ -72,7 +72,7 @@ struct ResourceCardPanel: View {
 
             if isExpanded {
                 if recommendations.isEmpty {
-                    Text("当前阶段暂无推荐资源。继续对话后，系统会补充更贴近项目的参考内容。")
+                    Text("当前阶段暂无本地知识库依据。继续对话后，系统会补充更贴近项目的设计依据。")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(Color.textTertiary)
                         .padding(AppTheme.spacingMedium)
@@ -110,18 +110,19 @@ struct ResourceCardPanel: View {
     private var statusText: String {
         if !allowsOnlineSearch {
             if let first = recommendations.first {
-                return "\(first.title) · 点击展开方法说明"
+                let second = recommendations.dropFirst().first.map { " · \($0.title)" } ?? ""
+                return "依据：\(first.title)\(second) · 查看 AI 为什么这样问"
             }
             return subtitle
         }
         if isSearchingPapers {
-            return "正在联网检索与你主题相关的论文..."
+            return "正在检索与你主题相关的外部论文..."
         }
         if !onlinePapers.isEmpty {
             return "已联网找到 \(onlinePapers.count) 篇相关论文，点击展开"
         }
         if paperSearchFailed {
-            return "论文检索暂不可用，点击查看本地课程资源"
+            return "论文检索暂不可用，点击查看本地知识库依据"
         }
         return subtitle
     }

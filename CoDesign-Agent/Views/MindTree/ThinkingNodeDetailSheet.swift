@@ -266,12 +266,12 @@ struct ThinkingNodeDetailSheet: View {
     private var evidenceContent: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
             if let resource = node.resource {
-                CoDesignSectionHeader(title: "推荐依据")
+                CoDesignSectionHeader(title: "本地知识库依据")
 
                 CoDesignCard {
                     VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
                         HStack(spacing: AppTheme.spacingSmall) {
-                            CoDesignStatusBadge(status: .active, text: resource.type.displayName)
+                            CoDesignStatusBadge(status: .active, text: resource.type == .paper ? "RAG" : resource.type.displayName)
                             if let year = resource.year {
                                 Text("\(year)")
                                     .font(AppTheme.Typography.captionMono)
@@ -284,9 +284,13 @@ struct ThinkingNodeDetailSheet: View {
                             .font(AppTheme.Typography.subheadline.weight(.semibold))
                             .foregroundStyle(Color.textPrimary)
 
-                        resourceBlock("摘要", resource.summary)
-                        resourceBlock("为什么相关", resource.whyRelevant)
-                        resourceBlock("如何使用", resource.howToUse)
+                        resourceBlock("核心观点", resource.promptCoreIdea)
+                        resourceBlock("为什么与当前阶段相关", resource.whyRelevant)
+                        resourceBlock("它帮助完成哪类设计判断", resource.processActionText)
+                        resourceBlock("AI 可以怎样用", resource.promptRAGUse)
+                        if let source = resource.sourceDisplayText {
+                            resourceBlock("来源简写", source)
+                        }
 
                         Button {
                             if let stageOrder = node.stageOrder {
@@ -454,11 +458,11 @@ struct ThinkingNodeDetailSheet: View {
                     .foregroundStyle(Color.secondaryAccent)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("阶段方法卡")
+                    Text("阶段设计依据")
                         .font(AppTheme.Typography.subheadline.weight(.semibold))
                         .foregroundStyle(Color.textPrimary)
 
-                    Text(resources.first?.summary ?? "当前阶段暂无资源推荐")
+                    Text(resources.first?.userDisplayText ?? "当前阶段暂无本地知识库依据")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(Color.textTertiary)
                         .lineLimit(2)

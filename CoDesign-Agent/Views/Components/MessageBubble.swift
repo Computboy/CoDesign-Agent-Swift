@@ -6,29 +6,42 @@ struct MessageBubble: View {
     var body: some View {
         HStack {
             if message.role == "user" {
-                Spacer()
+                Spacer(minLength: AppTheme.spacingLarge)
             }
 
-            Group {
-                if message.role == "assistant",
-                   let attributed = try? AttributedString(markdown: message.content) {
-                    Text(attributed)
-                } else {
-                    Text(message.content)
-                }
-            }
-            .font(AppTheme.Typography.body)
-            .padding(.horizontal, AppTheme.spacingMedium)
-            .padding(.vertical, AppTheme.spacingSmall)
-            .background(backgroundColor)
-            .foregroundStyle(textColor)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous))
-            .frame(maxWidth: 300, alignment: message.role == "user" ? .trailing : .leading)
-            .coDesignShadow(.card)
+            messageContent
+                .padding(.horizontal, AppTheme.spacingMedium)
+                .padding(.vertical, AppTheme.spacingSmall)
+                .background(backgroundColor)
+                .foregroundStyle(textColor)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous))
+                .frame(
+                    maxWidth: message.role == "assistant" ? .infinity : 340,
+                    alignment: message.role == "user" ? .trailing : .leading
+                )
+                .coDesignShadow(.card)
 
             if message.role == "assistant" {
-                Spacer()
+                Spacer(minLength: 0)
             }
+        }
+        .frame(maxWidth: .infinity, alignment: message.role == "user" ? .trailing : .leading)
+    }
+
+    @ViewBuilder
+    private var messageContent: some View {
+        if message.role == "assistant" {
+            AssistantResponseTextView(
+                text: message.content,
+                font: AppTheme.Typography.body,
+                foregroundColor: .textPrimary
+            )
+        } else {
+            Text(message.content)
+                .font(AppTheme.Typography.body)
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

@@ -265,7 +265,7 @@ struct TreeBuilder {
                         id: nodeID,
                         kind: .evidence,
                         content: resource.title,
-                        subContent: resource.summary,
+                        subContent: resource.userDisplayText,
                         stageOrder: stageOrder,
                         field: nil,
                         momentID: nil,
@@ -275,9 +275,9 @@ struct TreeBuilder {
                         branchVersion: 1,
                         richness: 0.45,
                         isGhost: true,
-                        processLabel: "Resource",
+                        processLabel: "RAG",
                         processIcon: "doc.text.magnifyingglass",
-                        statusText: "资源卡",
+                        statusText: "推荐依据",
                         resource: resource,
                         timestamp: nil
                     )
@@ -380,7 +380,7 @@ struct TreeBuilder {
         case "question": return "AI 追问"
         case "answer": return "用户回答"
         case "decision", "deepen": return "结构化判断"
-        case "method": return "方法调用"
+        case "method": return "本地知识库调用"
         case "evidence": return "已采纳为依据"
         case "revise": return "回溯修改"
         case "branch": return "阶段探索"
@@ -404,7 +404,7 @@ struct TreeBuilder {
         case "question": return "Q"
         case "answer": return "A"
         case "decision", "deepen": return "Decision"
-        case "method": return "线索"
+        case "method": return "依据"
         case "evidence": return "Evidence"
         case "revise": return "Revision"
         case "branch": return "Stage"
@@ -431,7 +431,7 @@ struct TreeBuilder {
         case "question": return "问题"
         case "answer": return "回答"
         case "decision", "deepen": return "判断"
-        case "method": return "方法"
+        case "method": return "依据"
         case "evidence": return "依据"
         case "revise": return "回溯"
         default: return "过程"
@@ -470,6 +470,7 @@ struct TreeBuilder {
         case "reframe": return "Reframe"
         case "converge": return "Converge"
         case "boundaryShrink": return "Boundary"
+        case "methodCard": return "Evidence"
         default: return "Trace"
         }
     }
@@ -479,6 +480,7 @@ struct TreeBuilder {
         case "reframe": return "arrow.triangle.2.circlepath"
         case "converge": return "arrow.down.right.and.arrow.up.left"
         case "boundaryShrink": return "rectangle.compress.vertical"
+        case "methodCard": return "doc.text.magnifyingglass"
         default: return "sparkles"
         }
     }

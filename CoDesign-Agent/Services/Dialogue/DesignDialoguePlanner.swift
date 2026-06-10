@@ -38,14 +38,11 @@ struct DesignDialoguePlanner {
         let avoid: [String]
 
         var mockResponse: String {
-            var lines = [
-                "我先确认一下：当前最值得推进的不是继续挖细节，而是做一个设计判断。",
-                "现在缺的线索是：\(designDecision)",
-                "这个问题会决定：\(decisionImpact)"
-            ]
+            """
+            这里更关键的线索是先做一个会影响后续方案的设计判断：\(designDecision)。这个判断会影响 \(decisionImpact)。
 
-            lines.append("所以这轮只问一个问题：\(question)")
-            return lines.joined(separator: "\n")
+            所以这轮我只想先确认：\(question)
+            """
         }
 
         var promptBlock: String {
@@ -58,7 +55,7 @@ struct DesignDialoguePlanner {
                 "- 推荐问题：\(question)"
             ]
 
-            lines.append("- 提问方式：先给一条线索，再提出一个开放问题；不要直接给 A/B/C 选项。")
+            lines.append("- 提问方式：先自然给一条设计线索，再提出一个开放问题；不要输出硬标题，也不要给 A/B/C 选项。")
 
             lines.append("- 不要问：")
             for item in avoid {

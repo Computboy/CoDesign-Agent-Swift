@@ -10,7 +10,7 @@ struct CurrentClarificationCard: View {
     let streamingText: String
     let onQuickAction: (String) -> Void
     let onSend: (String) -> Void
-    private let responseAreaHeight: CGFloat = 190
+    private let contextPanelMinHeight: CGFloat = 76
     @State private var showsExampleAction = false
 
     // MARK: - State
@@ -36,8 +36,35 @@ struct CurrentClarificationCard: View {
         return sorted.last(where: { $0.role == "assistant" })?.content ?? ""
     }
 
+    private var latestAssistantMessage: ChatMessage? {
+        project.messages
+            .filter { $0.role == "assistant" }
+            .sorted { $0.timestamp < $1.timestamp }
+            .last
+    }
+
     private var usesMethodScaffold: Bool {
-        latestAssistantText.contains("线索：") && latestAssistantText.contains("追问：")
+        if let assistant = latestAssistantMessage {
+            let recentMethodMoment = project.thinkingMoments
+                .filter { $0.momType == "method" && abs($0.timestamp.timeIntervalSince(assistant.timestamp)) < 12 }
+                .sorted { $0.timestamp < $1.timestamp }
+                .last
+            if recentMethodMoment != nil {
+                return true
+            }
+
+            let recentMethodTrace = project.learningTraces
+                .filter { $0.actionType == "methodCard" && abs($0.timestamp.timeIntervalSince(assistant.timestamp)) < 12 }
+                .sorted { $0.timestamp < $1.timestamp }
+                .last
+            if recentMethodTrace != nil {
+                return true
+            }
+        }
+
+        return (latestAssistantText.contains("线索：") && latestAssistantText.contains("追问：")) ||
+            latestAssistantText.contains("本轮 Agent 使用") ||
+            latestAssistantText.contains("本地设计依据")
     }
 
     /// Whether quick actions should be disabled (streaming or no conversation yet)
@@ -89,7 +116,7 @@ struct CurrentClarificationCard: View {
                 title: "我还不确定",
                 icon: "questionmark.circle",
                 tint: .warning,
-                prompt: "我还不确定。请进入“线索 + 提问”模式：先基于当前阶段和方法资源卡给我一条能理解的思考线索，再只问一个开放问题。不要给 A/B/C 选项，不要直接替我回答。"
+                prompt: "我还不确定。请先给我一条能帮助理解当前问题的设计线索，再只问一个开放问题。不要给选项，不要替我回答。"
             ),
             ClarificationQuickAction(
                 title: "换个角度问",
@@ -123,12 +150,12 @@ struct CurrentClarificationCard: View {
 
                 ResourceCardPanel(
                     project: project,
-                    title: "当前方法",
-                    subtitle: "点击展开方法说明。"
+                    title: "本轮设计依据",
+                    subtitle: "查看 AI 为什么这样问。"
                 )
 
                 if usesMethodScaffold {
-                    Label("本轮使用方法线索辅助追问", systemImage: "sparkles")
+                    Label("本轮使用本地设计依据辅助追问", systemImage: "sparkles")
                         .font(AppTheme.Typography.caption.weight(.medium))
                         .foregroundStyle(Color.primaryAccent)
                         .padding(.horizontal, AppTheme.spacingSmall)
@@ -234,7 +261,7 @@ struct CurrentClarificationCard: View {
             Text(initialStageQuestion)
                 .font(AppTheme.Typography.body)
                 .foregroundStyle(Color.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -258,12 +285,11 @@ struct CurrentClarificationCard: View {
                         .font(AppTheme.Typography.body)
                         .foregroundStyle(Color.textSecondary)
                 }
-                .frame(maxWidth: .infinity, minHeight: responseAreaHeight, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                AssistantResponseViewport(
+                AssistantResponseBlock(
                     text: streamingText,
-                    font: questionFont,
-                    height: responseAreaHeight
+                    font: questionFont
                 )
 
                 HStack(spacing: 4) {
@@ -284,13 +310,11 @@ struct CurrentClarificationCard: View {
                 Text("AI 正在准备下一轮澄清问题...")
                     .font(AppTheme.Typography.body)
                     .foregroundStyle(Color.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: responseAreaHeight, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                AssistantResponseViewport(
+                AssistantResponseBlock(
                     text: latestAssistantText,
-                    font: questionFont,
-                    height: responseAreaHeight
+                    font: questionFont
                 )
             }
         }
@@ -302,7 +326,7 @@ struct CurrentClarificationCard: View {
             Text("请在下方输入你的回答")
                 .font(AppTheme.Typography.body)
                 .foregroundStyle(Color.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -352,8 +376,8 @@ struct CurrentClarificationCard: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppTheme.spacingMedium)
+        .frame(maxWidth: .infinity, minHeight: contextPanelMinHeight, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
                 .fill(Color.panelBackground)
@@ -375,10 +399,10 @@ struct CurrentClarificationCard: View {
             Text(whyAsk)
                 .font(AppTheme.Typography.caption)
                 .foregroundStyle(Color.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppTheme.spacingMedium)
+        .frame(maxWidth: .infinity, minHeight: contextPanelMinHeight, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
                 .fill(Color.panelBackground)
@@ -428,202 +452,20 @@ private struct ClarificationQuickAction: Identifiable {
     var id: String { title }
 }
 
-// MARK: - AssistantResponseViewport
+// MARK: - AssistantResponseBlock
 
-private struct AssistantResponseViewport: View {
-    let text: String
-    let font: Font
-    let height: CGFloat
-
-    private let bottomID = "assistant-response-bottom"
-
-    var body: some View {
-        GeometryReader { proxy in
-            ScrollViewReader { scrollProxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        StructuredAssistantText(text: text, font: font)
-                            .frame(width: proxy.size.width, alignment: .topLeading)
-
-                        Color.clear
-                            .frame(height: 1)
-                            .id(bottomID)
-                    }
-                    .frame(width: proxy.size.width, alignment: .topLeading)
-                }
-                .coDesignHideScrollIndicators()
-                .onAppear {
-                    scrollToBottom(scrollProxy)
-                }
-                .onChange(of: text) { _, _ in
-                    scrollToBottom(scrollProxy)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .topLeading)
-    }
-
-    private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(30))
-            withAnimation(.linear(duration: 0.08)) {
-                proxy.scrollTo(bottomID, anchor: .bottom)
-            }
-        }
-    }
-}
-
-private struct StructuredAssistantText: View {
+private struct AssistantResponseBlock: View {
     let text: String
     let font: Font
 
     var body: some View {
-        let lines = formattedLines
-        VStack(alignment: .leading, spacing: 7) {
-            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                if line.isSpacer {
-                    Color.clear.frame(height: 2)
-                } else if let attributed = try? AttributedString(markdown: line.body) {
-                    Text(attributed)
-                        .font(font)
-                        .foregroundStyle(Color.textPrimary)
-                        .lineSpacing(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    Text(line.body)
-                        .font(font)
-                        .foregroundStyle(Color.textPrimary)
-                        .lineSpacing(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-        }
+        AssistantResponseTextView(
+            text: text,
+            font: font,
+            foregroundColor: .textPrimary,
+            lineSpacing: 3
+        )
         .frame(maxWidth: .infinity, alignment: .topLeading)
-    }
-
-    private var formattedLines: [StructuredAssistantLine] {
-        let rawLines = text
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map(String.init)
-
-        if rawLines.count <= 1 {
-            return splitLongParagraph(text)
-        }
-
-        return reflow(rawLines)
-    }
-
-    private func reflow(_ rawLines: [String]) -> [StructuredAssistantLine] {
-        var result: [StructuredAssistantLine] = []
-        var pendingLabel: String?
-        var pendingBody: [String] = []
-
-        func flush() {
-            let body = pendingBody
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-                .joined(separator: " ")
-            if let pendingLabel, !body.isEmpty {
-                result.append(StructuredAssistantLine(body: naturalSentence(label: pendingLabel, body: body)))
-            } else if let pendingLabel {
-                result.append(StructuredAssistantLine(body: "\(pendingLabel)："))
-            } else if !body.isEmpty {
-                result.append(StructuredAssistantLine(body: body))
-            }
-            pendingLabel = nil
-            pendingBody.removeAll()
-        }
-
-        for raw in rawLines {
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else {
-                flush()
-                continue
-            }
-
-            if let parsed = parseTaggedLine(trimmed) {
-                flush()
-                result.append(parsed)
-                continue
-            }
-
-            if let labelOnly = parseLabelOnlyLine(trimmed) {
-                flush()
-                pendingLabel = labelOnly
-                continue
-            }
-
-            pendingBody.append(trimmed)
-        }
-
-        flush()
-        return result
-    }
-
-    private func splitLongParagraph(_ value: String) -> [StructuredAssistantLine] {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? [] : [StructuredAssistantLine(body: trimmed)]
-    }
-
-    private func parseTaggedLine(_ line: String) -> StructuredAssistantLine? {
-        let knownLabels = ["理解", "线索", "选项", "追问", "例子", "下一步", "这个问题会决定"]
-        for separator in ["｜", "|", "：", ":"] {
-            guard let range = line.range(of: separator) else { continue }
-            let label = String(line[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-            let body = String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard knownLabels.contains(label), !body.isEmpty else { continue }
-            return StructuredAssistantLine(body: naturalSentence(label: label, body: body))
-        }
-        return nil
-    }
-
-    private func parseLabelOnlyLine(_ line: String) -> String? {
-        let knownLabels = ["理解", "线索", "追问", "例子", "下一步", "这个问题会决定"]
-        let normalized = line.trimmingCharacters(in: CharacterSet(charactersIn: "：: "))
-        return knownLabels.contains(normalized) ? normalized : nil
-    }
-
-    private func naturalSentence(label: String, body: String) -> String {
-        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        switch label {
-        case "理解":
-            return prefixedSentence("理解：", body: trimmed)
-        case "线索":
-            return prefixedSentence("线索：", body: trimmed)
-        case "这个问题会决定":
-            return prefixedSentence("这个问题会决定：", body: trimmed)
-        case "选项":
-            return prefixedSentence("参考：", body: trimmed)
-        case "追问":
-            return prefixedSentence("追问：", body: trimmed)
-        case "例子":
-            return prefixedSentence("例子：", body: trimmed)
-        case "下一步":
-            return prefixedSentence("接下来：", body: trimmed)
-        default:
-            return trimmed
-        }
-    }
-
-    private func prefixedSentence(_ prefix: String, body: String) -> String {
-        guard !body.hasPrefix(prefix) else { return body }
-        return prefix + body
-    }
-}
-
-private struct StructuredAssistantLine {
-    var label: String?
-    var body: String
-    var isSpacer: Bool
-
-    init(label: String? = nil, body: String = "", isSpacer: Bool = false) {
-        self.label = label
-        self.body = body
-        self.isSpacer = isSpacer
     }
 }
 

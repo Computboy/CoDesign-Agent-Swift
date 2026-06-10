@@ -300,9 +300,9 @@ final class ChatViewModel {
             ? "帮助用户从 \(card.processActionText) 角度重新理解当前问题"
             : card.processActionText
         let content = [
-            "调用方法：\(card.title)",
+            "调用依据：\(card.title)",
             "触发原因：\(triggerReason)",
-            "线索作用：\(scaffoldRole)",
+            "依据作用：\(scaffoldRole)",
             "生成问题：\(question)",
             fields.isEmpty ? nil : "期望字段：\(fields)",
         ]
@@ -345,7 +345,7 @@ final class ChatViewModel {
             stageOrder: stageOrder,
             actionType: "methodCard",
             title: "使用 \(card.title)",
-            detail: "本轮 Agent 使用「\(card.title)」作为方法依据：\(card.userDisplayText) 这帮助你完成「\(card.processActionText)」。"
+            detail: "本轮 Agent 使用「\(card.title)」作为本轮设计依据：\(card.userDisplayText) 这帮助你完成「\(card.processActionText)」。"
         )
         context.insert(trace)
         project.learningTraces.append(trace)
@@ -365,23 +365,57 @@ final class ChatViewModel {
             let followUp = text[followUpRange.upperBound...]
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if !followUp.isEmpty {
-                return truncatedMomentText(followUp)
+                if let question = lastQuestionSentence(in: String(followUp)) {
+                    return truncatedMomentText(question)
+                }
+                return truncatedMomentText(String(followUp))
             }
         }
 
-        let separators = CharacterSet(charactersIn: "。！？!?\n")
-        let fragments = text
-            .components(separatedBy: separators)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        if let question = fragments.first(where: { fragment in
-            text.contains(fragment + "？") || text.contains(fragment + "?")
-        }) {
+        if let question = lastQuestionSentence(in: text) {
             return truncatedMomentText(question)
         }
 
-        return truncatedMomentText(fragments.first ?? text)
+        if let sentence = lastSentence(in: text) {
+            return truncatedMomentText(sentence)
+        }
+
+        return truncatedMomentText(text)
+    }
+
+    private func lastQuestionSentence(in text: String) -> String? {
+        sentenceFragments(in: text)
+            .filter { fragment in
+                fragment.hasSuffix("？") || fragment.hasSuffix("?")
+            }
+            .last
+    }
+
+    private func lastSentence(in text: String) -> String? {
+        sentenceFragments(in: text).last
+    }
+
+    private func sentenceFragments(in text: String) -> [String] {
+        let terminators: Set<Character> = ["。", "！", "？", "!", "?", "\n"]
+        var fragments: [String] = []
+        var current = ""
+
+        for character in text {
+            current.append(character)
+            if terminators.contains(character) {
+                let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    fragments.append(trimmed)
+                }
+                current = ""
+            }
+        }
+
+        let tail = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !tail.isEmpty {
+            fragments.append(tail)
+        }
+        return fragments
     }
 
     private func fieldFingerprint(_ field: BriefField, in snapshot: DesignBriefSnapshot) -> String {

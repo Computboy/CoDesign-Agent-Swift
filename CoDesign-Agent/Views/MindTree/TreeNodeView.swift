@@ -38,13 +38,22 @@ struct TreeNodeView: View {
     // MARK: - Root Node
 
     private var rootContent: some View {
-        ZStack {
-            Circle()
-                .fill(Color.primaryAccent.opacity(0.13 + node.richness * 0.08))
-                .frame(width: 116, height: 116)
-                .blur(radius: 10)
+        VStack(spacing: 6) {
+            Image(systemName: "lightbulb.fill")
+                .font(.system(size: 16, weight: .bold))
 
-            Circle()
+            Text(node.content)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .frame(width: 190)
+        .frame(minHeight: 78)
+        .background {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
@@ -56,24 +65,17 @@ struct TreeNodeView: View {
                         endPoint: .bottomTrailing
                     )
                 )
-                .frame(width: 94, height: 94)
-                .overlay(
-                    Circle()
-                        .strokeBorder(.white.opacity(0.46), lineWidth: 1.4)
-                )
                 .shadow(color: Color.primaryAccent.opacity(AppTheme.Opacity.noticeable), radius: 18, y: 7)
-
-            VStack(spacing: 3) {
-                Image(systemName: "lightbulb.fill")
-                    .font(.system(size: 15, weight: .bold))
-                Text(truncate(node.content, maxLen: 8))
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.72)
-            }
-            .foregroundStyle(.white)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 12)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(.white.opacity(0.46), lineWidth: 1.4)
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.primaryAccent.opacity(0.13 + node.richness * 0.08))
+                .blur(radius: 12)
+                .padding(-10)
         }
     }
 
@@ -235,7 +237,7 @@ struct TreeNodeView: View {
                     .frame(width: 18, height: 18)
                     .background(Circle().fill(Color.secondaryAccent.opacity(0.12)))
 
-                Text("Resource")
+                Text("RAG")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.secondaryAccent)
 
@@ -286,7 +288,4 @@ struct TreeNodeView: View {
         return 1.0
     }
 
-    private func truncate(_ string: String, maxLen: Int) -> String {
-        string.count > maxLen ? String(string.prefix(maxLen)) + "..." : string
-    }
 }

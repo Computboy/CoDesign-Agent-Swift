@@ -73,10 +73,10 @@ struct ResourceRecommendationService {
         mode: ClarificationMode
     ) -> [ResourceCard] {
         let normalizedLimit = max(1, limit)
-        let scored = resources.map { resource in
+        let scored = resources.map { resource -> (resource: ResourceCard, score: Int) in
             (
-                resource,
-                score(
+                resource: resource,
+                score: score(
                     resource,
                     stageOrder: currentStageOrder,
                     context: context,
@@ -87,53 +87,90 @@ struct ResourceRecommendationService {
             )
         }
         .filter { $0.1 > 0 }
-        .sorted { lhs, rhs in
-            if lhs.1 == rhs.1 {
-                if lhs.0.priority == rhs.0.priority {
-                    return lhs.0.title < rhs.0.title
-                }
-                return lhs.0.priority > rhs.0.priority
-            }
-            return lhs.1 > rhs.1
-        }
+        .sorted(by: compareScoredResources)
 
-        let primaryContent = mode == .stuckScaffold
-            ? nil
-            : scored.map(\.0).first { $0.cardRole == .content }
-        var selected: [ResourceCard] = []
-        if let primaryContent {
-            selected.append(primaryContent)
-        }
-
-        for resource in scored.map(\.0) where selected.count < normalizedLimit {
-            guard !selected.contains(resource) else { continue }
-            guard mode != .stuckScaffold || isScaffoldResource(resource, stageOrder: currentStageOrder) else { continue }
-            if selected.contains(where: { $0.cardRole == .content }) && resource.cardRole == .content {
-                continue
-            }
-            selected.append(resource)
-        }
-
+        let selected = diverseSelection(
+            from: scored,
+            currentStageOrder: currentStageOrder,
+            limit: normalizedLimit,
+            mode: mode
+        )
         if !selected.isEmpty {
             return selected
         }
 
+        return fallbackRecommendations(
+            currentStageOrder: currentStageOrder,
+            limit: normalizedLimit,
+            mode: mode
+        )
+    }
+
+    private func diverseSelection(
+        from scored: [(resource: ResourceCard, score: Int)],
+        currentStageOrder: Int,
+        limit: Int,
+        mode: ClarificationMode
+    ) -> [ResourceCard] {
+        var selected: [ResourceCard] = []
+
+        func appendFirst(_ predicate: (ResourceCard) -> Bool) {
+            guard selected.count < limit else { return }
+            guard let candidate = scored.map(\.resource).first(where: { resource in
+                !selected.contains(resource) &&
+                isAllowedForMode(resource, mode: mode, stageOrder: currentStageOrder) &&
+                predicate(resource)
+            }) else {
+                return
+            }
+            selected.append(candidate)
+        }
+
+        if mode == .stuckScaffold {
+            appendFirst { isStrategyCard($0) }
+            appendFirst { $0.type == .paper && hasCluePotential($0) }
+            appendFirst { $0.cardRole == .content && hasCluePotential($0) }
+        } else {
+            appendFirst { $0.cardRole == .content && $0.type != .paper }
+            appendFirst { $0.type == .paper }
+            appendFirst { isStrategyCard($0) }
+        }
+
+        for resource in scored.map(\.resource) where selected.count < limit {
+            guard !selected.contains(resource) else { continue }
+            guard isAllowedForMode(resource, mode: mode, stageOrder: currentStageOrder) else { continue }
+            selected.append(resource)
+        }
+
+        return selected
+    }
+
+    private func fallbackRecommendations(
+        currentStageOrder: Int,
+        limit: Int,
+        mode: ClarificationMode
+    ) -> [ResourceCard] {
         let stageFallback = resources
             .filter { resource in
                 resource.relatedStages.contains(currentStageOrder) &&
-                (mode != .stuckScaffold || isScaffoldResource(resource, stageOrder: currentStageOrder))
+                isAllowedForMode(resource, mode: mode, stageOrder: currentStageOrder)
             }
-            .sorted { $0.priority > $1.priority }
+            .sorted { lhs, rhs in
+                if lhs.priority == rhs.priority {
+                    return lhs.title < rhs.title
+                }
+                return lhs.priority > rhs.priority
+            }
 
         if !stageFallback.isEmpty {
-            return Array(stageFallback.prefix(normalizedLimit))
+            return Array(stageFallback.prefix(limit))
         }
 
         return Array(
             resources
                 .filter { $0.relatedStages.contains(currentStageOrder) }
                 .sorted { $0.priority > $1.priority }
-                .prefix(normalizedLimit)
+                .prefix(limit)
         )
     }
 
@@ -154,9 +191,7 @@ struct ResourceRecommendationService {
             result += 34
         }
 
-        if resource.type == .method {
-            result += 10
-        }
+        result += typeWeight(for: resource)
 
         for field in resource.relatedFields where missingFields.contains(field) {
             result += 12
@@ -178,32 +213,25 @@ struct ResourceRecommendationService {
 
         if context.contains("ai") || context.contains("人工智能") || context.contains("智能") {
             if resource.requiredContext.contains("project_uses_ai") {
-                result += 10
+                result += 22
             }
+            result += aiProjectBoost(for: resource)
         } else if resource.requiredContext.contains("project_uses_ai") {
             result -= 18
         }
 
-        switch resource.cardRole {
-        case .content:
-            result += 8
-        case .questionStrategy, .cognitiveDepth, .scaffoldingStrategy:
-            let needsSupport = ["answer_too_shallow", "user_stuck", "claim_without_evidence"]
-                .contains { problemTypes.contains($0) }
-            result += needsSupport ? 6 : 0
-        case .loadControl:
-            result += 2
-        case .feedbackStrategy, .reflectionDetector, .stageReflection, .selfRegulation:
-            result += 1
-        case .onboarding, .correctionFeedback, .errorRecovery:
-            result -= 6
-        }
+        result += stageSpecificBoost(for: resource, stageOrder: stageOrder)
+        result += roleWeight(for: resource, problemTypes: problemTypes)
 
         if mode == .stuckScaffold {
             if isScaffoldResource(resource, stageOrder: stageOrder) {
                 result += 36
             } else {
                 result -= 24
+            }
+
+            if hasCluePotential(resource) {
+                result += 10
             }
 
             if resource.cardRole == .content && resource.relatedStages.contains(stageOrder) {
@@ -215,15 +243,145 @@ struct ResourceRecommendationService {
         return result
     }
 
-    private func isScaffoldResource(_ resource: ResourceCard, stageOrder: Int) -> Bool {
-        switch resource.cardRole {
-        case .scaffoldingStrategy, .questionStrategy, .cognitiveDepth:
-            return true
-        case .content:
-            return resource.relatedStages.contains(stageOrder)
-        default:
-            return resource.type == .method
+    private func compareScoredResources(
+        _ lhs: (resource: ResourceCard, score: Int),
+        _ rhs: (resource: ResourceCard, score: Int)
+    ) -> Bool {
+        if lhs.score == rhs.score {
+            if lhs.resource.priority == rhs.resource.priority {
+                return lhs.resource.title < rhs.resource.title
+            }
+            return lhs.resource.priority > rhs.resource.priority
         }
+        return lhs.score > rhs.score
+    }
+
+    private func typeWeight(for resource: ResourceCard) -> Int {
+        switch resource.type {
+        case .method:
+            return 10
+        case .paper:
+            return 9
+        case .designPrinciple:
+            return 6
+        case .courseFramework:
+            return 4
+        case .caseStudy:
+            return 3
+        }
+    }
+
+    private func roleWeight(for resource: ResourceCard, problemTypes: Set<String>) -> Int {
+        switch resource.cardRole {
+        case .content:
+            return 8
+        case .questionStrategy, .cognitiveDepth, .scaffoldingStrategy:
+            let needsSupport = ["answer_too_shallow", "user_stuck", "claim_without_evidence", "binary_judgment"]
+                .contains { problemTypes.contains($0) }
+            return needsSupport ? 12 : 4
+        case .loadControl:
+            return problemTypes.contains("user_stuck") ? 9 : 2
+        case .feedbackStrategy, .reflectionDetector, .stageReflection, .selfRegulation:
+            return problemTypes.contains("user_stuck") ? 5 : 1
+        case .onboarding, .correctionFeedback, .errorRecovery:
+            return -6
+        }
+    }
+
+    private func aiProjectBoost(for resource: ResourceCard) -> Int {
+        let aiTags = [
+            "ai",
+            "人工智能",
+            "human-ai",
+            "透明",
+            "explainability",
+            "控制",
+            "human-centered ai",
+            "automation bias",
+            "uncertainty"
+        ]
+        return containsAny(resource.tags.joined(separator: " ").lowercased(), aiTags) ? 18 : 0
+    }
+
+    private func stageSpecificBoost(for resource: ResourceCard, stageOrder: Int) -> Int {
+        switch stageOrder {
+        case 3:
+            return containsAny(resourceSearchText(resource), [
+                "边界",
+                "scope",
+                "mvp",
+                "控制",
+                "human control",
+                "human-centered",
+                "mixed initiative"
+            ]) ? 16 : 0
+        case 7:
+            return containsAny(resourceSearchText(resource), [
+                "评价",
+                "指标",
+                "metrics",
+                "success",
+                "goodhart",
+                "验收",
+                "evaluation"
+            ]) ? 18 : 0
+        case 8:
+            return containsAny(resourceSearchText(resource), [
+                "风险",
+                "失败",
+                "error",
+                "bias",
+                "uncertainty",
+                "recovery",
+                "自动化"
+            ]) ? 14 : 0
+        default:
+            return 0
+        }
+    }
+
+    private func resourceSearchText(_ resource: ResourceCard) -> String {
+        [
+            resource.title,
+            resource.tags.joined(separator: " "),
+            resource.summary,
+            resource.whyRelevant,
+            resource.promptCoreIdea,
+            resource.promptAgentUse,
+            resource.processActionText
+        ]
+        .joined(separator: " ")
+        .lowercased()
+    }
+
+    private func isAllowedForMode(
+        _ resource: ResourceCard,
+        mode: ClarificationMode,
+        stageOrder: Int
+    ) -> Bool {
+        mode != .stuckScaffold || isScaffoldResource(resource, stageOrder: stageOrder)
+    }
+
+    private func isScaffoldResource(_ resource: ResourceCard, stageOrder: Int) -> Bool {
+        isStrategyCard(resource) ||
+            (resource.relatedStages.contains(stageOrder) && hasCluePotential(resource)) ||
+            (resource.type == .paper && hasCluePotential(resource))
+    }
+
+    private func isStrategyCard(_ resource: ResourceCard) -> Bool {
+        switch resource.cardRole {
+        case .scaffoldingStrategy, .questionStrategy, .cognitiveDepth, .loadControl, .selfRegulation:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func hasCluePotential(_ resource: ResourceCard) -> Bool {
+        !resource.promptCoreIdea.isEmpty ||
+            !resource.promptDesignImplication.isEmpty ||
+            !resource.promptRAGUse.isEmpty ||
+            !resource.userDisplayText.isEmpty
     }
 
     private func missingBriefFields(for stageOrder: Int, brief: DesignBrief?) -> [BriefField] {

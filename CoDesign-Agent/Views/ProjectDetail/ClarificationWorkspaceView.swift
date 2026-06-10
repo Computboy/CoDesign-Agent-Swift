@@ -259,7 +259,7 @@ private struct CurrentWorkspaceColumn: View {
     }
 
     private func reviewContinuationNotice(stage: ProgressStage) -> some View {
-        CoDesignCard(style: .highlighted(.warning)) {
+        CoDesignCard(style: .normal) {
             HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
                 Image(systemName: "arrow.uturn.backward.circle.fill")
                     .font(.system(size: 16, weight: .semibold))

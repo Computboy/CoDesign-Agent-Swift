@@ -75,13 +75,9 @@ final class MockLLMService: LLMServiceProtocol {
         let question = card?.promptExampleQuestion ?? stageQuestion(currentStage?.order ?? 1)
 
         return """
-        线索：
-        \(projectFocus) 现在不需要立刻变成答案。
-        可以先借用“\(clueSeed)”这个方法，
-        看它在一个连续任务里哪里真正卡住。
+        \(projectFocus) 现在不需要立刻变成完整答案。这里可以先抓一个线索：\(clueSeed)，看它在一段连续任务里到底卡在哪个判断上。
 
-        追问：
-        \(singleQuestion(question, stageOrder: currentStage?.order ?? 1))
+        所以这轮我只想先确认：\(singleQuestion(question, stageOrder: currentStage?.order ?? 1))
         """
     }
 
@@ -94,29 +90,20 @@ final class MockLLMService: LLMServiceProtocol {
         switch stageOrder {
         case 1:
             return """
-            例子：
-            新生报到当天找不到下一步办理地点。
-            社团招新时新成员不知道该问谁。
+            可以参考两种很短的切入方式：新生报到当天找不到下一步办理地点，或社团招新时新成员不知道该问谁。它们都有一个共同点：问题发生在一段真实任务走到中间的时候。
 
-            追问：
-            你自己的项目里，哪一个真实任务片段最像这种“走到一半停住”的状态？
+            回到你的项目里，哪一个真实任务片段最像这种“走到一半停住”的状态？
             """
         case 3:
             return """
-            例子：
-            第一版只做最核心任务闭环。
-            暂时不做社交、排行榜或复杂推荐。
+            可以参考一种边界写法：第一版只做最核心任务闭环，暂时不做社交、排行榜或复杂推荐。这个例子的重点不是照抄功能，而是先保住最小验证主线。
 
-            追问：
             如果只保留能帮助 \(focus) 完成主任务的一小段流程，哪部分必须留下？
             """
         default:
             return """
-            例子：
-            可以从一个真实用户、一段连续任务、一个失败节点里切入。
-            也可以从“如果不解决会怎样”来判断优先级。
+            可以从一个真实用户、一段连续任务、一个失败节点里切入，也可以从“如果不解决会怎样”来判断优先级。先不用完整展开，抓住一个最能改变设计判断的切口就够了。
 
-            追问：
             这些例子里，哪一种最接近你现在项目的真实不确定点？
             """
         }

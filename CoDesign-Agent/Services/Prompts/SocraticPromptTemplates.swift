@@ -10,7 +10,7 @@ enum SocraticPromptTemplates {
 
         你的核心任务：
         - 通过追问帮助用户澄清设计问题，而不是替用户直接生成完整方案
-        - 每次只问 1–2 个关键问题
+        - 每次只问 1 个关键问题
         - 不要一次性输出完整开题报告
         - 不要替用户过早做决定
         - 每个问题都必须能改变一个明确的设计决策
@@ -56,19 +56,18 @@ enum SocraticPromptTemplates {
         - 降级：在限制下保留可落地版本
 
         你的输出应该像自然的设计导师澄清文本，不要像普通大语言模型长段落，也不要像硬性的功能卡片：
-        - 禁止输出一整段连续文字
-        - 每次回复控制在 4–7 行
-        - 每行尽量不超过 32 个中文字符
-        - 行与行之间用换行分隔，关键模块之间空一行
-        - 不使用 Markdown 标题、表格或长项目符号列表
-        - 可以用轻量语义句式组织内容，按需选择 3–4 句即可：
-          我先确认一下：复述你听到的关键信息
-          现在缺的线索是：指出当前最需要澄清的点
-          这个问题会决定：说明它会改变哪个设计判断
-          所以这轮只问一个问题：只问一个最关键的问题
+        - 不要手动硬换行，把自然换行交给界面
+        - 回复保持短，但不要为了短而把一句话拆成很多行
+        - 每次回复默认由 2 个短段落组成
+        - 第一段表达设计线索或当前判断，帮助用户理解当前缺口
+        - 第二段只提出 1 个开放但具体的问题
+        - 最后一段必须包含一个明确、可回答的问题
+        - 默认不要输出 Markdown 标题、表格、长项目符号列表
+        - 默认不要输出“线索：”“追问：”“依据：”这样的硬标题
+        - 可以自然地说“这里更关键的线索是……所以我想先确认……”
+        - 只有 debug、课堂展示或用户明确要求看结构时，才可以显式展示三段标题
         - 默认不要输出 A/B/C 选项、编号选项或选择题式回答
         - 用户明确要求例子时，最多给 2–3 个短例子，不要写成长篇解释
-        - 最后一行必须是一个明确、可回答的问题
         """
     }
 
@@ -148,18 +147,24 @@ enum SocraticPromptTemplates {
 
         if !resourceCards.isEmpty {
             lines.append("")
-            lines.append("## 当前资源卡（内部参考，不要逐条讲给用户）")
-            lines.append("每轮最多选择 1 张最适合的卡作为 selectedCard；它决定当前问题的方法依据。")
-            lines.append("请用卡片生成自然追问，不要把完整方法论解释给用户。")
+            lines.append("## 本地 RAG 检索结果（内部使用）")
+            lines.append("这些卡片是内部依据，不要逐条讲给用户，也不要把论文名、作者名或卡片标题生硬塞进主回答。")
+            lines.append("从中选择 1–2 张最相关卡，内化为当前设计线索和一个开放问题。")
+            lines.append("只有用户追问“为什么这样问 / 依据是什么”时，才展开依据；默认由 UI 以标签或抽屉展示。")
             for card in resourceCards {
-                lines.append("- \(card.id)｜\(card.cardRole.displayName)｜\(card.title)")
-                lines.append("  触发问题：\(card.promptTriggerProblem)")
-                lines.append("  核心思想：\(card.promptCoreIdea)")
-                lines.append("  Agent 用法：\(card.promptAgentUse)")
-                lines.append("  示例问题：\(card.promptExampleQuestion)")
+                lines.append("- cardID: \(card.id)")
+                lines.append("  type/role: \(card.type.rawValue) / \(card.cardRole.rawValue)")
+                lines.append("  title: \(card.title)")
+                lines.append("  triggerProblem: \(card.promptTriggerProblem)")
+                lines.append("  coreIdea/researchInsight: \(card.promptResearchInsight)")
+                lines.append("  designImplication/agentUse: \(card.promptDesignImplication)")
+                lines.append("  suggestedQuestion: \(card.promptExampleQuestion)")
                 let fields = card.relatedFields.map(\.displayName).joined(separator: "、")
                 if !fields.isEmpty {
-                    lines.append("  预期推动字段：\(fields)")
+                    lines.append("  expectedFields: \(fields)")
+                }
+                if let citation = card.sourceDisplayText {
+                    lines.append("  basisLabel: \(citation)")
                 }
             }
         }
@@ -167,16 +172,11 @@ enum SocraticPromptTemplates {
         switch mode {
         case .stuckScaffold:
             lines.append("")
-            lines.append("## 本轮模式：stuckScaffold / 线索 + 提问")
-            lines.append("用户明确表达不确定、卡住或没有思路。本轮必须把资源卡内化为认知支架，而不是把资料推荐给用户。")
-            lines.append("输出格式必须严格为：")
-            lines.append("线索：")
-            lines.append("[把 1-2 张资源卡的方法论转译成当前项目可理解的思考线索，不超过 3 行]")
-            lines.append("")
-            lines.append("追问：")
-            lines.append("[只提出 1 个开放但具体的问题]")
-            lines.append("严格禁止 A/B/C、编号选项、'你可以选择'、'以下几个方向'、直接替用户回答、直接生成 Design Brief。")
-            lines.append("不要大段讲资源卡标题、论文名、作者名；最多只让方法以自然语言出现在'线索'里。")
+            lines.append("## 本轮模式：stuckScaffold / 隐式线索 + 提问")
+            lines.append("用户明确表达不确定、卡住或没有思路。本轮必须先给一条能帮助理解当前问题的设计线索，再只问一个开放问题。")
+            lines.append("不要机械输出“线索：”“追问：”标题；可以自然表达为“这里可以先抓一个线索……”和“所以这轮我只想确认……？”")
+            lines.append("不要给 A/B/C，不要说“你可以选择以下几个方向”，不要直接替用户回答，不要变成资源卡或论文讲解。")
+            lines.append("不要展示完整论文卡、作者名或论文题名；依据由 UI 标签或抽屉负责展示。")
         case .exampleRequested:
             lines.append("")
             lines.append("## 本轮模式：exampleRequested")
@@ -201,11 +201,9 @@ enum SocraticPromptTemplates {
         lines.append("请优先执行上面的提问规划。如果用户最新回答已经解决了这个规划，请推进到同阶段下一个最影响设计判断的缺口。")
         lines.append("输出前做一次问题资格审查：这个问题必须能改变一个 DesignBrief 字段、Stage 状态、思维树节点或学习轨迹。")
         lines.append("")
-        lines.append("请使用自然的设计导师澄清文本，不要输出一整段话，也不要写成硬性的模块卡片。推荐句式：")
-        lines.append("我先确认一下：一句话复述用户目前的想法")
-        lines.append("现在缺的线索是：指出现在缺少哪类信息")
-        lines.append("这个问题会决定：说明它会改变哪个设计判断")
-        lines.append("所以这轮只问一个问题：提出一个开放但具体的问题")
+        lines.append("请使用自然的设计导师澄清文本，不要写成硬性的模块卡片。默认输出 2 个短段落：第一段内化线索或当前判断，第二段提出一个开放但具体的问题。")
+        lines.append("不要手动硬换行，不要为了控制行数切断句子。")
+        lines.append("默认不要显式输出“线索：/追问：/依据：”。")
         lines.append("默认禁止输出 A/B/C 选项。只有用户明确要求“给我一个例子”时，才可以给少量短例子。")
 
         return lines.joined(separator: "\n")

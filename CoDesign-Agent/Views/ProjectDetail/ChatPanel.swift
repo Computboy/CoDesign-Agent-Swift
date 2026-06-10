@@ -48,18 +48,7 @@ struct ChatPanel: View {
 
                     // 正在生成的消息
                     if chatViewModel.isStreaming && !chatViewModel.currentStreamingText.isEmpty {
-                        HStack {
-                            Text(chatViewModel.currentStreamingText)
-                                .font(AppTheme.Typography.body)
-                                .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, AppTheme.spacingMedium)
-                            .padding(.vertical, AppTheme.spacingSmall)
-                            .background(Color.cardBackground)
-                            .foregroundStyle(Color.textPrimary)
-                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous))
-                            .frame(maxWidth: 300, alignment: .leading)
-                            Spacer()
-                        }
+                        streamingBubble
                         .id("streaming")
                     }
 
@@ -84,13 +73,32 @@ struct ChatPanel: View {
             }
             .onChange(of: chatViewModel.currentStreamingText) {
                 if chatViewModel.isStreaming {
-                    withAnimation {
+                    withAnimation(.linear(duration: 0.08)) {
                         proxy.scrollTo("streaming", anchor: .bottom)
                     }
                 }
             }
             .coDesignHideScrollIndicators()
         }
+    }
+
+    private var streamingBubble: some View {
+        HStack {
+            AssistantResponseTextView(
+                text: chatViewModel.currentStreamingText,
+                font: AppTheme.Typography.body,
+                foregroundColor: .textPrimary
+            )
+            .padding(.horizontal, AppTheme.spacingMedium)
+            .padding(.vertical, AppTheme.spacingSmall)
+            .background(Color.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .coDesignShadow(.card)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Empty State

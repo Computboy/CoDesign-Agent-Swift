@@ -86,8 +86,15 @@ struct ResourceCard: Identifiable, Hashable {
     var exampleQuestion: String? = nil
     var processAction: String? = nil
     var sourceURL: URL? = nil
+    var authors: String? = nil
     var year: Int? = nil
     var venue: String? = nil
+    var citation: String? = nil
+    var researchInsight: String? = nil
+    var designImplication: String? = nil
+    var ragUse: String? = nil
+    var evidenceNote: String? = nil
+    var confidenceHint: String? = nil
     var cardRole: ResourceCardRole = .content
     var source: String? = nil
     var sourceType: String? = nil
@@ -103,7 +110,7 @@ struct ResourceCard: Identifiable, Hashable {
     var avoidWhen: [String] = []
 
     var sourceDisplayText: String? {
-        source ?? venue
+        citation ?? source ?? compactPublicationText
     }
 
     var promptTriggerProblem: String {
@@ -111,15 +118,15 @@ struct ResourceCard: Identifiable, Hashable {
     }
 
     var promptCoreIdea: String {
-        coreIdea ?? summary
+        coreIdea ?? researchInsight ?? summary
     }
 
     var promptAgentUse: String {
-        agentUse ?? howToUse
+        agentUse ?? ragUse ?? designImplication ?? howToUse
     }
 
     var userDisplayText: String {
-        displayText ?? summary
+        displayText ?? designImplication ?? researchInsight ?? summary
     }
 
     var promptExampleQuestion: String {
@@ -128,5 +135,39 @@ struct ResourceCard: Identifiable, Hashable {
 
     var processActionText: String {
         processAction ?? cardRole.displayName
+    }
+
+    var promptResearchInsight: String {
+        researchInsight ?? promptCoreIdea
+    }
+
+    var promptDesignImplication: String {
+        designImplication ?? promptAgentUse
+    }
+
+    var promptRAGUse: String {
+        ragUse ?? promptAgentUse
+    }
+
+    var evidenceDisplayText: String {
+        evidenceNote ?? whyRelevant
+    }
+
+    var confidenceDisplayText: String {
+        confidenceHint ?? evidenceLevel.displayName
+    }
+
+    var compactPublicationText: String? {
+        let parts = [
+            authors,
+            year.map { "\($0)" },
+            venue
+        ].compactMap { value -> String? in
+            guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return nil
+            }
+            return value
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 }
