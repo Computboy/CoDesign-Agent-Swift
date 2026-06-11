@@ -12,7 +12,7 @@ struct CoDesignHomeView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let layout = HomeLayout(width: geometry.size.width)
+            let layout = HomeLayout(size: geometry.size)
 
             VStack(spacing: 0) {
                 topBar(layout: layout)
@@ -22,7 +22,7 @@ struct CoDesignHomeView: View {
                         heroSection(layout: layout)
 
                         recentSection(layout: layout)
-                            .padding(.top, layout.isCompact ? 24 : 30)
+                            .padding(.top, layout.recentTopPadding)
                             .padding(.bottom, 44)
                     }
                 }
@@ -138,35 +138,39 @@ private extension CoDesignHomeView {
 
 private extension CoDesignHomeView {
     func heroSection(layout: HomeLayout) -> some View {
-        VStack(spacing: layout.isCompact ? 28 : 34) {
-            if layout.isCompact {
+        VStack(spacing: layout.heroSectionSpacing) {
+            if layout.usesStackedHero {
                 VStack(spacing: 28) {
                     heroCopy(layout: layout)
-                    HeroTreeIllustration(isCompact: true)
+                        .frame(maxWidth: layout.heroCopyMaxWidth, alignment: .leading)
+
+                    HeroTreeIllustration(layout: layout)
+                        .frame(maxWidth: layout.heroIllustrationFrameWidth)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                HStack(alignment: .center, spacing: 36) {
+                HStack(alignment: .center, spacing: layout.heroColumnSpacing) {
                     heroCopy(layout: layout)
-                        .frame(maxWidth: 620, alignment: .leading)
+                        .frame(maxWidth: layout.heroCopyMaxWidth, alignment: .leading)
 
-                    Spacer(minLength: 18)
+                    Spacer(minLength: 0)
 
-                    HeroTreeIllustration(isCompact: false)
-                        .frame(maxWidth: 720)
+                    HeroTreeIllustration(layout: layout)
+                        .frame(width: layout.heroIllustrationFrameWidth)
                 }
             }
 
             featureCards(layout: layout)
         }
         .padding(.horizontal, layout.horizontalPadding)
-        .padding(.top, layout.isCompact ? 34 : 54)
-        .padding(.bottom, layout.isCompact ? 28 : 42)
-        .frame(minHeight: layout.isCompact ? nil : 660)
+        .padding(.top, layout.heroTopPadding)
+        .padding(.bottom, layout.heroBottomPadding)
+        .frame(minHeight: layout.heroMinHeight)
         .background(HeroBackground())
     }
 
     func heroCopy(layout: HomeLayout) -> some View {
-        VStack(alignment: .leading, spacing: layout.isCompact ? 20 : 24) {
+        VStack(alignment: .leading, spacing: layout.heroCopySpacing) {
             HStack(spacing: 8) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 14, weight: .semibold))
@@ -184,41 +188,47 @@ private extension CoDesignHomeView {
                     .stroke(HomePalette.accent.opacity(0.16), lineWidth: 1)
             )
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("把模糊想法，")
-
-                if layout.isCompact {
-                    Text("长成一棵")
-                    HStack(spacing: 0) {
-                        Text("可思考")
-                            .foregroundStyle(HomePalette.accent)
-                        Text("的设计树")
-                    }
-                } else {
-                    HStack(spacing: 0) {
-                        Text("长成一棵")
-                        Text("可思考")
-                            .foregroundStyle(HomePalette.accent)
-                        Text("的设计树")
-                    }
-                }
-            }
-            .font(.system(size: layout.heroTitleSize, weight: .heavy, design: .rounded))
-            .foregroundStyle(HomePalette.primaryText)
-            .lineSpacing(2)
-            .fixedSize(horizontal: false, vertical: true)
+            heroTitle(layout: layout)
 
             Text("CoDesign 是你的 AI 设计澄清伙伴。在项目早期阶段，通过结构化追问、知识依据与工作台沉淀，帮助你把模糊想法转化为清晰、可执行的设计简报。")
-                .font(.system(size: 17, weight: .regular))
+                .font(.system(size: layout.heroBodySize, weight: .regular))
                 .foregroundStyle(HomePalette.secondaryText)
-                .lineSpacing(6)
-                .frame(maxWidth: 590, alignment: .leading)
+                .lineSpacing(layout.heroBodyLineSpacing)
+                .frame(maxWidth: layout.heroBodyMaxWidth, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
 
             heroActions(layout: layout)
                 .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    func heroTitle(layout: HomeLayout) -> some View {
+        VStack(alignment: .leading, spacing: layout.heroTitleLineSpacing) {
+            Text("把模糊想法，")
+
+            if layout.usesThreeLineHeroTitle {
+                Text("长成一棵")
+                highlightedTitleText("可思考的设计树")
+            } else {
+                highlightedTitleText("长成一棵可思考的设计树")
+            }
+        }
+        .font(.system(size: layout.heroTitleSize, weight: .heavy, design: .rounded))
+        .foregroundStyle(HomePalette.primaryText)
+        .lineLimit(1)
+        .minimumScaleFactor(0.74)
+        .allowsTightening(true)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    func highlightedTitleText(_ string: String) -> Text {
+        var attributed = AttributedString(string)
+        if let range = attributed.range(of: "可思考") {
+            attributed[range].foregroundColor = HomePalette.accent
+        }
+        return Text(attributed)
     }
 
     @ViewBuilder
@@ -353,34 +363,35 @@ private extension CoDesignHomeView {
 // MARK: - Hero Tree
 
 private struct HeroTreeIllustration: View {
-    let isCompact: Bool
+    let layout: HomeLayout
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: isCompact ? 24 : 30, style: .continuous)
+            RoundedRectangle(cornerRadius: illustrationCornerRadius, style: .continuous)
                 .fill(.white.opacity(0.46))
                 .overlay(
-                    RoundedRectangle(cornerRadius: isCompact ? 24 : 30, style: .continuous)
+                    RoundedRectangle(cornerRadius: illustrationCornerRadius, style: .continuous)
                         .stroke(.white.opacity(0.84), lineWidth: 1)
                 )
                 .shadow(color: HomePalette.accent.opacity(0.10), radius: 32, y: 16)
-                .frame(width: imageWidth + 36, height: imageHeight + 34)
+                .frame(width: imageWidth + 32, height: imageHeight + 32)
 
             Image("hero_design_tree")
                 .resizable()
                 .scaledToFit()
                 .frame(width: imageWidth, height: imageHeight)
-                .clipShape(RoundedRectangle(cornerRadius: isCompact ? 22 : 28, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: illustrationCornerRadius - 2, style: .continuous))
                 .shadow(color: HomePalette.accent.opacity(0.18), radius: 24, y: 14)
 
-            if !isCompact {
+            if layout.showsFloatingHeroCards {
                 FloatingMiniCard(
                     title: "模糊想法",
                     lines: ["做一个帮助", "新生适应校园的应用"],
                     badge: "初始输入",
                     systemName: "lightbulb"
                 )
-                .offset(x: -250, y: -172)
+                .scaleEffect(floatingCardScale)
+                .offset(x: -imageWidth * floatingCardLeadingOffset, y: -imageHeight * 0.32)
 
                 FloatingMiniCard(
                     title: "AI 追问与澄清",
@@ -388,25 +399,44 @@ private struct HeroTreeIllustration: View {
                     badge: "进行中",
                     systemName: "bubble.left.and.text.bubble.right"
                 )
-                .offset(x: -290, y: 92)
+                .scaleEffect(floatingCardScale)
+                .offset(x: -imageWidth * floatingCardLeadingOffset, y: imageHeight * 0.20)
 
                 FloatingStageCard()
-                    .offset(x: 260, y: -136)
+                    .scaleEffect(floatingCardScale)
+                    .offset(x: imageWidth * floatingCardTrailingOffset, y: -imageHeight * 0.25)
 
                 FloatingBriefCard()
-                    .offset(x: 248, y: 146)
+                    .scaleEffect(floatingCardScale)
+                    .offset(x: imageWidth * floatingCardTrailingOffset, y: imageHeight * 0.28)
             }
         }
-        .frame(height: isCompact ? 430 : 560)
+        .frame(height: layout.heroIllustrationHeight + 44)
         .frame(maxWidth: .infinity)
     }
 
     private var imageWidth: CGFloat {
-        isCompact ? 284 : 430
+        layout.heroIllustrationWidth
     }
 
     private var imageHeight: CGFloat {
-        isCompact ? 356 : 536
+        layout.heroIllustrationHeight
+    }
+
+    private var illustrationCornerRadius: CGFloat {
+        layout.isNarrow ? 24 : 30
+    }
+
+    private var floatingCardScale: CGFloat {
+        layout.floatingCardScale
+    }
+
+    private var floatingCardLeadingOffset: CGFloat {
+        layout.isWideHero ? 0.52 : 0.36
+    }
+
+    private var floatingCardTrailingOffset: CGFloat {
+        layout.isWideHero ? 0.49 : 0.36
     }
 }
 
@@ -1005,22 +1035,155 @@ private struct DotGrid: View {
 // MARK: - Layout & Palette
 
 private struct HomeLayout {
-    let width: CGFloat
+    let size: CGSize
+
+    var width: CGFloat {
+        size.width
+    }
+
+    var height: CGFloat {
+        size.height
+    }
+
+    var isNarrow: Bool {
+        width < 640
+    }
 
     var isCompact: Bool {
         width < 760
     }
 
+    var usesStackedHero: Bool {
+        isCompact
+    }
+
+    var isWideHero: Bool {
+        width >= 1320
+    }
+
+    var showsFloatingHeroCards: Bool {
+        isWideHero || (!usesStackedHero && height >= 700)
+    }
+
+    var floatingCardScale: CGFloat {
+        if isWideHero { return 1.0 }
+        if width < 900 { return 0.66 }
+        if width < 1220 { return 0.76 }
+        return 0.88
+    }
+
     var horizontalPadding: CGFloat {
-        if isCompact {
+        if isNarrow {
             return 20
         }
 
-        return width < 1100 ? 44 : 80
+        if width < 900 {
+            return 44
+        }
+
+        return width < 1220 ? 54 : 80
+    }
+
+    var heroSectionSpacing: CGFloat {
+        isNarrow ? 28 : 34
+    }
+
+    var heroCopySpacing: CGFloat {
+        isNarrow ? 20 : 24
+    }
+
+    var heroColumnSpacing: CGFloat {
+        28
+    }
+
+    var heroTopPadding: CGFloat {
+        if isNarrow { return 34 }
+        return usesStackedHero ? 46 : 54
+    }
+
+    var heroBottomPadding: CGFloat {
+        isNarrow ? 28 : 42
+    }
+
+    var heroMinHeight: CGFloat? {
+        usesStackedHero ? nil : 660
+    }
+
+    var recentTopPadding: CGFloat {
+        isCompact ? 24 : 30
+    }
+
+    var heroCopyMaxWidth: CGFloat {
+        if usesStackedHero {
+            return min(width - horizontalPadding * 2, 760)
+        }
+
+        if width < 900 {
+            return min(360, width * 0.42)
+        }
+
+        if width < 1220 {
+            return min(470, width * 0.45)
+        }
+
+        return min(590, width * 0.44)
     }
 
     var heroTitleSize: CGFloat {
-        isCompact ? 38 : 56
+        if isNarrow { return 38 }
+        if width < 900 { return 42 }
+        if width < 1220 { return 52 }
+        return 56
+    }
+
+    var usesThreeLineHeroTitle: Bool {
+        isNarrow || (width < 900 && !usesStackedHero)
+    }
+
+    var heroTitleLineSpacing: CGFloat {
+        isNarrow ? 6 : 8
+    }
+
+    var heroBodySize: CGFloat {
+        isNarrow ? 16 : 17
+    }
+
+    var heroBodyLineSpacing: CGFloat {
+        isNarrow ? 5 : 6
+    }
+
+    var heroBodyMaxWidth: CGFloat {
+        min(heroCopyMaxWidth, 620)
+    }
+
+    var heroIllustrationFrameWidth: CGFloat {
+        if usesStackedHero {
+            return min(width - horizontalPadding * 2, heroIllustrationWidth + 48)
+        }
+
+        if width < 900 {
+            return 340
+        }
+
+        if width < 1220 {
+            return 400
+        }
+
+        return showsFloatingHeroCards ? 520 : 430
+    }
+
+    var heroIllustrationWidth: CGFloat {
+        if isNarrow { return 284 }
+        if width < 900 { return 300 }
+        if width < 1220 { return 350 }
+        return 430
+    }
+
+    var heroIllustrationHeight: CGFloat {
+        if isNarrow { return 356 }
+        if width < 900 { return 376 }
+        if width < 1220 { return 438 }
+        return 536
     }
 }
 

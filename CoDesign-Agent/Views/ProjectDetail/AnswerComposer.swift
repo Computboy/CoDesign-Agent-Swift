@@ -20,7 +20,8 @@ struct AnswerComposer: View {
         HStack(alignment: .bottom, spacing: AppTheme.spacingSmall) {
             TextField("输入你的想法...", text: $inputText, axis: .vertical)
                 .textFieldStyle(.plain)
-                .lineLimit(1...4)
+                .lineLimit(1...5)
+                .submitLabel(.send)
                 .focused($isInputFocused)
                 .padding(.horizontal, AppTheme.spacingMedium)
                 .padding(.vertical, AppTheme.spacingSmall)
@@ -34,6 +35,9 @@ struct AnswerComposer: View {
                 )
                 .disabled(isStreaming)
                 .onSubmit { send() }
+                #if os(iOS)
+                .textInputAutocapitalization(.sentences)
+                #endif
 
             Button {
                 send()
@@ -49,7 +53,7 @@ struct AnswerComposer: View {
                     }
                 }
                 .foregroundStyle(.white)
-                .frame(width: 32, height: 32)
+                .frame(width: sendButtonSize, height: sendButtonSize)
                 .background(
                     Circle()
                         .fill(canSend ? Color.primaryAccent : Color.textTertiary.opacity(AppTheme.Opacity.soft))
@@ -80,11 +84,23 @@ struct AnswerComposer: View {
 
     private func refocusWhenReady() {
         guard !isStreaming else { return }
+        #if os(iOS)
+        return
+        #else
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(120))
             guard !isStreaming else { return }
             isInputFocused = true
         }
+        #endif
+    }
+
+    private var sendButtonSize: CGFloat {
+        #if os(iOS)
+        return 44
+        #else
+        return 32
+        #endif
     }
 }
 

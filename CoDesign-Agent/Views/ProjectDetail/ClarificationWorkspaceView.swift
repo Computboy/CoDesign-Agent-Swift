@@ -15,65 +15,172 @@ struct ClarificationWorkspaceView: View {
     var onExportBrief: () -> Void = {}
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var presentedAccessory: WorkspaceAccessory?
 
-    /// System size-class driven: compact → single-column scroll, regular → three-column workspace.
-    /// No hardcoded pixel threshold — adapts to iPad split-screen and window resizing automatically.
-    private var useWideLayout: Bool {
-        horizontalSizeClass == .regular
+    private enum WorkspaceLayoutMode {
+        case desktopWide
+        case iPadLandscape
+        case iPadStacked
+        case narrow
     }
 
     var body: some View {
-        Group {
-            if useWideLayout {
-                wideLayout
-            } else {
-                narrowLayout
-            }
+        GeometryReader { proxy in
+            content(for: layoutMode(in: proxy.size), proxy: proxy)
         }
         .background(Color.appBackground)
-    }
-
-    // MARK: - Wide Layout (thinking tree + workspace)
-
-    private var wideLayout: some View {
-        GeometryReader { proxy in
-            let availableWidth = proxy.size.width
-            let treeWidth = clamp(availableWidth * 0.44, min: 360, max: 620)
-
-            HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
-                ThinkingTreeView(project: project, mode: .embedded)
-                    .frame(width: treeWidth)
-                    .frame(maxHeight: .infinity)
-
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: AppTheme.spacingMedium) {
-                        CurrentWorkspaceColumn(
-                            project: project,
-                            chatViewModel: chatViewModel,
-                            onReviewBrief: onReviewBrief,
-                            onRevisitPreviousStage: onRevisitPreviousStage,
-                            onExportBrief: onExportBrief
-                        )
-
-                        DesignBriefDisclosurePanel(project: project)
-                    }
-                    .frame(
-                        minHeight: max(proxy.size.height - AppTheme.spacingLarge * 2, 0),
-                        alignment: .top
-                    )
-                }
-                .coDesignHideScrollIndicators()
-            }
-            .padding(AppTheme.spacingLarge)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .sheet(item: $presentedAccessory) { accessory in
+            accessorySheet(accessory)
+                #if os(iOS)
+                .presentationDetents(accessory.detents)
+                .presentationDragIndicator(.visible)
+                #endif
         }
     }
 
-    private var narrowLayout: some View {
+    private func layoutMode(in size: CGSize) -> WorkspaceLayoutMode {
+        #if os(iOS)
+        if size.width >= 980 && size.width > size.height {
+            return .iPadLandscape
+        }
+
+        if size.width >= 640 {
+            return .iPadStacked
+        }
+
+        return .narrow
+        #else
+        return horizontalSizeClass == .regular && size.width >= 860 ? .desktopWide : .narrow
+        #endif
+    }
+
+    @ViewBuilder
+    private func content(for mode: WorkspaceLayoutMode, proxy: GeometryProxy) -> some View {
+        switch mode {
+        case .desktopWide:
+            desktopWideLayout(proxy: proxy)
+        case .iPadLandscape:
+            iPadLandscapeLayout(proxy: proxy)
+        case .iPadStacked:
+            iPadStackedLayout(proxy: proxy)
+        case .narrow:
+            narrowLayout(proxy: proxy)
+        }
+    }
+
+    // MARK: - Desktop Wide Layout (thinking tree + workspace)
+
+    private func desktopWideLayout(proxy: GeometryProxy) -> some View {
+        let availableWidth = proxy.size.width
+        let treeWidth = clamp(availableWidth * 0.44, min: 360, max: 620)
+
+        return HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
+            ThinkingTreeView(project: project, mode: .embedded)
+                .frame(width: treeWidth)
+                .frame(maxHeight: .infinity)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: AppTheme.spacingMedium) {
+                    CurrentWorkspaceColumn(
+                        project: project,
+                        chatViewModel: chatViewModel,
+                        onReviewBrief: onReviewBrief,
+                        onRevisitPreviousStage: onRevisitPreviousStage,
+                        onExportBrief: onExportBrief
+                    )
+
+                    DesignBriefDisclosurePanel(project: project)
+                }
+                .frame(
+                    minHeight: max(proxy.size.height - AppTheme.spacingLarge * 2, 0),
+                    alignment: .top
+                )
+            }
+            .coDesignHideScrollIndicators()
+        }
+        .padding(AppTheme.spacingLarge)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    // MARK: - iPad Landscape Layout (Mac-aligned tree + workspace)
+
+    private func iPadLandscapeLayout(proxy: GeometryProxy) -> some View {
+        let width = proxy.size.width
+        let treeWidth = clamp(width * 0.42, min: 420, max: 560)
+
+        return HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
+            ThinkingTreeView(project: project, mode: .embedded)
+                .frame(width: treeWidth)
+                .frame(maxHeight: .infinity)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: AppTheme.spacingMedium) {
+                    CurrentWorkspaceColumn(
+                        project: project,
+                        chatViewModel: chatViewModel,
+                        onReviewBrief: onReviewBrief,
+                        onRevisitPreviousStage: onRevisitPreviousStage,
+                        onExportBrief: onExportBrief
+                    )
+
+                    DesignBriefDisclosurePanel(project: project)
+                }
+                .frame(minHeight: max(proxy.size.height - AppTheme.spacingMedium * 2, 0), alignment: .top)
+            }
+            .coDesignInteractiveKeyboardDismissal()
+            .coDesignHideScrollIndicators()
+        }
+        .padding(.horizontal, AppTheme.spacingMedium)
+        .padding(.vertical, AppTheme.spacingSmall)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    // MARK: - iPad Stacked Layout
+
+    private func iPadStackedLayout(proxy: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            StageRail(stages: project.stages)
+                .frame(minHeight: 56)
+                .padding(.vertical, AppTheme.spacingXS)
+                .background(.ultraThinMaterial)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(AppTheme.Border.color)
+                        .frame(height: AppTheme.Border.thin)
+                }
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: AppTheme.spacingMedium) {
+                    WorkspaceAccessoryBar { accessory in
+                        presentedAccessory = accessory
+                    }
+
+                    CurrentWorkspaceColumn(
+                        project: project,
+                        chatViewModel: chatViewModel,
+                        onReviewBrief: onReviewBrief,
+                        onRevisitPreviousStage: onRevisitPreviousStage,
+                        onExportBrief: onExportBrief
+                    )
+                }
+                .padding(.horizontal, AppTheme.spacingMedium)
+                .padding(.vertical, AppTheme.spacingSmall)
+                .padding(.bottom, AppTheme.spacingXXL)
+                .frame(minHeight: max(proxy.size.height - 72, 0), alignment: .top)
+            }
+            .coDesignInteractiveKeyboardDismissal()
+            .coDesignHideScrollIndicators()
+        }
+    }
+
+    private func narrowLayout(proxy: GeometryProxy) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: AppTheme.spacingMedium) {
-                ThinkingTreeView(project: project, mode: .embedded)
-                    .frame(height: 430)
+                StageRail(stages: project.stages)
+
+                WorkspaceAccessoryBar { accessory in
+                    presentedAccessory = accessory
+                }
 
                 CurrentWorkspaceColumn(
                     project: project,
@@ -90,7 +197,107 @@ struct ClarificationWorkspaceView: View {
             .padding(.vertical, AppTheme.spacingSmall)
             .padding(.bottom, AppTheme.spacingXL)
         }
+        .coDesignInteractiveKeyboardDismissal()
         .coDesignHideScrollIndicators()
+    }
+
+    @ViewBuilder
+    private func accessorySheet(_ accessory: WorkspaceAccessory) -> some View {
+        NavigationStack {
+            Group {
+                switch accessory {
+                case .mindTree:
+                    ThinkingTreeView(project: project, mode: .standalone)
+                case .resources:
+                    ScrollView(.vertical, showsIndicators: false) {
+                        ResourceCardPanel(
+                            project: project,
+                            title: "资源线索 / 线索 + 提问",
+                            subtitle: "保留本轮 AI 提问背后的依据、追问策略和可能追问。",
+                            startsExpanded: true
+                        )
+                        .padding(AppTheme.spacingMedium)
+                    }
+                    .coDesignHideScrollIndicators()
+                    .background(Color.appBackground)
+                case .brief:
+                    ScrollView(.vertical, showsIndicators: false) {
+                        InsightCardsPanel(project: project)
+                            .padding(AppTheme.spacingMedium)
+                    }
+                    .coDesignHideScrollIndicators()
+                    .background(Color.appBackground)
+                }
+            }
+            .navigationTitle(accessory.title)
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+        }
+    }
+}
+
+// MARK: - Workspace Accessory
+
+private enum WorkspaceAccessory: String, Identifiable {
+    case mindTree
+    case resources
+    case brief
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .mindTree: return "思维树"
+        case .resources: return "资源线索"
+        case .brief: return "Design Brief"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .mindTree: return "tree"
+        case .resources: return "books.vertical"
+        case .brief: return "rectangle.stack"
+        }
+    }
+
+    #if os(iOS)
+    var detents: Set<PresentationDetent> {
+        switch self {
+        case .mindTree:
+            return [.large]
+        case .resources, .brief:
+            return [.medium, .large]
+        }
+    }
+    #endif
+}
+
+private struct WorkspaceAccessoryBar: View {
+    let onSelect: (WorkspaceAccessory) -> Void
+
+    var body: some View {
+        HStack(spacing: AppTheme.spacingSmall) {
+            ForEach([WorkspaceAccessory.mindTree, .resources, .brief]) { accessory in
+                Button {
+                    onSelect(accessory)
+                } label: {
+                    Label(accessory.title, systemImage: accessory.icon)
+                        .font(AppTheme.Typography.caption.weight(.semibold))
+                        .foregroundStyle(Color.primaryAccent)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(
+                            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                                .fill(Color.primaryAccent.opacity(AppTheme.Opacity.light))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -163,6 +370,7 @@ private struct CurrentWorkspaceColumn: View {
     let project: Project
     let chatViewModel: ChatViewModel
     var includesHeader: Bool = true
+    var showsResourcePanel: Bool = true
     var onReviewBrief: () -> Void = {}
     var onRevisitPreviousStage: () -> Void = {}
     var onExportBrief: () -> Void = {}
@@ -223,6 +431,7 @@ private struct CurrentWorkspaceColumn: View {
                     project: project,
                     isStreaming: chatViewModel.isStreaming,
                     streamingText: chatViewModel.currentStreamingText,
+                    showsResourcePanel: showsResourcePanel,
                     onQuickAction: send,
                     onSend: send
                 )
@@ -286,6 +495,17 @@ private struct CurrentWorkspaceColumn: View {
 /// Clamp a value to [min, max]. Used to keep proportional layout widths within sensible bounds.
 private func clamp(_ value: CGFloat, min lower: CGFloat, max upper: CGFloat) -> CGFloat {
     Swift.min(Swift.max(value, lower), upper)
+}
+
+private extension View {
+    @ViewBuilder
+    func coDesignInteractiveKeyboardDismissal() -> some View {
+        #if os(iOS)
+        self.scrollDismissesKeyboard(.interactively)
+        #else
+        self
+        #endif
+    }
 }
 
 #Preview {

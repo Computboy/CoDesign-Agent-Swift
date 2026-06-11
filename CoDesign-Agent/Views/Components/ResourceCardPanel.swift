@@ -2,9 +2,9 @@ import SwiftUI
 
 struct ResourceCardPanel: View {
     let project: Project
-    var title: String = "本轮设计依据"
-    var subtitle: String = "Agent 会调用本地知识库辅助本轮追问。"
-    var allowsOnlineSearch: Bool = false
+    var title: String
+    var subtitle: String
+    var allowsOnlineSearch: Bool
 
     private let recommendationService = ResourceRecommendationService()
     private let paperSearchService = FrontierPaperSearchService()
@@ -12,7 +12,21 @@ struct ResourceCardPanel: View {
     @State private var onlinePapers: [ResourceCard] = []
     @State private var isSearchingPapers = false
     @State private var paperSearchFailed = false
-    @State private var isExpanded = false
+    @State private var isExpanded: Bool
+
+    init(
+        project: Project,
+        title: String = "本轮设计依据",
+        subtitle: String = "Agent 会调用本地知识库辅助本轮追问。",
+        allowsOnlineSearch: Bool = false,
+        startsExpanded: Bool = false
+    ) {
+        self.project = project
+        self.title = title
+        self.subtitle = subtitle
+        self.allowsOnlineSearch = allowsOnlineSearch
+        _isExpanded = State(initialValue: startsExpanded)
+    }
 
     private var recommendations: [ResourceCard] {
         let local = recommendationService.recommend(
@@ -32,6 +46,8 @@ struct ResourceCardPanel: View {
     }
 
     var body: some View {
+        let panelRecommendations = recommendations
+
         VStack(alignment: .leading, spacing: isExpanded ? AppTheme.spacingSmall : 0) {
             Button {
                 withAnimation(.easeInOut(duration: 0.22)) {
@@ -43,7 +59,7 @@ struct ResourceCardPanel: View {
                         Text(title)
                             .font(AppTheme.Typography.caption.weight(.semibold))
                             .foregroundStyle(Color.textPrimary)
-                        Text(statusText)
+                        Text(statusText(for: panelRecommendations))
                             .font(AppTheme.Typography.micro)
                             .foregroundStyle(Color.textTertiary)
                             .lineLimit(1)
@@ -67,11 +83,12 @@ struct ResourceCardPanel: View {
                         .rotationEffect(.degrees(isExpanded ? 180 : 0))
                 }
                 .contentShape(Rectangle())
+                .frame(minHeight: headerMinHeight)
             }
             .buttonStyle(.plain)
 
             if isExpanded {
-                if recommendations.isEmpty {
+                if panelRecommendations.isEmpty {
                     Text("当前阶段暂无本地知识库依据。继续对话后，系统会补充更贴近项目的设计依据。")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(Color.textTertiary)
@@ -81,7 +98,7 @@ struct ResourceCardPanel: View {
                         .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous))
                 } else {
                     VStack(spacing: AppTheme.spacingSmall) {
-                        ForEach(recommendations) { resource in
+                        ForEach(panelRecommendations) { resource in
                             ResourceCardView(resource: resource)
                         }
                     }
@@ -107,7 +124,15 @@ struct ResourceCardPanel: View {
         }
     }
 
-    private var statusText: String {
+    private var headerMinHeight: CGFloat {
+        #if os(iOS)
+        return 44
+        #else
+        return AppTheme.Layout.buttonHeightSmall
+        #endif
+    }
+
+    private func statusText(for recommendations: [ResourceCard]) -> String {
         if !allowsOnlineSearch {
             if let first = recommendations.first {
                 let second = recommendations.dropFirst().first.map { " · \($0.title)" } ?? ""

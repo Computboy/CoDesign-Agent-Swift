@@ -164,6 +164,64 @@ final class LLMAPIClient {
         }
     }
 
+    // MARK: - Connection test
+    //
+    // 用于设置页验证当前 Base URL / API Key / Model / Thinking Type 是否能跑通。
+    // 使用极小的非流式请求，避免消耗过多 token，也避免依赖 response_format 支持。
+
+    func testConnection() async throws -> String {
+        guard config.isValid else {
+            throw APIError.missingAPIKey
+        }
+
+        let request = try makeRequest(body: ChatCompletionRequest(
+            model: config.model,
+            messages: [
+                ChatCompletionMessage(role: "system", content: "You are an API connection tester. Reply with exactly OK."),
+                ChatCompletionMessage(role: "user", content: "Reply OK.")
+            ],
+            stream: false,
+            temperature: 0,
+            maxTokens: 8,
+            responseFormat: nil,
+            thinking: config.thinkingType.map { ThinkingConfig(type: $0) }
+        ))
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.networkFailed(error)
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        guard (200...299).contains(http.statusCode) else {
+            let bodyText = String(data: data, encoding: .utf8) ?? ""
+            throw APIError.httpStatus(http.statusCode, bodyText)
+        }
+
+        let decoded: ChatCompletionResponse
+        do {
+            decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+        } catch {
+            throw APIError.decodingFailed
+        }
+
+        guard let content = decoded.choices.first?.message?.content?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !content.isEmpty else {
+            throw APIError.emptyResponse
+        }
+
+        return content
+    }
+
     // MARK: - Private
 
     private func makeRequest(body: ChatCompletionRequest) throws -> URLRequest {

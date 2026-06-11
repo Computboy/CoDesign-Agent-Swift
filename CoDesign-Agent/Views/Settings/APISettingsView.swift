@@ -10,6 +10,9 @@ struct APISettingsView: View {
     @AppStorage("llmThinkingType") private var thinkingType: String = ""
 
     @State private var showClearAlert = false
+    @State private var isTestingAPI = false
+    @State private var apiTestSucceeded: Bool?
+    @State private var apiTestMessage: String?
     #if DEBUG
     @State private var showDialogueGym = false
     #endif
@@ -43,6 +46,42 @@ struct APISettingsView: View {
                         Text("不发送").tag("")
                         Text("disabled").tag("disabled")
                         Text("enabled").tag("enabled")
+                    }
+
+                    Button {
+                        Task {
+                            await testAPIConnection()
+                        }
+                    } label: {
+                        HStack {
+                            Label(
+                                isTestingAPI ? "正在测试 API Key" : "测试 API Key",
+                                systemImage: isTestingAPI ? "hourglass" : "checkmark.seal"
+                            )
+
+                            Spacer()
+
+                            if isTestingAPI {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+                        }
+                    }
+                    .disabled(isTestingAPI || trimmedAPIKey.isEmpty)
+
+                    if trimmedAPIKey.isEmpty {
+                        Label("填入 API Key 后可以测试当前配置是否可用。", systemImage: "info.circle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let apiTestMessage, let apiTestSucceeded {
+                        Label(
+                            apiTestMessage,
+                            systemImage: apiTestSucceeded ? "checkmark.circle.fill" : "xmark.octagon.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(apiTestSucceeded ? .green : .red)
                     }
                 }
 
@@ -118,6 +157,10 @@ struct APISettingsView: View {
             } message: {
                 Text("这将清空所有 API 配置，但不会影响已有项目数据。")
             }
+            .onChange(of: apiKey) { _, _ in resetAPITestResult() }
+            .onChange(of: baseURL) { _, _ in resetAPITestResult() }
+            .onChange(of: model) { _, _ in resetAPITestResult() }
+            .onChange(of: thinkingType) { _, _ in resetAPITestResult() }
             #if DEBUG
             .sheet(isPresented: $showDialogueGym) {
                 DialogueGymDebugView()
@@ -127,11 +170,87 @@ struct APISettingsView: View {
         }
     }
 
+    private var trimmedAPIKey: String {
+        apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var effectiveBaseURLString: String {
+        let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "https://api.deepseek.com" : trimmed
+    }
+
+    private var effectiveModel: String {
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "deepseek-v4-flash" : trimmed
+    }
+
+    private var effectiveThinkingType: String? {
+        let trimmed = thinkingType.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private func clearConfiguration() {
         apiKey = ""
         baseURL = ""
         model = ""
         thinkingType = ""
+        resetAPITestResult()
+    }
+
+    private func resetAPITestResult() {
+        guard !isTestingAPI else { return }
+        apiTestSucceeded = nil
+        apiTestMessage = nil
+    }
+
+    @MainActor
+    private func testAPIConnection() async {
+        isTestingAPI = true
+        apiTestSucceeded = nil
+        apiTestMessage = nil
+
+        defer {
+            isTestingAPI = false
+        }
+
+        guard !trimmedAPIKey.isEmpty else {
+            apiTestSucceeded = false
+            apiTestMessage = APIError.missingAPIKey.localizedDescription
+            return
+        }
+
+        guard let url = URL(string: effectiveBaseURLString),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host?.isEmpty == false else {
+            apiTestSucceeded = false
+            apiTestMessage = APIError.invalidURL.localizedDescription
+            return
+        }
+
+        let config = LLMAPIConfig(
+            baseURL: url,
+            apiKey: trimmedAPIKey,
+            model: effectiveModel,
+            timeoutSeconds: 20,
+            thinkingType: effectiveThinkingType
+        )
+        let client = LLMAPIClient(config: config)
+
+        do {
+            let reply = try await client.testConnection()
+            apiTestSucceeded = true
+            apiTestMessage = "连接成功，模型返回：\(shortMessage(reply))"
+        } catch {
+            apiTestSucceeded = false
+            apiTestMessage = shortMessage(error.localizedDescription)
+        }
+    }
+
+    private func shortMessage(_ message: String) -> String {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > 140 else { return trimmed }
+        return String(trimmed.prefix(140)) + "..."
     }
 }
 

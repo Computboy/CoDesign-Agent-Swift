@@ -35,7 +35,9 @@ struct StageExplanationPopover: View {
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(Color.textTertiary)
+                                .frame(width: 44, height: 44)
                         }
+                        .buttonStyle(.plain)
                     }
 
                     // 阶段目标

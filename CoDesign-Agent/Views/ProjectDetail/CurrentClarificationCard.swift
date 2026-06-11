@@ -8,6 +8,7 @@ struct CurrentClarificationCard: View {
     let project: Project
     let isStreaming: Bool
     let streamingText: String
+    var showsResourcePanel: Bool = true
     let onQuickAction: (String) -> Void
     let onSend: (String) -> Void
     private let contextPanelMinHeight: CGFloat = 76
@@ -148,11 +149,13 @@ struct CurrentClarificationCard: View {
             VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
                 stageHeader
 
-                ResourceCardPanel(
-                    project: project,
-                    title: "本轮设计依据",
-                    subtitle: "查看 AI 为什么这样问。"
-                )
+                if showsResourcePanel {
+                    ResourceCardPanel(
+                        project: project,
+                        title: "本轮设计依据",
+                        subtitle: "查看 AI 为什么这样问。"
+                    )
+                }
 
                 if usesMethodScaffold {
                     Label("本轮使用本地设计依据辅助追问", systemImage: "sparkles")
@@ -197,7 +200,8 @@ struct CurrentClarificationCard: View {
     }
 
     private var delayedExampleRevealKey: String {
-        "\(isStreaming)-\(project.messages.count)-\(latestAssistantText)"
+        let latestAssistantID = latestAssistantMessage?.id.uuidString ?? "none"
+        return "\(isStreaming)-\(project.messages.count)-\(latestAssistantID)"
     }
 
     // MARK: - Stage Header
@@ -428,7 +432,7 @@ struct CurrentClarificationCard: View {
                         Label(action.title, systemImage: action.icon)
                             .font(AppTheme.Typography.caption.weight(.medium))
                             .padding(.horizontal, AppTheme.spacingMedium)
-                            .frame(height: AppTheme.Layout.buttonHeightSmall)
+                            .frame(height: quickActionHeight)
                             .background(
                                 Capsule()
                                     .fill(action.tint.opacity(quickActionsDisabled ? AppTheme.Opacity.hairline : AppTheme.Opacity.light))
@@ -440,6 +444,14 @@ struct CurrentClarificationCard: View {
                 }
             }
         }
+    }
+
+    private var quickActionHeight: CGFloat {
+        #if os(iOS)
+        return 40
+        #else
+        return AppTheme.Layout.buttonHeightSmall
+        #endif
     }
 }
 

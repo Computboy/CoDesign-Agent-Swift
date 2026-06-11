@@ -37,14 +37,12 @@ struct StageRail: View {
                                 state: pillState(for: stage),
                                 isCompact: true
                             )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                showExplanation(for: stage)
+                            }
                             .onLongPressGesture(minimumDuration: 0.5) {
-                                // 长按显示阶段解释
-                                if let definition = StageDefinition.all.first(where: { $0.order == stage.order }) {
-                                    withAnimation(AppTheme.Animation.spring) {
-                                        selectedStage = stage
-                                        selectedDefinition = definition
-                                    }
-                                }
+                                showExplanation(for: stage)
                             }
                         }
                     }
@@ -76,6 +74,15 @@ struct StageRail: View {
                 .foregroundStyle(Color.textTertiary)
         }
         .padding(.horizontal, AppTheme.spacingMedium)
+    }
+
+    private func showExplanation(for stage: ProgressStage) {
+        if let definition = StageDefinition.all.first(where: { $0.order == stage.order }) {
+            withAnimation(AppTheme.Animation.spring) {
+                selectedStage = stage
+                selectedDefinition = definition
+            }
+        }
     }
 }
 

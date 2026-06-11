@@ -15,6 +15,7 @@ struct WorkspaceGlobalBar: View {
         ViewThatFits(in: .horizontal) {
             regularLayout
             compactLayout
+            scrollableCompactLayout
         }
         .padding(.horizontal, AppTheme.spacingLarge)
         .padding(.vertical, AppTheme.spacingSM)
@@ -53,6 +54,20 @@ struct WorkspaceGlobalBar: View {
         }
     }
 
+    private var scrollableCompactLayout: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: AppTheme.spacingSmall) {
+                contextLoopBadge
+                mindTreeButton
+                visualBoardButton
+                portfolioButton
+                viewModeMenu
+            }
+            .padding(.horizontal, 1)
+        }
+        .coDesignHideScrollIndicators()
+    }
+
     // MARK: - Autonomy
 
     private var autonomyControl: some View {
@@ -69,7 +84,7 @@ struct WorkspaceGlobalBar: View {
         .font(AppTheme.Typography.caption)
         .foregroundStyle(Color.textTertiary)
         .padding(.horizontal, AppTheme.spacingSmall)
-        .frame(height: AppTheme.Layout.buttonHeightSmall)
+        .frame(height: controlHeight)
         .background(
             Capsule(style: .continuous)
                 .fill(Color.elevatedCardBackground.opacity(0.78))
@@ -106,7 +121,7 @@ struct WorkspaceGlobalBar: View {
         .font(AppTheme.Typography.caption.weight(.medium))
         .foregroundStyle(Color.primaryAccent.opacity(AppTheme.Opacity.strong))
         .padding(.horizontal, AppTheme.spacingSmall)
-        .frame(height: AppTheme.Layout.buttonHeightSmall)
+        .frame(height: controlHeight)
         .background(
             Capsule(style: .continuous)
                 .fill(Color.primaryAccent.opacity(AppTheme.Opacity.subtle))
@@ -125,7 +140,7 @@ struct WorkspaceGlobalBar: View {
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(selectedTab == .mindTree ? Color.white : Color.primaryAccent)
                 .padding(.horizontal, AppTheme.spacingMedium)
-                .frame(height: AppTheme.Layout.buttonHeightSmall)
+                .frame(height: controlHeight)
                 .background(
                     Capsule(style: .continuous)
                         .fill(selectedTab == .mindTree
@@ -148,7 +163,7 @@ struct WorkspaceGlobalBar: View {
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(selectedTab == .visualBoard ? Color.white : Color.primaryAccent)
                 .padding(.horizontal, AppTheme.spacingMedium)
-                .frame(height: AppTheme.Layout.buttonHeightSmall)
+                .frame(height: controlHeight)
                 .background(
                     Capsule(style: .continuous)
                         .fill(selectedTab == .visualBoard
@@ -171,7 +186,7 @@ struct WorkspaceGlobalBar: View {
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(selectedTab == .portfolio ? Color.white : Color.primaryAccent)
                 .padding(.horizontal, AppTheme.spacingMedium)
-                .frame(height: AppTheme.Layout.buttonHeightSmall)
+                .frame(height: controlHeight)
                 .background(
                     Capsule(style: .continuous)
                         .fill(selectedTab == .portfolio
@@ -192,7 +207,7 @@ struct WorkspaceGlobalBar: View {
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, AppTheme.spacingMedium)
-                .frame(height: AppTheme.Layout.buttonHeightSmall)
+                .frame(height: controlHeight)
                 .background(
                     Capsule(style: .continuous)
                         .fill(Color.primaryAccent)
@@ -223,7 +238,7 @@ struct WorkspaceGlobalBar: View {
             Image(systemName: "ellipsis.circle")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(Color.textSecondary)
-                .frame(width: AppTheme.Layout.buttonHeightSmall, height: AppTheme.Layout.buttonHeightSmall)
+                .frame(width: controlHeight, height: controlHeight)
                 .background(
                     Circle()
                         .fill(Color.elevatedCardBackground)
@@ -234,6 +249,14 @@ struct WorkspaceGlobalBar: View {
                 )
         }
         .buttonStyle(.plain)
+    }
+
+    private var controlHeight: CGFloat {
+        #if os(iOS)
+        return 40
+        #else
+        return AppTheme.Layout.buttonHeightSmall
+        #endif
     }
 }
 

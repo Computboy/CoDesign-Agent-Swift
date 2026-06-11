@@ -280,7 +280,7 @@ struct EditableInsightCard: View {
                             Image(systemName: "exclamationmark.triangle")
                                 .font(AppTheme.Typography.tinySemibold)
                                 .foregroundStyle(Color.warning.opacity(AppTheme.Opacity.strong))
-                                .frame(width: AppTheme.Layout.badgeHeight, height: AppTheme.Layout.badgeHeight)
+                                .frame(width: fieldActionHeight, height: fieldActionHeight)
                                 .background(
                                     Circle()
                                         .fill(Color.warning.opacity(AppTheme.Opacity.light))
@@ -347,13 +347,21 @@ struct EditableInsightCard: View {
                 .font(AppTheme.Typography.tinySemibold)
                 .foregroundStyle(tint.opacity(AppTheme.Opacity.strong))
                 .padding(.horizontal, AppTheme.spacingSmall)
-                .frame(height: AppTheme.Layout.badgeHeight)
+                .frame(height: fieldActionHeight)
                 .background(
                     Capsule(style: .continuous)
                         .fill(tint.opacity(AppTheme.Opacity.light))
                 )
         }
         .buttonStyle(.plain)
+    }
+
+    private var fieldActionHeight: CGFloat {
+        #if os(iOS)
+        return 36
+        #else
+        return AppTheme.Layout.badgeHeight
+        #endif
     }
 }
 

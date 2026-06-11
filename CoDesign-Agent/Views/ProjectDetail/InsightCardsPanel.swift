@@ -337,13 +337,21 @@ private struct ExtractionReviewView: View {
                 .font(AppTheme.Typography.micro)
                 .foregroundStyle(tint)
                 .padding(.horizontal, AppTheme.spacingSM)
-                .frame(height: AppTheme.Layout.badgeHeight)
+                .frame(height: reviewButtonHeight)
                 .background(
                     Capsule(style: .continuous)
                         .fill(tint.opacity(AppTheme.Opacity.light))
                 )
         }
         .buttonStyle(.plain)
+    }
+
+    private var reviewButtonHeight: CGFloat {
+        #if os(iOS)
+        return 36
+        #else
+        return AppTheme.Layout.badgeHeight
+        #endif
     }
 
     private func fieldTitle(_ fieldName: String) -> String {

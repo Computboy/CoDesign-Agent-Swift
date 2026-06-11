@@ -128,6 +128,7 @@ struct ChatPanel: View {
             TextField("输入你的想法...", text: $inputText, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...4)
+                .submitLabel(.send)
                 .focused($isInputFocused)
                 .disabled(chatViewModel.isStreaming)
                 .onSubmit {
@@ -139,6 +140,9 @@ struct ChatPanel: View {
                         }
                     }
                 }
+                #if os(iOS)
+                .textInputAutocapitalization(.sentences)
+                #endif
 
             Button {
                 Task {
@@ -148,8 +152,9 @@ struct ChatPanel: View {
                 }
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.title2)
+                    .font(.system(size: sendIconSize, weight: .semibold))
                     .foregroundStyle(canSend ? Color.primaryAccent : Color.textTertiary)
+                    .frame(width: sendButtonSize, height: sendButtonSize)
             }
             .disabled(!canSend)
         }
@@ -172,10 +177,30 @@ struct ChatPanel: View {
 
     private func refocusWhenReady() {
         guard !chatViewModel.isStreaming else { return }
+        #if os(iOS)
+        return
+        #else
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(120))
             guard !chatViewModel.isStreaming else { return }
             isInputFocused = true
         }
+        #endif
+    }
+
+    private var sendButtonSize: CGFloat {
+        #if os(iOS)
+        return 44
+        #else
+        return 32
+        #endif
+    }
+
+    private var sendIconSize: CGFloat {
+        #if os(iOS)
+        return 28
+        #else
+        return 22
+        #endif
     }
 }

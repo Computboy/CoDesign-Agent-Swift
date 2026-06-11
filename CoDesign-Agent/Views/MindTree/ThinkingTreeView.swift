@@ -49,7 +49,7 @@ struct ThinkingTreeView: View {
                     edgeHitAreas(graph: graph, viewport: geo.size)
 
                     ForEach(graph.nodes) { node in
-                        TreeNodeView(node: node) {
+                        let nodeView = TreeNodeView(node: node) {
                             handleTap(node)
                         }
                         .position(node.position)
@@ -62,6 +62,11 @@ struct ThinkingTreeView: View {
                                     }
                                 }
                         )
+
+                        #if os(iOS)
+                        nodeView
+                        #else
+                        nodeView
                         .popover(
                             isPresented: Binding(
                                 get: { selectedNode?.id == node.id },
@@ -76,6 +81,7 @@ struct ThinkingTreeView: View {
                         ) {
                             nodeDetailPopover(node)
                         }
+                        #endif
                     }
                 }
                 .frame(width: graph.contentSize.width, height: graph.contentSize.height)
@@ -123,6 +129,13 @@ struct ThinkingTreeView: View {
             }
         }
         .coDesignShadow(mode == .embedded ? .card : .elevated)
+        #if os(iOS)
+        .sheet(item: $selectedNode) { node in
+            nodeDetailSheet(node)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        #endif
         .sheet(item: $editingNode) { node in
             NodeEditSheet(node: node, project: project)
                 .presentationDragIndicator(.visible)
@@ -147,6 +160,15 @@ struct ThinkingTreeView: View {
         #if os(iOS)
         .presentationCompactAdaptation(.popover)
         #endif
+    }
+
+    private func nodeDetailSheet(_ node: TreeNode) -> some View {
+        ThinkingNodeDetailSheet(
+            node: node,
+            project: project,
+            onAdoptEvidence: adoptEvidence,
+            onEditNode: beginEditing
+        )
     }
 
     // MARK: - Graph
@@ -344,7 +366,7 @@ struct ThinkingTreeView: View {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(Color.primaryAccent)
-                .frame(width: 28, height: 28)
+                .frame(width: compactToolbarSize, height: compactToolbarSize)
                 .background(Circle().fill(Color.primaryAccent.opacity(0.075)))
         }
         .buttonStyle(.plain)
@@ -359,7 +381,7 @@ struct ThinkingTreeView: View {
                 Image(systemName: "smallcircle.filled.circle")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Color.primaryAccent)
-                    .frame(width: 26, height: 26)
+                    .frame(width: zoomButtonSize, height: zoomButtonSize)
                     .background(Circle().fill(Color.cardBackground.opacity(0.92)))
             }
             .buttonStyle(.plain)
@@ -409,6 +431,22 @@ struct ThinkingTreeView: View {
             x: mode == .embedded ? 42 : 48,
             y: clamp(viewport.height / 2, min: minY, max: maxY)
         )
+    }
+
+    private var compactToolbarSize: CGFloat {
+        #if os(iOS)
+        return mode == .embedded ? 40 : 44
+        #else
+        return 28
+        #endif
+    }
+
+    private var zoomButtonSize: CGFloat {
+        #if os(iOS)
+        return 38
+        #else
+        return 26
+        #endif
     }
 
     private var treeBackground: some View {
@@ -577,7 +615,7 @@ struct ThinkingTreeView: View {
                 ZStack {
                     Rectangle()
                         .fill(Color.clear)
-                        .frame(width: 190, height: max(abs(from.position.y - to.position.y), 42))
+                        .frame(width: edgeHitWidth, height: max(abs(from.position.y - to.position.y), edgeHitMinHeight))
                         .contentShape(Rectangle())
 
                     transitionLabel(order: transitionOrder)
@@ -601,7 +639,7 @@ struct ThinkingTreeView: View {
         let count = transitionNodeCount(order)
         let isExpanded = isTransitionExpanded(order)
         return Text(isExpanded ? "已展开 · \(count) 个问题/节点" : "点击展开问题链")
-            .font(.system(size: mode == .embedded ? 8.5 : 10, weight: .semibold, design: .rounded))
+            .font(.system(size: transitionLabelFontSize, weight: .semibold, design: .rounded))
             .foregroundStyle(isExpanded ? Color.primaryAccent : Color.textTertiary)
             .padding(.horizontal, 7)
             .padding(.vertical, 4)
@@ -616,6 +654,30 @@ struct ThinkingTreeView: View {
                         lineWidth: 1
                     )
             )
+    }
+
+    private var edgeHitWidth: CGFloat {
+        #if os(iOS)
+        return 230
+        #else
+        return 190
+        #endif
+    }
+
+    private var edgeHitMinHeight: CGFloat {
+        #if os(iOS)
+        return 58
+        #else
+        return 42
+        #endif
+    }
+
+    private var transitionLabelFontSize: CGFloat {
+        #if os(iOS)
+        return mode == .embedded ? 10 : 11
+        #else
+        return mode == .embedded ? 8.5 : 10
+        #endif
     }
 
     private func isTransitionExpanded(_ order: Int) -> Bool {
