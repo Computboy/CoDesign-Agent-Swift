@@ -32,7 +32,7 @@ struct TreeLayoutEngine {
         let maxStage = max(data.nodes.compactMap(\.stageOrder).max() ?? 1, 1)
         let width = max(size.width, contentWidth)
         let nodesByStage = Dictionary(grouping: data.nodes.filter { node in
-            node.stageOrder != nil && node.kind != .stage
+            node.stageOrder != nil && node.kind != .stage && node.kind != .branchStage
         }, by: { $0.stageOrder ?? 0 })
         let transitionSpacings = transitionSpacings(maxStage: maxStage, nodesByStage: nodesByStage)
         let height = max(size.height, minimumContentSize(transitionSpacings: transitionSpacings).height)
@@ -54,9 +54,22 @@ struct TreeLayoutEngine {
                     y: stageY(order: order, rootY: rootY, transitionSpacings: transitionSpacings)
                 )
 
+            case .branchStage:
+                guard let order = updatedNodes[index].stageOrder else { continue }
+                updatedNodes[index].position = CGPoint(
+                    x: sideBranchCenterX(centerX: centerX, contentWidth: width),
+                    y: stageY(order: order, rootY: rootY, transitionSpacings: transitionSpacings)
+                )
+
             case .question, .field, .process, .evidence, .revision:
                 guard let order = updatedNodes[index].stageOrder else { continue }
-                let siblings = sortedSideNodes(nodesByStage[order] ?? [])
+                let siblings = sortedSideNodes(
+                    updatedNodes.filter {
+                        $0.stageOrder == order &&
+                        $0.kind != .stage &&
+                        $0.kind != .branchStage
+                    }
+                )
                 guard let siblingIndex = siblings.firstIndex(where: { $0.id == updatedNodes[index].id }) else {
                     continue
                 }
@@ -130,6 +143,9 @@ struct TreeLayoutEngine {
 
     private func sortedSideNodes(_ nodes: [TreeNode]) -> [TreeNode] {
         nodes.sorted { lhs, rhs in
+            if lhs.branchAnchorID != rhs.branchAnchorID {
+                return (lhs.branchAnchorID ?? "") < (rhs.branchAnchorID ?? "")
+            }
             if let lhsDate = lhs.timestamp, let rhsDate = rhs.timestamp, lhsDate != rhsDate {
                 return lhsDate < rhsDate
             }
@@ -153,7 +169,8 @@ struct TreeLayoutEngine {
         case .process: return 2
         case .evidence: return 3
         case .revision: return 4
-        case .root, .stage: return 5
+        case .branchStage: return 5
+        case .root, .stage: return 6
         }
     }
 
@@ -169,6 +186,14 @@ struct TreeLayoutEngine {
         let corridorHeight = max(abs(fromY - toY), stageSpacing)
         let yJitter = deterministicUnit(for: node.id + "-y") * 1.5
 
+        if node.kind == .question && node.isArchived, let anchorID = node.branchAnchorID {
+            let anchorY = siblings.first { $0.id == anchorID }?.position.y
+            return CGPoint(
+                x: sideBranchCenterX(centerX: centerX, contentWidth: contentWidth),
+                y: min(max(anchorY ?? ((fromY + toY) / 2 + yJitter), topPadding + 44), fromY - 116)
+            )
+        }
+
         if node.kind == .question && !node.isArchived {
             let questionNodes = siblings.filter { $0.kind == .question && !$0.isArchived }
             let questionIndex = questionNodes.firstIndex(where: { $0.id == node.id }) ?? 0
@@ -179,7 +204,7 @@ struct TreeLayoutEngine {
             )
         }
 
-        let sideNodes = siblings.filter { $0.kind != .question || $0.isArchived }
+        let sideNodes = siblings.filter { $0.kind != .question || ($0.isArchived && $0.branchAnchorID == nil) }
         let sideIndex = sideNodes.firstIndex(where: { $0.id == node.id }) ?? siblingIndex
         let side = preferredSide(for: node, ordinal: sideIndex)
         let sameSideNodes = sideNodes.enumerated()
@@ -214,7 +239,7 @@ struct TreeLayoutEngine {
     }
 
     private func maxSideCardRows(in nodes: [TreeNode]) -> Int {
-        let sideNodes = sortedSideNodes(nodes).filter { $0.kind != .question || $0.isArchived }
+        let sideNodes = sortedSideNodes(nodes).filter { $0.kind != .question || ($0.isArchived && $0.branchAnchorID == nil) }
         var left = 0
         var right = 0
 
@@ -253,6 +278,8 @@ struct TreeLayoutEngine {
             return -1
         case .question:
             return node.isArchived ? 1 : 0
+        case .branchStage:
+            return 1
         case .root, .stage:
             return 0
         }
@@ -264,8 +291,10 @@ struct TreeLayoutEngine {
             return 95
         case .stage:
             return 107
+        case .branchStage:
+            return 107
         case .question:
-            return 29
+            return 92
         case .field:
             return 87
         case .process, .revision:
@@ -284,5 +313,10 @@ struct TreeLayoutEngine {
         }
         let bucket = Int(hash % 2001) - 1000
         return CGFloat(bucket) / 1000
+    }
+
+    private func sideBranchCenterX(centerX: CGFloat, contentWidth: CGFloat) -> CGFloat {
+        let sideDistance = min(sideBranchSpacing, max(220, contentWidth / 2 - 172))
+        return min(max(centerX + sideDistance, 156), contentWidth - 156)
     }
 }

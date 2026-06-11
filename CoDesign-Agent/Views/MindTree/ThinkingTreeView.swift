@@ -633,12 +633,15 @@ struct ThinkingTreeView: View {
         switch node.kind {
         case .root: return 6
         case .stage: return 5
+        case .branchStage: return 4
         case .question, .field, .process, .evidence, .revision: return 4
         }
     }
 
     private func isBranchNode(_ node: TreeNode) -> Bool {
         switch node.kind {
+        case .branchStage:
+            return true
         case .question, .field, .process, .evidence, .revision:
             return true
         case .root, .stage:
@@ -708,7 +711,7 @@ struct ThinkingTreeView: View {
 
         let side: CGFloat = to.position.x >= trunkX ? 1 : -1
         let railX = to.position.x - side * branchRailInset(for: to)
-        let sourceY = isBranchNode(from) ? from.position.y : to.position.y
+        let sourceY = to.kind == .branchStage ? from.position.y : (isBranchNode(from) ? from.position.y : to.position.y)
         let startX = isBranchNode(from) ? from.position.x : trunkX
         let start = CGPoint(x: startX, y: sourceY)
         let railStart = CGPoint(x: railX, y: sourceY)
@@ -734,6 +737,8 @@ struct ThinkingTreeView: View {
             return 96
         case .question:
             return 42
+        case .branchStage:
+            return 0
         case .root, .stage:
             return 0
         }

@@ -20,7 +20,7 @@ struct TreeNodeView: View {
         switch node.kind {
         case .root:
             rootContent
-        case .stage:
+        case .stage, .branchStage:
             stageContent
         case .question:
             questionContent
@@ -149,36 +149,72 @@ struct TreeNodeView: View {
     // MARK: - Process Nodes
 
     private var questionContent: some View {
-        ZStack {
-            Circle()
-                .fill(Color.cardBackground.opacity(0.98))
-                .frame(width: 58, height: 58)
-                .shadow(color: Color.primaryAccent.opacity(0.10), radius: 8, y: 3)
+        HStack(spacing: 7) {
+            Image(systemName: node.isArchived ? "arrow.uturn.backward" : "questionmark")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(questionForeground)
+                .frame(width: 20, height: 20)
+                .background(Circle().fill(questionForeground.opacity(0.12)))
 
-            Circle()
-                .strokeBorder(Color.primaryAccent.opacity(0.28), lineWidth: 1.2)
-                .frame(width: 58, height: 58)
+            Text(questionSummary)
+                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(questionTextColor)
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
+                .multilineTextAlignment(.leading)
 
-            VStack(spacing: 2) {
-                Image(systemName: "questionmark")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.primaryAccent)
-
-                Text("问题节点")
-                    .font(.system(size: 7.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.textTertiary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-            }
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(width: 184, alignment: .leading)
+        .frame(minHeight: 48)
+        .background(
+            Capsule(style: .continuous)
+                .fill(questionBackground)
+                .shadow(color: questionForeground.opacity(0.10), radius: 8, y: 3)
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(
+                    questionForeground.opacity(node.isArchived ? 0.24 : 0.30),
+                    style: node.isArchived
+                        ? StrokeStyle(lineWidth: 1, dash: [5, 5])
+                        : StrokeStyle(lineWidth: 1.1)
+                )
+        )
         .overlay(alignment: .bottomTrailing) {
             if node.isArchived {
                 Circle()
-                    .fill(Color(red: 0.58, green: 0.53, blue: 0.48))
+                    .fill(Color(red: 0.58, green: 0.59, blue: 0.64))
                     .frame(width: 10, height: 10)
-                    .offset(x: -4, y: -4)
+                    .offset(x: -7, y: -5)
             }
         }
+    }
+
+    private var questionSummary: String {
+        let flattened = node.content
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard flattened.count > 28 else { return flattened }
+        return String(flattened.prefix(28)) + "..."
+    }
+
+    private var questionForeground: Color {
+        node.isArchived ? Color(red: 0.58, green: 0.59, blue: 0.64) : Color.primaryAccent
+    }
+
+    private var questionTextColor: Color {
+        node.isArchived ? Color.textSecondary : Color.textPrimary
+    }
+
+    private var questionBackground: Color {
+        if node.isArchived {
+            return Color(red: 0.82, green: 0.84, blue: 0.93).opacity(0.82)
+        }
+        return Color.primaryAccent.opacity(0.15)
     }
 
     private func processContent(width: CGFloat) -> some View {
@@ -285,7 +321,7 @@ struct TreeNodeView: View {
     }
 
     private var nodeOpacity: Double {
-        if node.isArchived { return 0.55 }
+        if node.isArchived { return 0.72 }
         if node.isGhost { return 0.64 }
         return 1.0
     }

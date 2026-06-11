@@ -20,7 +20,7 @@ struct ThinkingNodeDetailSheet: View {
                     switch node.kind {
                     case .root:
                         rootContent
-                    case .stage:
+                    case .stage, .branchStage:
                         stageContent
                     case .question:
                         questionContent
@@ -407,7 +407,7 @@ struct ThinkingNodeDetailSheet: View {
         switch node.kind {
         case .root:
             return "项目想法"
-        case .stage:
+        case .stage, .branchStage:
             if let order = node.stageOrder,
                let definition = StageDefinition.all.first(where: { $0.order == order }) {
                 return "阶段 \(order): \(definition.name)"
@@ -430,7 +430,7 @@ struct ThinkingNodeDetailSheet: View {
         switch node.kind {
         case .root:
             return project.name
-        case .stage:
+        case .stage, .branchStage:
             return node.subContent
         case .question, .field, .process, .evidence, .revision:
             return node.content

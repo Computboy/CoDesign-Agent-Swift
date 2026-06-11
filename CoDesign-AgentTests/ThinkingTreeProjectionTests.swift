@@ -55,6 +55,60 @@ struct ThinkingTreeProjectionTests {
         #expect(!tree.nodes.contains { $0.processLabel == "答案节点" })
     }
 
+    @Test @MainActor func collapsedTreeShowsArchivedStageBranch() {
+        let base = Date()
+        let project = Project(name: "回溯项目", briefDescription: "测试折叠回溯")
+        project.stages = (1...3).map { order in
+            ProgressStage(
+                order: order,
+                name: "阶段 \(order)",
+                status: order == 1 ? "needsReview" : "notStarted",
+                completionRatio: order == 1 ? 0.4 : 0
+            )
+        }
+        let question = moment("question", "核心问题：用户是谁？", at: base)
+        let oldAnswer = moment("answer", "旧答案", at: base.addingTimeInterval(1), parentID: question.id, isActive: false)
+        let oldDecision = ThinkingMoment(
+            momType: "decision",
+            content: "旧 Stage 2 判断",
+            stageOrder: 2,
+            parentMomentID: oldAnswer.id,
+            timestamp: base.addingTimeInterval(2),
+            isActiveBranch: false
+        )
+        project.thinkingMoments = [question, oldAnswer, oldDecision]
+
+        let tree = TreeBuilder().build(project: project, expandedTransitionOrders: [], visibleStageLimit: 3)
+
+        #expect(tree.nodes.contains { $0.kind == .branchStage && $0.stageOrder == 2 })
+        #expect(tree.nodes.contains { $0.kind == .branchStage && $0.stageOrder == 3 })
+    }
+
+    @Test @MainActor func expandedTreeAnchorsArchivedNodesToQuestionBranch() {
+        let base = Date()
+        let project = Project(name: "回溯项目", briefDescription: "测试展开回溯")
+        project.stages = [
+            ProgressStage(order: 1, name: "痛点与场景锚定", status: "needsReview", completionRatio: 0.4)
+        ]
+        let question = moment("question", "核心问题：用户是谁？", at: base)
+        let oldAnswer = moment("answer", "旧答案", at: base.addingTimeInterval(1), parentID: question.id, isActive: false)
+        let oldDecision = moment("decision", "旧判断", at: base.addingTimeInterval(2), parentID: oldAnswer.id, isActive: false)
+        project.thinkingMoments = [question, oldAnswer, oldDecision]
+
+        let tree = TreeBuilder().build(project: project, expandedTransitionOrders: [1], visibleStageLimit: 1)
+        let archivedQuestion = tree.nodes.first {
+            $0.kind == .question &&
+            !$0.isActiveBranch &&
+            $0.branchAnchorID == "moment-\(question.id)"
+        }
+
+        #expect(archivedQuestion != nil)
+        #expect(tree.edges.contains { edge in
+            edge.fromID == archivedQuestion?.id &&
+            edge.toID == "moment-\(oldDecision.id)"
+        })
+    }
+
     @MainActor private func moment(
         _ type: String,
         _ content: String,

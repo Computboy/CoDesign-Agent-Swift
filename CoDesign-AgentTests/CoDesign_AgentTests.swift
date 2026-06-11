@@ -124,7 +124,9 @@ private struct ImmediateLLMService: LLMServiceProtocol {
     func streamChat(
         messages: [ChatPayloadMessage],
         briefSnapshot: DesignBriefSnapshot?,
-        currentStage: ProgressStageSnapshot?
+        currentStage: ProgressStageSnapshot?,
+        mode: ClarificationMode,
+        resourceCards: [ResourceCard]
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             continuation.yield(response)
@@ -140,7 +142,9 @@ private final class CapturingPlannerLLMService: LLMServiceProtocol {
     func streamChat(
         messages: [ChatPayloadMessage],
         briefSnapshot: DesignBriefSnapshot?,
-        currentStage: ProgressStageSnapshot?
+        currentStage: ProgressStageSnapshot?,
+        mode: ClarificationMode,
+        resourceCards: [ResourceCard]
     ) -> AsyncThrowingStream<String, Error> {
         capturedBrief = briefSnapshot
         capturedStage = currentStage
