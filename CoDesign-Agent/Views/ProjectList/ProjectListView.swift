@@ -56,6 +56,7 @@ struct ProjectLibraryView: View {
     @Query(sort: \Project.updatedAt, order: .reverse) private var projects: [Project]
 
     @Binding var searchText: String
+    @State private var hasEntered = false
 
     let onCreateProject: () -> Void
     let onShowSettings: () -> Void
@@ -84,17 +85,26 @@ struct ProjectLibraryView: View {
             Color.appBackground
                 .ignoresSafeArea()
 
+            ProjectLibraryBackdrop()
+                .opacity(hasEntered ? 1 : 0)
+                .animation(.easeOut(duration: 0.45), value: hasEntered)
+
             if filteredProjects.isEmpty {
                 ProjectEmptyStateView(
                     isSearchEmpty: isFiltering,
                     onCreateProject: onCreateProject
                 )
-                .transition(.opacity)
+                .opacity(hasEntered ? 1 : 0)
+                .offset(y: hasEntered ? 0 : 18)
+                .scaleEffect(hasEntered ? 1 : 0.985, anchor: .top)
             } else {
                 projectScrollList(filteredProjects)
-                    .transition(.opacity)
+                    .opacity(hasEntered ? 1 : 0)
+                    .offset(y: hasEntered ? 0 : 18)
+                    .scaleEffect(hasEntered ? 1 : 0.985, anchor: .top)
             }
         }
+        .animation(.spring(response: 0.52, dampingFraction: 0.86), value: hasEntered)
         .navigationTitle("项目库")
         .searchable(text: $searchText, prompt: "搜索项目")
         .toolbar {
@@ -117,6 +127,16 @@ struct ProjectLibraryView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         #endif
+        .task {
+            hasEntered = false
+            await Task.yield()
+            withAnimation(.spring(response: 0.56, dampingFraction: 0.84)) {
+                hasEntered = true
+            }
+        }
+        .onDisappear {
+            hasEntered = false
+        }
     }
 
     private func projectScrollList(_ projects: [Project]) -> some View {
@@ -130,7 +150,7 @@ struct ProjectLibraryView: View {
             }()
 
             LazyVGrid(columns: columns, spacing: AppTheme.spacingMedium) {
-                ForEach(projects) { project in
+                ForEach(Array(projects.enumerated()), id: \.element.id) { index, project in
                     NavigationLink {
                         ProjectDetailView(project: project)
                     } label: {
@@ -147,6 +167,14 @@ struct ProjectLibraryView: View {
                     .transition(
                         .opacity.combined(with: .move(edge: .bottom))
                     )
+                    .opacity(hasEntered ? 1 : 0)
+                    .offset(y: hasEntered ? 0 : CGFloat(20 + min(index, 6) * 4))
+                    .scaleEffect(hasEntered ? 1 : 0.985, anchor: .top)
+                    .animation(
+                        .spring(response: 0.48, dampingFraction: 0.86)
+                            .delay(Double(min(index, 8)) * 0.028),
+                        value: hasEntered
+                    )
                 }
             }
             .padding(.horizontal, AppTheme.spacingMedium)
@@ -158,6 +186,27 @@ struct ProjectLibraryView: View {
 
     private func deleteProject(_ project: Project) {
         onDeleteProject(project)
+    }
+}
+
+private struct ProjectLibraryBackdrop: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [
+                    Color.primaryAccent.opacity(0.10),
+                    Color.secondaryAccent.opacity(0.05),
+                    Color.clear
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .frame(height: 220)
+
+            Spacer()
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
 }
 

@@ -310,15 +310,9 @@ private extension CoDesignHomeView {
                             onDeleteProject: onDeleteProject
                         )
                     } label: {
-                        HStack(spacing: 6) {
-                            Text("查看全部")
-                                .font(.system(size: 15, weight: .semibold))
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                        .foregroundStyle(HomePalette.accent)
+                        HomeSeeAllLabel()
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(HomeSeeAllButtonStyle())
                 }
             }
 
@@ -930,6 +924,41 @@ private struct HomeActionLabel: View {
             Capsule()
                 .stroke(HomePalette.border, lineWidth: 1)
         }
+    }
+}
+
+private struct HomeSeeAllLabel: View {
+    var body: some View {
+        HStack(spacing: 7) {
+            Text("查看全部")
+                .font(.system(size: 15, weight: .semibold))
+
+            Image(systemName: "arrow.right")
+                .font(.system(size: 13, weight: .bold))
+        }
+        .foregroundStyle(HomePalette.accent)
+        .padding(.horizontal, 13)
+        .frame(height: 36)
+        .background(HomePalette.accent.opacity(0.08))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(HomePalette.accent.opacity(0.13), lineWidth: 1)
+        )
+    }
+}
+
+private struct HomeSeeAllButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .offset(x: configuration.isPressed ? 2 : 0)
+            .shadow(
+                color: HomePalette.accent.opacity(configuration.isPressed ? 0.10 : 0.16),
+                radius: configuration.isPressed ? 5 : 12,
+                y: configuration.isPressed ? 2 : 6
+            )
+            .animation(.spring(response: 0.24, dampingFraction: 0.76), value: configuration.isPressed)
     }
 }
 
