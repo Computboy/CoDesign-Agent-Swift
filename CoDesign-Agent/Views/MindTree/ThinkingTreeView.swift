@@ -156,7 +156,7 @@ struct ThinkingTreeView: View {
     }
 
     private func layoutGraph(for viewport: CGSize, expandedTransitions: Set<Int>) -> TreeData {
-        let effectiveExpandedTransitions = expandedTransitions.union(autoExpandedArchivedTransitionOrders)
+        let effectiveExpandedTransitions = expandedTransitions
         let evidence = evidenceResourcesByStage(expandedTransitions: effectiveExpandedTransitions)
         let raw = TreeBuilder().build(
             project: project,
@@ -170,17 +170,8 @@ struct ThinkingTreeView: View {
 
     private var visibleStageLimit: Int {
         guard mode == .embedded else { return 9 }
-        let archivedMaxOrder = autoExpandedArchivedTransitionOrders.max() ?? project.currentStageOrder
         let expandedMaxOrder = expandedTransitionOrders.max() ?? project.currentStageOrder
-        return min(max(project.currentStageOrder, archivedMaxOrder, expandedMaxOrder), 9)
-    }
-
-    private var autoExpandedArchivedTransitionOrders: Set<Int> {
-        Set(
-            project.thinkingMoments
-                .filter { !$0.isActiveBranch && (1...9).contains($0.stageOrder) }
-                .map(\.stageOrder)
-        )
+        return min(max(project.currentStageOrder, expandedMaxOrder), 9)
     }
 
     private func layoutEngine(for viewport: CGSize) -> TreeLayoutEngine {
@@ -193,20 +184,20 @@ struct ThinkingTreeView: View {
             )
             return TreeLayoutEngine(
                 stageSpacing: stageSpacing,
-                sideBranchSpacing: 270,
+                sideBranchSpacing: 320,
                 sideNodeVerticalSpacing: 42,
                 topPadding: 82,
                 bottomPadding: 112,
-                contentWidth: max(viewport.width * 2.05, 1_120)
+                contentWidth: max(viewport.width * 2.35, 1_260)
             )
         case .standalone:
             return TreeLayoutEngine(
-                stageSpacing: 128,
-                sideBranchSpacing: 330,
+                stageSpacing: 146,
+                sideBranchSpacing: 410,
                 sideNodeVerticalSpacing: 46,
                 topPadding: 110,
                 bottomPadding: 150,
-                contentWidth: max(viewport.width * 1.65, 1280)
+                contentWidth: max(viewport.width * 1.9, 1_520)
             )
         }
     }
@@ -628,7 +619,7 @@ struct ThinkingTreeView: View {
     }
 
     private func isTransitionExpanded(_ order: Int) -> Bool {
-        expandedTransitionOrders.contains(order) || autoExpandedArchivedTransitionOrders.contains(order)
+        expandedTransitionOrders.contains(order)
     }
 
     private func transitionNodeCount(_ order: Int) -> Int {
@@ -686,42 +677,13 @@ struct ThinkingTreeView: View {
             return path
         }
 
-        if isBranchNode(to), from.kind == .question {
-            path.move(to: from.position)
-            path.addCurve(
-                to: to.position,
-                control1: CGPoint(x: trunkX, y: from.position.y - 18),
-                control2: CGPoint(x: to.position.x, y: to.position.y + 18)
-            )
-            return path
+        if isBranchNode(to) {
+            return branchEdgePath(from: from, to: to, trunkX: trunkX)
         }
 
-        if isBranchNode(to), (from.kind == .root || from.kind == .stage) {
-            let anchor = CGPoint(x: trunkX, y: to.position.y)
-            path.move(to: anchor)
-            path.addCurve(
-                to: to.position,
-                control1: CGPoint(x: trunkX, y: to.position.y),
-                control2: CGPoint(x: (trunkX + to.position.x) / 2, y: to.position.y)
-            )
-            return path
-        }
-
-        if isBranchNode(from), isBranchNode(to) {
-            let sourceAnchor = CGPoint(x: trunkX, y: from.position.y)
-            let targetAnchor = CGPoint(x: trunkX, y: to.position.y)
+        if isBranchNode(from) {
             path.move(to: from.position)
-            path.addCurve(
-                to: sourceAnchor,
-                control1: CGPoint(x: (from.position.x + trunkX) / 2, y: from.position.y),
-                control2: sourceAnchor
-            )
-            path.addLine(to: targetAnchor)
-            path.addCurve(
-                to: to.position,
-                control1: targetAnchor,
-                control2: CGPoint(x: (trunkX + to.position.x) / 2, y: to.position.y)
-            )
+            path.addLine(to: CGPoint(x: trunkX, y: from.position.y))
             return path
         }
 
@@ -735,43 +697,85 @@ struct ThinkingTreeView: View {
         return path
     }
 
+    private func branchEdgePath(from: TreeNode, to: TreeNode, trunkX: CGFloat) -> Path {
+        var path = Path()
+
+        if to.kind == .question && !to.isArchived {
+            path.move(to: CGPoint(x: trunkX, y: from.position.y))
+            path.addLine(to: to.position)
+            return path
+        }
+
+        let side: CGFloat = to.position.x >= trunkX ? 1 : -1
+        let railX = to.position.x - side * branchRailInset(for: to)
+        let sourceY = isBranchNode(from) ? from.position.y : to.position.y
+        let startX = isBranchNode(from) ? from.position.x : trunkX
+        let start = CGPoint(x: startX, y: sourceY)
+        let railStart = CGPoint(x: railX, y: sourceY)
+        let railEnd = CGPoint(x: railX, y: to.position.y)
+
+        path.move(to: start)
+        path.addLine(to: railStart)
+        if abs(sourceY - to.position.y) > 1 {
+            path.addLine(to: railEnd)
+        }
+        path.addLine(to: to.position)
+
+        return path
+    }
+
+    private func branchRailInset(for node: TreeNode) -> CGFloat {
+        switch node.kind {
+        case .evidence:
+            return 104
+        case .field:
+            return 100
+        case .process, .revision:
+            return 96
+        case .question:
+            return 42
+        case .root, .stage:
+            return 0
+        }
+    }
+
     private func edgeColor(_ edge: TreeEdge, to node: TreeNode) -> Color {
         if let order = edge.togglesTransitionOrder,
            isTransitionExpanded(order) {
-            return Color.primaryAccent.opacity(0.82)
+            return Color.primaryAccent.opacity(0.62)
         }
 
         switch edge.style {
         case .active:
-            return node.kind == .stage ? node.nodeColor.opacity(0.72) : Color.primaryAccent.opacity(0.52)
+            return node.kind == .stage ? node.nodeColor.opacity(0.68) : Color.primaryAccent.opacity(0.30)
         case .archived:
-            return Color(red: 0.58, green: 0.53, blue: 0.48).opacity(0.50)
+            return Color(red: 0.58, green: 0.53, blue: 0.48).opacity(0.32)
         case .transition:
-            return Color.warning.opacity(0.58)
+            return Color.warning.opacity(0.34)
         case .ghost:
-            return Color.stageNotStarted.opacity(0.34)
+            return Color.stageNotStarted.opacity(0.22)
         case .evidence:
-            return Color.secondaryAccent.opacity(0.38)
+            return Color.secondaryAccent.opacity(0.24)
         }
     }
 
     private func edgeStroke(_ edge: TreeEdge) -> StrokeStyle {
         if let order = edge.togglesTransitionOrder,
            isTransitionExpanded(order) {
-            return StrokeStyle(lineWidth: 3.0, lineCap: .round)
+            return StrokeStyle(lineWidth: 2.2, lineCap: .round)
         }
 
         switch edge.style {
         case .active:
-            return StrokeStyle(lineWidth: 2.2, lineCap: .round)
+            return StrokeStyle(lineWidth: 1.6, lineCap: .round)
         case .transition:
-            return StrokeStyle(lineWidth: 1.8, lineCap: .round, dash: [7, 5])
+            return StrokeStyle(lineWidth: 1.3, lineCap: .round, dash: [6, 7])
         case .archived:
-            return StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [6, 5])
+            return StrokeStyle(lineWidth: 1.1, lineCap: .round, dash: [5, 7])
         case .ghost:
-            return StrokeStyle(lineWidth: 1.3, lineCap: .round, dash: [4, 6])
+            return StrokeStyle(lineWidth: 1.0, lineCap: .round, dash: [3, 7])
         case .evidence:
-            return StrokeStyle(lineWidth: 1.2, lineCap: .round, dash: [3, 5])
+            return StrokeStyle(lineWidth: 1.0, lineCap: .round, dash: [3, 7])
         }
     }
 

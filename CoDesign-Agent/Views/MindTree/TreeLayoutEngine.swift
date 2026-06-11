@@ -9,8 +9,8 @@ struct TreeLayoutEngine {
     let bottomPadding: CGFloat
     let contentWidth: CGFloat
 
-    private var minimumSideCardSpacing: CGFloat { 108 }
-    private var sideCardColumnSpacing: CGFloat { 204 }
+    private var minimumSideCardSpacing: CGFloat { 148 }
+    private var sideCardColumnSpacing: CGFloat { 248 }
 
     init(
         stageSpacing: CGFloat = 118,
@@ -34,8 +34,8 @@ struct TreeLayoutEngine {
         let nodesByStage = Dictionary(grouping: data.nodes.filter { node in
             node.stageOrder != nil && node.kind != .stage
         }, by: { $0.stageOrder ?? 0 })
-        let effectiveStageSpacing = effectiveStageSpacing(for: nodesByStage)
-        let height = max(size.height, minimumContentSize(maxStage: maxStage, stageSpacing: effectiveStageSpacing).height)
+        let transitionSpacings = transitionSpacings(maxStage: maxStage, nodesByStage: nodesByStage)
+        let height = max(size.height, minimumContentSize(transitionSpacings: transitionSpacings).height)
         let centerX = width / 2
         let rootY = height - bottomPadding
         let contentSize = CGSize(width: width, height: height)
@@ -51,7 +51,7 @@ struct TreeLayoutEngine {
                 guard let order = updatedNodes[index].stageOrder else { continue }
                 updatedNodes[index].position = CGPoint(
                     x: centerX,
-                    y: stageY(order: order, rootY: rootY, stageSpacing: effectiveStageSpacing)
+                    y: stageY(order: order, rootY: rootY, transitionSpacings: transitionSpacings)
                 )
 
             case .question, .field, .process, .evidence, .revision:
@@ -65,10 +65,9 @@ struct TreeLayoutEngine {
                     node: updatedNodes[index],
                     siblingIndex: siblingIndex,
                     siblings: siblings,
-                    stageOrder: order,
                     centerX: centerX,
-                    rootY: rootY,
-                    stageSpacing: effectiveStageSpacing,
+                    fromY: transitionStartY(order: order, rootY: rootY, transitionSpacings: transitionSpacings),
+                    toY: stageY(order: order, rootY: rootY, transitionSpacings: transitionSpacings),
                     contentWidth: width
                 )
             }
@@ -88,19 +87,45 @@ struct TreeLayoutEngine {
         )
     }
 
-    private func stageY(order: Int, rootY: CGFloat, stageSpacing: CGFloat) -> CGFloat {
-        rootY - CGFloat(order) * stageSpacing
+    private func minimumContentSize(transitionSpacings: [Int: CGFloat]) -> CGSize {
+        CGSize(
+            width: contentWidth,
+            height: topPadding + bottomPadding + transitionSpacings.values.reduce(0, +) + 90
+        )
     }
 
-    private func effectiveStageSpacing(for nodesByStage: [Int: [TreeNode]]) -> CGFloat {
-        let largestSideCardRowCount = nodesByStage.values
-            .map { maxSideCardRows(in: $0) }
-            .max() ?? 0
+    private func transitionSpacings(maxStage: Int, nodesByStage: [Int: [TreeNode]]) -> [Int: CGFloat] {
+        Dictionary(uniqueKeysWithValues: (1...max(maxStage, 1)).map { order in
+            (order, transitionSpacing(for: nodesByStage[order] ?? []))
+        })
+    }
 
-        guard largestSideCardRowCount > 1 else { return stageSpacing }
+    private func transitionSpacing(for nodes: [TreeNode]) -> CGFloat {
+        guard !nodes.isEmpty else { return stageSpacing }
 
-        let requiredSpacing = CGFloat(largestSideCardRowCount - 1) * minimumSideCardSpacing + 188
-        return max(stageSpacing, requiredSpacing)
+        let sideRowCount = maxSideCardRows(in: nodes)
+        let questionCount = nodes.filter { $0.kind == .question && !$0.isArchived }.count
+        let expandedMinimum = stageSpacing + 86
+        let requiredSideSpacing = sideRowCount > 0
+            ? CGFloat(max(sideRowCount - 1, 0)) * minimumSideCardSpacing + 260
+            : 0
+        let requiredQuestionSpacing = questionCount > 0
+            ? CGFloat(max(questionCount - 1, 0)) * 82 + 214
+            : 0
+
+        return max(stageSpacing, expandedMinimum, requiredSideSpacing, requiredQuestionSpacing)
+    }
+
+    private func stageY(order: Int, rootY: CGFloat, transitionSpacings: [Int: CGFloat]) -> CGFloat {
+        rootY - transitionSpacings
+            .filter { $0.key <= order }
+            .map(\.value)
+            .reduce(0, +)
+    }
+
+    private func transitionStartY(order: Int, rootY: CGFloat, transitionSpacings: [Int: CGFloat]) -> CGFloat {
+        guard order > 1 else { return rootY }
+        return stageY(order: order - 1, rootY: rootY, transitionSpacings: transitionSpacings)
     }
 
     private func sortedSideNodes(_ nodes: [TreeNode]) -> [TreeNode] {
@@ -136,21 +161,13 @@ struct TreeLayoutEngine {
         node: TreeNode,
         siblingIndex: Int,
         siblings: [TreeNode],
-        stageOrder: Int,
         centerX: CGFloat,
-        rootY: CGFloat,
-        stageSpacing: CGFloat,
+        fromY: CGFloat,
+        toY: CGFloat,
         contentWidth: CGFloat
     ) -> CGPoint {
-        let fromY: CGFloat
-        if stageOrder == 1 {
-            fromY = rootY
-        } else {
-            fromY = stageY(order: stageOrder - 1, rootY: rootY, stageSpacing: stageSpacing)
-        }
-        let toY = stageY(order: stageOrder, rootY: rootY, stageSpacing: stageSpacing)
         let corridorHeight = max(abs(fromY - toY), stageSpacing)
-        let yJitter = deterministicUnit(for: node.id + "-y") * 2
+        let yJitter = deterministicUnit(for: node.id + "-y") * 1.5
 
         if node.kind == .question && !node.isArchived {
             let questionNodes = siblings.filter { $0.kind == .question && !$0.isArchived }
@@ -158,7 +175,7 @@ struct TreeLayoutEngine {
             let fraction = CGFloat(questionIndex + 1) / CGFloat(max(questionNodes.count + 1, 2))
             return CGPoint(
                 x: centerX,
-                y: min(max(fromY - corridorHeight * fraction + yJitter, topPadding + 44), rootY - 116)
+                y: min(max(fromY - corridorHeight * fraction + yJitter, topPadding + 44), fromY - 116)
             )
         }
 
@@ -172,31 +189,32 @@ struct TreeLayoutEngine {
         let laneIndex = sameSideOrdinal % laneCount
         let rowIndex = sameSideOrdinal / laneCount
         let rowCount = max(rowsNeeded(forSideCardCount: sameSideNodes.count, laneIndex: laneIndex), 1)
-        let safeTopY = min(fromY, toY) + 76
-        let safeBottomY = max(fromY, toY) - 112
+        let safeTopY = min(fromY, toY) + 94
+        let safeBottomY = max(fromY, toY) - 132
         let rowSpacing = rowCount > 1
             ? max(minimumSideCardSpacing, (safeBottomY - safeTopY) / CGFloat(rowCount - 1))
             : 0
         let sideDistance = min(
             sideBranchSpacing,
-            max(112, contentWidth / 2 - 112 - CGFloat(laneCount - 1) * sideCardColumnSpacing)
+            max(148, contentWidth / 2 - 136 - CGFloat(laneCount - 1) * sideCardColumnSpacing)
         )
-        let xJitter = deterministicUnit(for: node.id + "-x") * 4
-        let archivedOffset = node.isArchived ? CGFloat(24) : 0
+        let xJitter = deterministicUnit(for: node.id + "-x") * 2
+        let archivedOffset = node.isArchived ? CGFloat(28) : 0
 
         let x = centerX + side * (sideDistance + CGFloat(laneIndex) * sideCardColumnSpacing + archivedOffset) + xJitter
         let y = rowCount == 1
             ? (safeTopY + safeBottomY) / 2 + yJitter
             : safeTopY + CGFloat(rowIndex) * rowSpacing + yJitter
+        let halfWidth = estimatedHalfWidth(for: node)
 
         return CGPoint(
-            x: min(max(x, 86), contentWidth - 86),
-            y: min(max(y, topPadding + 44), rootY - 116)
+            x: min(max(x, halfWidth + 28), contentWidth - halfWidth - 28),
+            y: min(max(y, topPadding + 44), fromY - 116)
         )
     }
 
     private func maxSideCardRows(in nodes: [TreeNode]) -> Int {
-        let sideNodes = sortedSideNodes(nodes).filter { $0.kind != .question }
+        let sideNodes = sortedSideNodes(nodes).filter { $0.kind != .question || $0.isArchived }
         var left = 0
         var right = 0
 
@@ -212,7 +230,7 @@ struct TreeLayoutEngine {
     }
 
     private func laneCount(forSideCardCount count: Int) -> Int {
-        count > 2 && contentWidth >= 1_080 ? 2 : 1
+        count > 3 && contentWidth >= 1_160 ? 2 : 1
     }
 
     private func rowsNeeded(forSideCardCount count: Int) -> Int {
@@ -230,13 +248,30 @@ struct TreeLayoutEngine {
     private func preferredSide(for node: TreeNode, ordinal: Int) -> CGFloat {
         switch node.kind {
         case .evidence, .process:
-            return ordinal.isMultiple(of: 2) ? 1 : -1
+            return 1
         case .field, .revision:
-            return ordinal.isMultiple(of: 2) ? -1 : 1
+            return -1
         case .question:
             return node.isArchived ? 1 : 0
         case .root, .stage:
             return 0
+        }
+    }
+
+    private func estimatedHalfWidth(for node: TreeNode) -> CGFloat {
+        switch node.kind {
+        case .root:
+            return 95
+        case .stage:
+            return 107
+        case .question:
+            return 29
+        case .field:
+            return 87
+        case .process, .revision:
+            return 83
+        case .evidence:
+            return 89
         }
     }
 
