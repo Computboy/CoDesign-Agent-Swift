@@ -53,10 +53,12 @@ struct ProjectListView: View {
 // MARK: - Project Library
 
 struct ProjectLibraryView: View {
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \Project.updatedAt, order: .reverse) private var projects: [Project]
 
     @Binding var searchText: String
     @State private var hasEntered = false
+    @State private var isLeaving = false
 
     let onCreateProject: () -> Void
     let onShowSettings: () -> Void
@@ -80,34 +82,66 @@ struct ProjectLibraryView: View {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var contentIsVisible: Bool {
+        hasEntered && !isLeaving
+    }
+
+    private var libraryCardHeight: CGFloat {
+        #if os(macOS)
+        176
+        #else
+        178
+        #endif
+    }
+
     var body: some View {
         ZStack {
-            Color.appBackground
+            Color.white
                 .ignoresSafeArea()
-
-            ProjectLibraryBackdrop()
-                .opacity(hasEntered ? 1 : 0)
-                .animation(.easeOut(duration: 0.45), value: hasEntered)
 
             if filteredProjects.isEmpty {
                 ProjectEmptyStateView(
                     isSearchEmpty: isFiltering,
                     onCreateProject: onCreateProject
                 )
-                .opacity(hasEntered ? 1 : 0)
-                .offset(y: hasEntered ? 0 : 18)
-                .scaleEffect(hasEntered ? 1 : 0.985, anchor: .top)
+                .opacity(contentIsVisible ? 1 : 0)
+                .offset(y: pageOffsetY)
+                .scaleEffect(pageScale, anchor: .top)
+                .blur(radius: contentIsVisible ? 0 : pageBlurRadius)
             } else {
                 projectScrollList(filteredProjects)
-                    .opacity(hasEntered ? 1 : 0)
-                    .offset(y: hasEntered ? 0 : 18)
-                    .scaleEffect(hasEntered ? 1 : 0.985, anchor: .top)
+                    .opacity(contentIsVisible ? 1 : 0)
+                    .offset(y: pageOffsetY)
+                    .scaleEffect(pageScale, anchor: .top)
+                    .blur(radius: contentIsVisible ? 0 : pageBlurRadius)
             }
         }
-        .animation(.spring(response: 0.52, dampingFraction: 0.86), value: hasEntered)
+        .background(Color.white)
+        .animation(.spring(response: 0.52, dampingFraction: 0.86), value: contentIsVisible)
         .navigationTitle("项目库")
         .searchable(text: $searchText, prompt: "搜索项目")
         .toolbar {
+            #if os(iOS)
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: closeLibrary) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Color.textPrimary)
+                        .frame(width: 38, height: 38)
+                        .background(.white)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                        )
+                        .shadow(color: .black.opacity(0.04), radius: 10, y: 4)
+                }
+                .buttonStyle(.plain)
+                .disabled(isLeaving)
+                .accessibilityLabel("返回")
+            }
+            #endif
+
             ToolbarItem(placement: .primaryAction) {
                 Button(action: onShowSettings) {
                     Image(systemName: "gearshape")
@@ -123,19 +157,23 @@ struct ProjectLibraryView: View {
             }
         }
         #if os(iOS)
+        .navigationBarBackButtonHidden(true)
         .navigationBarTitleDisplayMode(.large)
         .toolbar(.visible, for: .navigationBar)
-        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(Color.white, for: .navigationBar)
         #endif
         .task {
+            isLeaving = false
             hasEntered = false
             await Task.yield()
-            withAnimation(.spring(response: 0.56, dampingFraction: 0.84)) {
+            withAnimation(.spring(response: 0.58, dampingFraction: 0.84, blendDuration: 0.08)) {
                 hasEntered = true
             }
         }
         .onDisappear {
             hasEntered = false
+            isLeaving = false
         }
     }
 
@@ -154,7 +192,7 @@ struct ProjectLibraryView: View {
                     NavigationLink {
                         ProjectDetailView(project: project)
                     } label: {
-                        ProjectCard(project: project)
+                        ProjectCard(project: project, fixedHeight: libraryCardHeight)
                     }
                     .buttonStyle(ProjectCardNavigationButtonStyle())
                     .contextMenu {
@@ -167,13 +205,14 @@ struct ProjectLibraryView: View {
                     .transition(
                         .opacity.combined(with: .move(edge: .bottom))
                     )
-                    .opacity(hasEntered ? 1 : 0)
-                    .offset(y: hasEntered ? 0 : CGFloat(20 + min(index, 6) * 4))
-                    .scaleEffect(hasEntered ? 1 : 0.985, anchor: .top)
+                    .opacity(contentIsVisible ? 1 : 0)
+                    .offset(y: contentIsVisible ? 0 : CGFloat(28 + min(index, 6) * 4))
+                    .scaleEffect(contentIsVisible ? 1 : 0.965, anchor: .center)
+                    .blur(radius: contentIsVisible ? 0 : 4)
                     .animation(
-                        .spring(response: 0.48, dampingFraction: 0.86)
-                            .delay(Double(min(index, 8)) * 0.028),
-                        value: hasEntered
+                        .spring(response: 0.5, dampingFraction: 0.86)
+                            .delay(contentIsVisible ? Double(min(index, 8)) * 0.03 : 0),
+                        value: contentIsVisible
                     )
                 }
             }
@@ -181,32 +220,45 @@ struct ProjectLibraryView: View {
             .padding(.vertical, AppTheme.spacingSmall)
             .animation(AppTheme.Animation.standard, value: projects.map(\.id))
         }
+        .background(Color.white)
         .coDesignHideScrollIndicators()
     }
 
     private func deleteProject(_ project: Project) {
         onDeleteProject(project)
     }
-}
 
-private struct ProjectLibraryBackdrop: View {
-    var body: some View {
-        VStack(spacing: 0) {
-            LinearGradient(
-                colors: [
-                    Color.primaryAccent.opacity(0.10),
-                    Color.secondaryAccent.opacity(0.05),
-                    Color.clear
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .frame(height: 220)
-
-            Spacer()
+    private var pageOffsetY: CGFloat {
+        if isLeaving {
+            return -10
         }
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
+        return hasEntered ? 0 : 24
+    }
+
+    private var pageScale: CGFloat {
+        if isLeaving {
+            return 0.985
+        }
+        return hasEntered ? 1 : 0.97
+    }
+
+    private var pageBlurRadius: CGFloat {
+        isLeaving ? 5 : 8
+    }
+
+    private func closeLibrary() {
+        guard !isLeaving else { return }
+
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.9)) {
+            isLeaving = true
+        }
+
+        Task {
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            await MainActor.run {
+                dismiss()
+            }
+        }
     }
 }
 

@@ -14,6 +14,7 @@ import SwiftData
 /// ```
 struct ProjectCard: View {
     let project: Project
+    var fixedHeight: CGFloat? = nil
 
     // MARK: - Computed helpers
 
@@ -105,6 +106,11 @@ struct ProjectCard: View {
                     Text("更新于 \(project.updatedAt.formatted(date: .abbreviated, time: .shortened))")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(Color.textTertiary)
+                        .lineLimit(2)
+                }
+
+                if fixedHeight != nil {
+                    Spacer(minLength: 0)
                 }
 
                 // Divider
@@ -145,7 +151,24 @@ struct ProjectCard: View {
                     }
                 }
             }
+            .frame(
+                maxWidth: .infinity,
+                minHeight: fixedContentHeight,
+                maxHeight: fixedContentHeight,
+                alignment: .topLeading
+            )
         }
+        .frame(
+            maxWidth: .infinity,
+            minHeight: fixedHeight,
+            maxHeight: fixedHeight,
+            alignment: .topLeading
+        )
+    }
+
+    private var fixedContentHeight: CGFloat? {
+        guard let fixedHeight else { return nil }
+        return max(0, fixedHeight - AppTheme.Layout.cardPadding * 2)
     }
 }
 
