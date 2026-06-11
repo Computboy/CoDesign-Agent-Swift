@@ -10,8 +10,6 @@ struct CoDesignHomeView: View {
     let onShowSettings: () -> Void
     let onDeleteProject: (Project) -> Void
 
-    @State private var showsAllProjects = false
-
     var body: some View {
         GeometryReader { geometry in
             let layout = HomeLayout(width: geometry.size.width)
@@ -36,7 +34,7 @@ struct CoDesignHomeView: View {
     }
 
     private var visibleProjects: [Project] {
-        if isFiltering || showsAllProjects {
+        if isFiltering {
             return projects
         }
 
@@ -304,15 +302,18 @@ private extension CoDesignHomeView {
                 Spacer()
 
                 if projects.count > 3 && !isFiltering {
-                    Button {
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                            showsAllProjects.toggle()
-                        }
+                    NavigationLink {
+                        ProjectLibraryView(
+                            searchText: $searchText,
+                            onCreateProject: onCreateProject,
+                            onShowSettings: onShowSettings,
+                            onDeleteProject: onDeleteProject
+                        )
                     } label: {
                         HStack(spacing: 6) {
-                            Text(showsAllProjects ? "收起" : "查看全部")
+                            Text("查看全部")
                                 .font(.system(size: 15, weight: .semibold))
-                            Image(systemName: showsAllProjects ? "chevron.up" : "arrow.right")
+                            Image(systemName: "arrow.right")
                                 .font(.system(size: 13, weight: .semibold))
                         }
                         .foregroundStyle(HomePalette.accent)
@@ -336,7 +337,7 @@ private extension CoDesignHomeView {
                         NavigationLink {
                             ProjectDetailView(project: project)
                         } label: {
-                            HomeRecentProjectCard(project: project)
+                            HomeRecentProjectCard(project: project, isCompact: layout.isCompact)
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
@@ -619,9 +620,10 @@ private struct HomeFeatureCard: View {
 
 private struct HomeRecentProjectCard: View {
     let project: Project
+    let isCompact: Bool
 
     var body: some View {
-        HStack(alignment: .center, spacing: 18) {
+        HStack(alignment: .center, spacing: isCompact ? 14 : 18) {
             Image(systemName: iconName)
                 .font(.system(size: 27, weight: .semibold))
                 .foregroundStyle(tint)
@@ -633,13 +635,13 @@ private struct HomeRecentProjectCard: View {
                 Text(project.name)
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(HomePalette.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
 
                 if let summaryText {
                     Text(summaryText)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(HomePalette.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(2)
                 }
 
                 HStack(alignment: .center, spacing: 10) {
@@ -653,18 +655,20 @@ private struct HomeRecentProjectCard: View {
 
                     ProgressView(value: project.completionRate)
                         .tint(HomePalette.accent)
-                        .frame(width: 92)
+                        .frame(width: progressWidth)
 
                     Text("\(Int(project.completionRate * 100))%")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(HomePalette.secondaryText)
                 }
+                .lineLimit(1)
 
                 Text(stageText)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(HomePalette.tertiaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: 8)
 
@@ -677,9 +681,10 @@ private struct HomeRecentProjectCard: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(HomePalette.accent)
             }
+            .layoutPriority(1)
         }
         .padding(22)
-        .frame(maxWidth: .infinity, minHeight: 132)
+        .frame(maxWidth: .infinity, minHeight: cardHeight, maxHeight: cardHeight)
         .background(.white)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
@@ -688,6 +693,14 @@ private struct HomeRecentProjectCard: View {
         )
         .shadow(color: .black.opacity(0.045), radius: 18, y: 8)
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var cardHeight: CGFloat {
+        isCompact ? 206 : 188
+    }
+
+    private var progressWidth: CGFloat {
+        isCompact ? 56 : 70
     }
 
     private var currentStage: ProgressStage? {
