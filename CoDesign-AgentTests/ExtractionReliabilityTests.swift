@@ -43,6 +43,28 @@ struct ExtractionReliabilityTests {
         #expect(scored.risks?.shouldAutoCommit == false)
     }
 
+    @Test func scheduleOnlyBoundaryItemIsRejected() throws {
+        let scheduleMessages = [
+            ChatPayloadMessage.user("我希望 3 周完成。")
+        ]
+        let envelope = ExtractionEnvelope(
+            boundaryItems: ExtractedFieldCandidate(
+                value: [
+                    BoundaryItemDTO(content: "3 周完成", isIncluded: true)
+                ],
+                confidence: 0.95,
+                evidence: [EvidenceSpan(role: "user", quote: "3 周完成", turnIndex: 0)]
+            )
+        )
+
+        let report = ExtractionSchemaValidator().validate(envelope: envelope, messages: scheduleMessages)
+        let scored = ExtractionConfidenceScorer().score(envelope: envelope, validationReport: report)
+
+        #expect(report.fieldResults["boundaryItems"]?.hasBlockingErrors == true)
+        #expect(scored.boundaryItems?.level == .rejected)
+        #expect(scored.boundaryItems?.shouldAutoCommit == false)
+    }
+
     @Test func evidenceQuoteNotFoundIsRejected() throws {
         let envelope = ExtractionEnvelope(
             painPoint: ExtractedFieldCandidate(
@@ -143,6 +165,32 @@ struct ExtractionReliabilityTests {
         #expect(contents.contains("保留校园地图"))
         #expect(contents.contains("加入路径提醒"))
         #expect(brief.boundaryItems.count == 2)
+    }
+
+    @Test func stageThreeRequiresIncludeAndExcludeBoundaryItems() throws {
+        let stage = try #require(StageDefinition.all.first { $0.order == 3 })
+
+        let scheduleOnly = DesignBriefSnapshot(
+            boundaryItems: [
+                BoundaryItemDTO(content: "3 周完成", isIncluded: true)
+            ]
+        )
+        #expect(stage.completionRatio(from: scheduleOnly) == 0)
+
+        let includedOnly = DesignBriefSnapshot(
+            boundaryItems: [
+                BoundaryItemDTO(content: "第一版只做视频脚本生成", isIncluded: true)
+            ]
+        )
+        #expect(stage.completionRatio(from: includedOnly) == 0.5)
+
+        let includeAndExclude = DesignBriefSnapshot(
+            boundaryItems: [
+                BoundaryItemDTO(content: "第一版只做视频脚本生成", isIncluded: true),
+                BoundaryItemDTO(content: "暂不做社交发布和复杂推荐", isIncluded: false),
+            ]
+        )
+        #expect(stage.completionRatio(from: includeAndExclude) == 1)
     }
 
     @MainActor

@@ -38,6 +38,12 @@ final class ChatViewModel {
         self.extractor = extractor
     }
 
+    func refreshStageProgress() {
+        guard let brief = project.brief else { return }
+        updateStageProgress(brief: brief.toSnapshot())
+        try? project.modelContext?.save()
+    }
+
     func sendMessage(_ text: String) async {
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         guard let context = project.modelContext else { return }

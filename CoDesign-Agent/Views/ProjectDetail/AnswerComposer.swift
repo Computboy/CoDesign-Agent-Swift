@@ -21,7 +21,6 @@ struct AnswerComposer: View {
             TextField("输入你的想法...", text: $inputText, axis: .vertical)
                 .textFieldStyle(.plain)
                 .lineLimit(1...5)
-                .submitLabel(.send)
                 .focused($isInputFocused)
                 .padding(.horizontal, AppTheme.spacingMedium)
                 .padding(.vertical, AppTheme.spacingSmall)
@@ -34,7 +33,12 @@ struct AnswerComposer: View {
                         .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
                 )
                 .disabled(isStreaming)
+                #if os(macOS)
+                .submitLabel(.send)
                 .onSubmit { send() }
+                #else
+                .submitLabel(.return)
+                #endif
                 #if os(iOS)
                 .textInputAutocapitalization(.sentences)
                 #endif

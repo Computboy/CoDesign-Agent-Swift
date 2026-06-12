@@ -130,10 +130,8 @@ struct ThinkingTreeView: View {
         }
         .coDesignShadow(mode == .embedded ? .card : .elevated)
         #if os(iOS)
-        .sheet(item: $selectedNode) { node in
+        .fullScreenCover(item: $selectedNode) { node in
             nodeDetailSheet(node)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
         }
         #endif
         .sheet(item: $editingNode) { node in

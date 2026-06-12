@@ -48,7 +48,7 @@ enum ExtractionPromptTemplates {
         - useScenario: 使用场景
         - coreValue: 核心价值主张
         - differentiation: 与已有方案的差异
-        - boundaryItems: 项目边界（isIncluded=true 表示做，false 表示不做）
+        - boundaryItems: 项目边界（isIncluded=true 表示第一版明确要做，false 表示明确不做/暂不做）。不要把单独的时间、排期、截止日期、预算或资源限制提取为 boundaryItems；这类内容应放入 hardConstraints 或 milestones。
         - mvpFeatures: MVP 核心功能描述
         - technicalModules: 技术模块描述
         - interactionFlow: 交互流程描述

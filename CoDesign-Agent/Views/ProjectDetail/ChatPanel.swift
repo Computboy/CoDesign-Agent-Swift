@@ -128,9 +128,10 @@ struct ChatPanel: View {
             TextField("输入你的想法...", text: $inputText, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...4)
-                .submitLabel(.send)
                 .focused($isInputFocused)
                 .disabled(chatViewModel.isStreaming)
+                #if os(macOS)
+                .submitLabel(.send)
                 .onSubmit {
                     if canSend {
                         Task {
@@ -140,6 +141,9 @@ struct ChatPanel: View {
                         }
                     }
                 }
+                #else
+                .submitLabel(.return)
+                #endif
                 #if os(iOS)
                 .textInputAutocapitalization(.sentences)
                 #endif

@@ -63,7 +63,7 @@ struct ExtractionConfidenceScorer {
     ) -> ExtractedFieldCandidate<[BoundaryItemDTO]>? {
         guard let candidate, let items = candidate.value else { return candidate }
         let nonEmptyItems = items.filter {
-            !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            BoundaryItemHeuristics.isMeaningfulBoundaryContent($0.content)
         }
         let averageSpecificity = average(
             nonEmptyItems.map { item in

@@ -129,6 +129,9 @@ struct ExtractionSchemaValidator {
             if content.isEmpty {
                 result.errors.append("Boundary item content cannot be empty.")
             }
+            if BoundaryItemHeuristics.isScheduleOnly(content) {
+                result.errors.append("Boundary item looks like a schedule/deadline rather than a do/not-do project boundary: \(content).")
+            }
             let key = "\(content.lowercased())|\(item.isIncluded)"
             if !content.isEmpty && seen.contains(key) {
                 result.errors.append("Boundary items cannot contain duplicates: \(content).")

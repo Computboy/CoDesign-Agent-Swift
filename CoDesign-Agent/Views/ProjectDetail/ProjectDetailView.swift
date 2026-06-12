@@ -100,6 +100,7 @@ struct ProjectDetailView: View {
                     extractor: structuredExtractor
                 )
             }
+            chatViewModel?.refreshStageProgress()
         }
         .onChange(of: serviceModeRaw) { _, _ in
             chatViewModel?.updateServices(

@@ -70,7 +70,7 @@ enum BriefField: String, CaseIterable {
         case .differentiation:
             return snapshot.differentiation?.isEmpty == false
         case .boundaryItems:
-            return !snapshot.boundaryItems.isEmpty
+            return BoundaryItemHeuristics.completionRatio(for: snapshot.boundaryItems) >= 1
         case .mvpFeatures:
             return snapshot.mvpFeatures?.isEmpty == false
         case .technicalModules:
@@ -102,6 +102,9 @@ struct StageDefinition {
     /// 该阶段的完成度 = 已填充字段数 / 总字段数
     func completionRatio(from snapshot: DesignBriefSnapshot) -> Double {
         guard !briefFields.isEmpty else { return 0 }
+        if briefFields == [.boundaryItems] {
+            return BoundaryItemHeuristics.completionRatio(for: snapshot.boundaryItems)
+        }
         let filled = briefFields.filter { $0.isFilled(in: snapshot) }.count
         return Double(filled) / Double(briefFields.count)
     }
