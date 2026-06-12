@@ -10,10 +10,12 @@ struct SeedDataFactory {
         let count = (try? context.fetchCount(descriptor)) ?? 0
 
         // 2. 如果已有数据，直接返回
-        guard count == 0 else { return }
+        if count == 0 {
+            // 3. 创建演示项目
+            _ = MockDataFactory.createDemoProject(context: context)
+        }
 
-        // 3. 创建演示项目
-        _ = MockDataFactory.createDemoProject(context: context)
+        MockDataFactory.ensureCompletedDemoProject(context: context)
 
         // 4. 保存
         try? context.save()

@@ -1,11 +1,17 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct ProjectDetailView: View {
     let project: Project
     @State private var viewModel = ProjectDetailViewModel()
     @State private var chatViewModel: ChatViewModel?
     @State private var isShowingExportSheet = false
+    @State private var isExportingReport = false
+    @State private var reportDocument = GeneratedReportDocument()
+    @State private var exportContentType: UTType = .markdownReport
+    @State private var exportDefaultFilename = "CoDesign报告.md"
+    @State private var exportStatusMessage: ProjectExportStatusMessage?
     @AppStorage("serviceMode") private var serviceModeRaw: String = "mock"
     @Environment(\.llmService) private var llmService
     @Environment(\.structuredExtractor) private var structuredExtractor
@@ -90,11 +96,25 @@ struct ProjectDetailView: View {
         .background(Color.appBackground)
         .navigationTitle(project.name)
         .sheet(isPresented: $isShowingExportSheet) {
-            ReportExportSheet(project: project)
+            ReportExportSheet(project: project, onPreparedExport: presentExport)
                 #if os(iOS)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 #endif
+        }
+        .fileExporter(
+            isPresented: $isExportingReport,
+            document: reportDocument,
+            contentType: exportContentType,
+            defaultFilename: exportDefaultFilename,
+            onCompletion: handleExportResult
+        )
+        .alert(item: $exportStatusMessage) { message in
+            Alert(
+                title: Text(message.isError ? "导出失败" : "导出完成"),
+                message: Text(message.text),
+                dismissButton: .default(Text("好"))
+            )
         }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -117,6 +137,70 @@ struct ProjectDetailView: View {
             )
         }
     }
+
+    private func presentExport(_ preparedExport: PreparedReportExport) {
+        isShowingExportSheet = false
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 700_000_000)
+
+            #if os(iOS)
+            do {
+                switch preparedExport {
+                case .file(let data, _, let defaultFilename):
+                    let exportFile = try TemporaryExportFile(
+                        data: data,
+                        defaultFilename: defaultFilename
+                    )
+                    DocumentExportPresenter.present(fileURL: exportFile.url) { result in
+                        handleDocumentPickerResult(result, temporaryURL: exportFile.url)
+                    }
+                }
+            } catch {
+                exportStatusMessage = ProjectExportStatusMessage(
+                    text: error.localizedDescription,
+                    isError: true
+                )
+            }
+            #else
+            switch preparedExport {
+            case .file(let data, let contentType, let defaultFilename):
+                reportDocument = GeneratedReportDocument(data: data)
+                exportContentType = contentType
+                exportDefaultFilename = defaultFilename
+                isExportingReport = true
+            }
+            #endif
+        }
+    }
+
+    #if os(iOS)
+    private func handleDocumentPickerResult(_ result: Result<URL, Error>, temporaryURL: URL) {
+        defer {
+            try? FileManager.default.removeItem(at: temporaryURL.deletingLastPathComponent())
+        }
+        handleExportResult(result)
+    }
+    #endif
+
+    private func handleExportResult(_ result: Result<URL, Error>) {
+        switch result {
+        case .success:
+            exportStatusMessage = ProjectExportStatusMessage(text: "文件已生成。", isError: false)
+        case .failure(let error):
+            let nsError = error as NSError
+            if nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError {
+                return
+            }
+            exportStatusMessage = ProjectExportStatusMessage(text: error.localizedDescription, isError: true)
+        }
+    }
+}
+
+private struct ProjectExportStatusMessage: Identifiable {
+    let id = UUID()
+    let text: String
+    let isError: Bool
 }
 
 // MARK: - Header

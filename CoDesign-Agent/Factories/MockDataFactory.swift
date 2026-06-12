@@ -2,6 +2,8 @@ import Foundation
 import SwiftData
 
 struct MockDataFactory {
+    static let completedDemoProjectName = "已完成测试任务：非遗 AI 短视频"
+
     /// 创建一个完整的演示项目，用于展示系统功能和 UI 效果
     static func createDemoProject(context: ModelContext) -> Project {
         // 1. 创建 Project
@@ -254,6 +256,163 @@ struct MockDataFactory {
             context.insert(m)
             project.thinkingMoments.append(m)
         }
+
+        return project
+    }
+
+    static func ensureCompletedDemoProject(context: ModelContext) {
+        let projects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
+        guard !projects.contains(where: { $0.name == completedDemoProjectName }) else { return }
+        _ = createCompletedDemoProject(context: context)
+    }
+
+    static func createCompletedDemoProject(context: ModelContext) -> Project {
+        let baseDate = Date().addingTimeInterval(-86_400 * 7)
+        let project = Project(
+            name: completedDemoProjectName,
+            briefDescription: "面向大学生的传统文化短视频 AI 共创方案，用于测试完整 Design Brief、思维树和导出报告。",
+            createdAt: baseDate,
+            updatedAt: Date()
+        )
+        context.insert(project)
+
+        let brief = DesignBrief(
+            targetUser: "18-24 岁大学生，尤其是对传统文化有兴趣但缺少持续接触入口的短视频用户",
+            painPoint: "传统文化内容常被学生感知为说教、遥远、记不住，难以在日常短视频语境中形成主动传播",
+            useScenario: "课程展示或校园文化活动前，学生需要在 3 周内产出一个可演示的 AI 短视频原型",
+            coreValue: "把传统文化知识转译为有情绪记忆点的短视频脚本和分镜，降低创作门槛",
+            differentiation: "不是泛泛生成视频，而是围绕文化主题、受众情绪、传播场景和边界取舍生成可解释的创作方案",
+            mvpFeatures: "主题输入、受众画像选择、脚本生成、分镜草稿、文化依据卡片、人工确认与导出",
+            technicalModules: "LLM 脚本生成、RAG 文化素材检索、分镜结构化输出、人工审核节点、报告导出模块",
+            interactionFlow: "用户输入文化主题后，系统追问受众和传播目标，再生成脚本与分镜，最后由用户确认边界和导出简报",
+            operationLogic: "AI 只提供创作建议和结构化草稿，关键文化解释、价值判断和最终发布内容由用户确认",
+            hardConstraints: "3 周内完成可演示原型；不得生成未经核验的文化事实；不得替代人工审核；优先使用公开可信材料",
+            milestones: "第 1 周完成用户场景与内容边界；第 2 周完成脚本/分镜生成原型；第 3 周完成测试、报告和课堂演示"
+        )
+        context.insert(brief)
+        project.brief = brief
+
+        let boundaryItems = [
+            BoundaryItem(content: "第一版支持文化主题输入与目标受众选择", isIncluded: true),
+            BoundaryItem(content: "第一版生成短视频脚本、分镜草稿和文化依据卡片", isIncluded: true),
+            BoundaryItem(content: "第一版保留人工确认，不自动发布内容", isIncluded: true),
+            BoundaryItem(content: "暂不做真实视频渲染和复杂剪辑", isIncluded: false),
+            BoundaryItem(content: "暂不做社交平台账号运营和推荐算法", isIncluded: false),
+        ]
+        boundaryItems.forEach {
+            context.insert($0)
+            brief.boundaryItems.append($0)
+        }
+
+        let metrics = [
+            SuccessMetric(metric: "脚本可用率", target: "≥ 80%", measurement: "5 名同学试用后认为脚本可继续修改成作品的比例"),
+            SuccessMetric(metric: "文化事实错误率", target: "≤ 5%", measurement: "人工抽查生成内容中的事实错误比例"),
+            SuccessMetric(metric: "完成时间", target: "≤ 10 分钟", measurement: "从输入主题到导出第一版简报的平均用时"),
+        ]
+        metrics.forEach {
+            context.insert($0)
+            brief.successMetrics.append($0)
+        }
+
+        let risks = [
+            RiskItem(desc: "AI 生成文化事实不准确", probability: 4, impact: 5, mitigation: "输出依据卡片并要求人工确认来源"),
+            RiskItem(desc: "生成内容仍然像课堂讲稿，不适合短视频语境", probability: 3, impact: 4, mitigation: "加入情绪目标、冲突点和观看后行动的追问"),
+            RiskItem(desc: "用户误以为系统可以直接生成最终视频", probability: 2, impact: 3, mitigation: "在界面和报告中明确 MVP 只覆盖脚本与分镜草稿"),
+        ]
+        risks.forEach {
+            context.insert($0)
+            brief.risks.append($0)
+        }
+
+        project.stages = StageDefinition.all.map { definition in
+            let stage = ProgressStage(
+                order: definition.order,
+                name: definition.name,
+                status: "completed",
+                completionRatio: 1,
+                lastUpdated: Date()
+            )
+            context.insert(stage)
+            return stage
+        }
+
+        let messages: [(String, String)] = [
+            ("user", "我想做一个关于提升大学生传统文化传承意识的 AI 视频。"),
+            ("assistant", "这个方向里，最需要先确认目标用户和观看场景。你希望影响哪类大学生？"),
+            ("user", "18 到 24 岁大学生，他们平时刷短视频，但觉得传统文化内容太说教，看完记不住。"),
+            ("assistant", "那核心问题不是传统文化本身，而是表达方式和记忆留存。你希望第一版视频让他们记住什么？"),
+            ("user", "希望他们记住一个知识点，也产生一点情绪共鸣，愿意主动分享。"),
+            ("assistant", "我们可以把 MVP 边界收紧到脚本、分镜和文化依据，不先做真实视频渲染。"),
+            ("user", "可以，三周内完成课堂可演示原型，不做真实发布和社交运营。"),
+        ]
+        for (index, message) in messages.enumerated() {
+            let chat = ChatMessage(
+                role: message.0,
+                content: message.1,
+                timestamp: baseDate.addingTimeInterval(Double(index) * 180)
+            )
+            context.insert(chat)
+            project.messages.append(chat)
+        }
+
+        let traces: [(Int, String, String, String)] = [
+            (1, "reframe", "你重新定义了问题", "从“提升意识”收窄到“短视频场景下的表达方式和记忆留存”。"),
+            (2, "differentiate", "你提炼了差异价值", "方案不只生成内容，而是保留文化依据和人工确认。"),
+            (3, "boundaryShrink", "你收缩了项目边界", "第一版只做脚本、分镜和依据卡片，暂不做真实渲染和发布。"),
+            (7, "differentiate", "你区分了成功标准", "用脚本可用率、事实错误率和完成时间衡量原型质量。"),
+        ]
+        traces.forEach { order, type, title, detail in
+            let trace = LearningTrace(stageOrder: order, actionType: type, title: title, detail: detail)
+            context.insert(trace)
+            project.learningTraces.append(trace)
+        }
+
+        let root = ThinkingMoment(
+            momType: "seed",
+            content: "提出非遗 AI 短视频项目",
+            stageOrder: 0,
+            timestamp: baseDate
+        )
+        context.insert(root)
+        project.thinkingMoments.append(root)
+
+        let stageMoments: [(Int, String, BriefField?)] = [
+            (1, "锚定目标用户与痛点：短视频语境下的传统文化记忆留存", .targetUser),
+            (2, "提炼差异价值：AI 生成草稿但保留文化依据和人工确认", .coreValue),
+            (3, "划定 MVP 边界：只做脚本、分镜和依据卡片", .boundaryItems),
+            (4, "拆解功能模块：LLM 生成、RAG 检索、结构化分镜、导出", .technicalModules),
+            (5, "定义运行规则：AI 建议，用户确认", .operationLogic),
+            (6, "确认硬约束：三周、事实核验、课堂演示", .hardConstraints),
+            (7, "制定验收指标：可用率、错误率、完成时间", .successMetrics),
+            (8, "识别风险：事实错误、表达说教、能力误解", .risks),
+            (9, "拆分里程碑：三周完成原型与报告", .milestones),
+        ]
+        for (index, item) in stageMoments.enumerated() {
+            let branch = ThinkingMoment(
+                momType: item.0 == 3 ? "converge" : "decision",
+                content: item.1,
+                stageOrder: item.0,
+                relatedField: item.2?.rawValue,
+                parentMomentID: root.id,
+                timestamp: baseDate.addingTimeInterval(Double(index + 1) * 240)
+            )
+            context.insert(branch)
+            project.thinkingMoments.append(branch)
+        }
+
+        let archived = ThinkingMoment(
+            momType: "decision",
+            content: "旧方案：直接生成完整视频并自动发布",
+            stageOrder: 3,
+            relatedField: BriefField.boundaryItems.rawValue,
+            parentMomentID: root.id,
+            timestamp: baseDate.addingTimeInterval(420),
+            isActiveBranch: false,
+            branchVersion: 1,
+            archivedAt: baseDate.addingTimeInterval(900)
+        )
+        context.insert(archived)
+        project.thinkingMoments.append(archived)
 
         return project
     }

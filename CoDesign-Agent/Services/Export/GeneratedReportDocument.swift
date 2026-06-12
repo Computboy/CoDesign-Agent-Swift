@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 struct GeneratedReportDocument: FileDocument {
     static var readableContentTypes: [UTType] {
-        [.plainText, .markdownReport, .json, .pdf]
+        [.plainText, .markdownReport, .json, .pdf, .codesignProject]
     }
 
     var data: Data

@@ -29,9 +29,22 @@
 		044306022FC8292200A0BB98 /* CoDesign-AgentUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CoDesign-AgentUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		044306152FC8292300A0BB98 /* Exceptions for "CoDesign-Agent" folder in "CoDesign-Agent" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 044305E82FC8292100A0BB98 /* CoDesign-Agent */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		044305EB2FC8292100A0BB98 /* CoDesign-Agent */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				044306152FC8292300A0BB98 /* Exceptions for "CoDesign-Agent" folder in "CoDesign-Agent" target */,
+			);
 			path = "CoDesign-Agent";
 			sourceTree = "<group>";
 		};

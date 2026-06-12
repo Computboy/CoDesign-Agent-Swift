@@ -3,16 +3,20 @@ import UniformTypeIdentifiers
 
 struct ReportExportSheet: View {
     let project: Project
+    let onPreparedExport: ((PreparedReportExport) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var options = ReportExportOptions.defaults(for: .markdown)
     @State private var isExportingReport = false
-    @State private var isExportingCodesign = false
     @State private var reportDocument = GeneratedReportDocument()
-    @State private var codesignDocument = CoDesignPackageDocument(package: .empty)
     @State private var contentType: UTType = .markdownReport
     @State private var defaultFilename = "CoDesign报告.md"
     @State private var statusMessage: ExportStatusMessage?
+
+    init(project: Project, onPreparedExport: ((PreparedReportExport) -> Void)? = nil) {
+        self.project = project
+        self.onPreparedExport = onPreparedExport
+    }
 
     var body: some View {
         NavigationStack {
@@ -56,13 +60,6 @@ struct ReportExportSheet: View {
             isPresented: $isExportingReport,
             document: reportDocument,
             contentType: contentType,
-            defaultFilename: defaultFilename,
-            onCompletion: handleExportResult
-        )
-        .fileExporter(
-            isPresented: $isExportingCodesign,
-            document: codesignDocument,
-            contentType: .codesignProject,
             defaultFilename: defaultFilename,
             onCompletion: handleExportResult
         )
@@ -170,28 +167,65 @@ struct ReportExportSheet: View {
         var exportOptions = options
         exportOptions.normalizeForFormat()
         let snapshot = ProjectReportSnapshotBuilder().build(project: project, options: exportOptions)
-        defaultFilename = ReportFileWriter.defaultFileName(projectName: project.name, format: exportOptions.format)
-        contentType = exportOptions.format.contentType
+        let filename = ReportFileWriter.defaultFileName(projectName: project.name, format: exportOptions.format)
+        let exportContentType = exportOptions.format.contentType
+        defaultFilename = filename
+        contentType = exportContentType
 
         do {
             switch exportOptions.format {
             case .markdown:
                 let markdown = MarkdownReportRenderer().render(snapshot: snapshot)
-                reportDocument = GeneratedReportDocument(data: Data(markdown.utf8))
-                isExportingReport = true
+                presentPreparedExport(
+                    .file(
+                        data: Data(markdown.utf8),
+                        contentType: exportContentType,
+                        defaultFilename: filename
+                    )
+                )
             case .json:
-                reportDocument = GeneratedReportDocument(data: try JSONReportRenderer().render(snapshot: snapshot))
-                isExportingReport = true
+                presentPreparedExport(
+                    .file(
+                        data: try JSONReportRenderer().render(snapshot: snapshot),
+                        contentType: exportContentType,
+                        defaultFilename: filename
+                    )
+                )
             case .pdf:
-                reportDocument = GeneratedReportDocument(data: try PDFReportRenderer().render(snapshot: snapshot))
-                isExportingReport = true
+                presentPreparedExport(
+                    .file(
+                        data: try PDFReportRenderer().render(snapshot: snapshot),
+                        contentType: exportContentType,
+                        defaultFilename: filename
+                    )
+                )
             case .codesignPackage:
                 let package = CoDesignPackageBuilder().build(from: snapshot)
-                codesignDocument = CoDesignPackageDocument(package: package)
-                isExportingCodesign = true
+                presentPreparedExport(
+                    .file(
+                        data: try CoDesignPackageDataCodec.encode(package),
+                        contentType: exportContentType,
+                        defaultFilename: filename
+                    )
+                )
             }
         } catch {
             statusMessage = ExportStatusMessage(text: error.localizedDescription, isError: true)
+        }
+    }
+
+    private func presentPreparedExport(_ preparedExport: PreparedReportExport) {
+        if let onPreparedExport {
+            onPreparedExport(preparedExport)
+            return
+        }
+
+        switch preparedExport {
+        case .file(let data, let contentType, let defaultFilename):
+            self.reportDocument = GeneratedReportDocument(data: data)
+            self.contentType = contentType
+            self.defaultFilename = defaultFilename
+            isExportingReport = true
         }
     }
 
@@ -249,4 +283,8 @@ private struct ExportStatusMessage: Identifiable {
     let id = UUID()
     let text: String
     let isError: Bool
+}
+
+enum PreparedReportExport {
+    case file(data: Data, contentType: UTType, defaultFilename: String)
 }
