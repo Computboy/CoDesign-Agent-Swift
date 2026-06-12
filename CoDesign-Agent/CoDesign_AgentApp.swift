@@ -46,8 +46,6 @@ extension EnvironmentValues {
 
 @main
 struct CoDesign_AgentApp: App {
-    @AppStorage("serviceMode") private var serviceModeRaw: String = "mock"
-
     init() {
         configureScrollIndicators()
     }
@@ -74,24 +72,12 @@ struct CoDesign_AgentApp: App {
         }
     }()
 
-    var serviceMode: ServiceMode {
-        ServiceMode(rawValue: serviceModeRaw) ?? .mock
-    }
-
-    var llmService: any LLMServiceProtocol {
-        serviceMode == .live ? LiveLLMService() : MockLLMService()
-    }
-
-    var extractor: any StructuredExtractorProtocol {
-        serviceMode == .live ? LiveStructuredExtractor() : MockStructuredExtractor()
-    }
-
     var body: some Scene {
         WindowGroup {
             ProjectListView()
                 .coDesignHideScrollIndicators()
-                .environment(\.llmService, llmService)
-                .environment(\.structuredExtractor, extractor)
+                .environment(\.llmService, ModeSwitchingLLMService())
+                .environment(\.structuredExtractor, ModeSwitchingStructuredExtractor())
                 .task {
                     SeedDataFactory.seedIfNeeded(
                         context: sharedModelContainer.mainContext
@@ -106,5 +92,57 @@ struct CoDesign_AgentApp: App {
         UIScrollView.appearance().showsVerticalScrollIndicator = false
         UIScrollView.appearance().showsHorizontalScrollIndicator = false
         #endif
+    }
+}
+
+private final class ModeSwitchingLLMService: LLMServiceProtocol {
+    private let mock = MockLLMService()
+    private let live = LiveLLMService()
+
+    func streamChat(
+        messages: [ChatPayloadMessage],
+        briefSnapshot: DesignBriefSnapshot?,
+        currentStage: ProgressStageSnapshot?,
+        mode: ClarificationMode,
+        resourceCards: [ResourceCard]
+    ) -> AsyncThrowingStream<String, Error> {
+        currentMode == .live
+            ? live.streamChat(
+                messages: messages,
+                briefSnapshot: briefSnapshot,
+                currentStage: currentStage,
+                mode: mode,
+                resourceCards: resourceCards
+            )
+            : mock.streamChat(
+                messages: messages,
+                briefSnapshot: briefSnapshot,
+                currentStage: currentStage,
+                mode: mode,
+                resourceCards: resourceCards
+            )
+    }
+
+    private var currentMode: ServiceMode {
+        ServiceMode(rawValue: UserDefaults.standard.string(forKey: "serviceMode") ?? "") ?? .mock
+    }
+}
+
+private final class ModeSwitchingStructuredExtractor: StructuredExtractorProtocol {
+    private let mock = MockStructuredExtractor()
+    private let live = LiveStructuredExtractor()
+
+    func extract(
+        from messages: [ChatPayloadMessage],
+        existing: DesignBriefSnapshot?
+    ) async throws -> ExtractionOutcome {
+        if currentMode == .live {
+            return try await live.extract(from: messages, existing: existing)
+        }
+        return try await mock.extract(from: messages, existing: existing)
+    }
+
+    private var currentMode: ServiceMode {
+        ServiceMode(rawValue: UserDefaults.standard.string(forKey: "serviceMode") ?? "") ?? .mock
     }
 }

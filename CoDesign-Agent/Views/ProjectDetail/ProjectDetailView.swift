@@ -5,6 +5,7 @@ struct ProjectDetailView: View {
     let project: Project
     @State private var viewModel = ProjectDetailViewModel()
     @State private var chatViewModel: ChatViewModel?
+    @AppStorage("serviceMode") private var serviceModeRaw: String = "mock"
     @Environment(\.llmService) private var llmService
     @Environment(\.structuredExtractor) private var structuredExtractor
 
@@ -99,6 +100,12 @@ struct ProjectDetailView: View {
                     extractor: structuredExtractor
                 )
             }
+        }
+        .onChange(of: serviceModeRaw) { _, _ in
+            chatViewModel?.updateServices(
+                llmService: llmService,
+                extractor: structuredExtractor
+            )
         }
     }
 }

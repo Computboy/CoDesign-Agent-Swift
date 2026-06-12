@@ -1,7 +1,6 @@
 import Foundation
 
 final class LiveStructuredExtractor: StructuredExtractorProtocol {
-    private let apiClient = LLMAPIClient()
     private let fallback = MockStructuredExtractor()
     private let validator = ExtractionSchemaValidator()
     private let scorer = ExtractionConfidenceScorer()
@@ -10,6 +9,8 @@ final class LiveStructuredExtractor: StructuredExtractorProtocol {
         from messages: [ChatPayloadMessage],
         existing: DesignBriefSnapshot?
     ) async throws -> ExtractionOutcome {
+        let apiClient = LLMAPIClient()
+
         do {
             let rawJSON = try await apiClient.completeJSON(
                 messages: buildMessages(messages: messages, existing: existing)
@@ -43,6 +44,7 @@ final class LiveStructuredExtractor: StructuredExtractorProtocol {
                     report: evaluated.report,
                     messages: messages,
                     existing: existing,
+                    apiClient: apiClient,
                     previousAttemptCount: decodedAttemptCount
                 )
             }
@@ -147,6 +149,7 @@ final class LiveStructuredExtractor: StructuredExtractorProtocol {
         report: ExtractionValidationReport,
         messages: [ChatPayloadMessage],
         existing: DesignBriefSnapshot?,
+        apiClient: LLMAPIClient,
         previousAttemptCount: Int
     ) async -> ExtractionOutcome {
         let attemptCount = max(3, previousAttemptCount + 1)

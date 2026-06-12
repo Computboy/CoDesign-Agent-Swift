@@ -6,9 +6,10 @@ import Observation
 @Observable
 final class ChatViewModel {
     let project: Project
-    private let llmService: any LLMServiceProtocol
-    private let extractor: any StructuredExtractorProtocol
+    private var llmService: any LLMServiceProtocol
+    private var extractor: any StructuredExtractorProtocol
     private let analyzer = ProgressAnalyzer()
+    @ObservationIgnored private nonisolated(unsafe) var fallbackObserver: NSObjectProtocol?
 
     var currentStreamingText: String = ""
     var isStreaming: Bool = false
@@ -18,6 +19,21 @@ final class ChatViewModel {
          llmService: any LLMServiceProtocol,
          extractor: any StructuredExtractorProtocol) {
         self.project = project
+        self.llmService = llmService
+        self.extractor = extractor
+        observeServiceFallbacks()
+    }
+
+    deinit {
+        if let fallbackObserver {
+            NotificationCenter.default.removeObserver(fallbackObserver)
+        }
+    }
+
+    func updateServices(
+        llmService: any LLMServiceProtocol,
+        extractor: any StructuredExtractorProtocol
+    ) {
         self.llmService = llmService
         self.extractor = extractor
     }
@@ -151,6 +167,21 @@ final class ChatViewModel {
 
         // ⑦ 保存
         try? context.save()
+    }
+
+    private func observeServiceFallbacks() {
+        fallbackObserver = NotificationCenter.default.addObserver(
+            forName: LLMRuntimeNotification.serviceFallback,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+            let service = notification.userInfo?[LLMRuntimeNotification.serviceKey] as? String ?? "Live API"
+            let message = notification.userInfo?[LLMRuntimeNotification.messageKey] as? String ?? "未知错误"
+            Task { @MainActor [weak self] in
+                self?.errorMessage = "\(service)失败，已临时使用本地内置追问：\(message)"
+            }
+        }
     }
 
     // MARK: - Conversation State Updates

@@ -23,6 +23,17 @@ final class LLMAPIClient {
     // - APIError.networkFailed: 底层网络错误（不会重复包装已有 APIError）
 
     func completeJSON(messages: [ChatCompletionMessage]) async throws -> String {
+        do {
+            return try await completeJSON(messages: messages, responseFormat: ResponseFormat(type: "json_object"))
+        } catch APIError.httpStatus(let code, _) where code == 400 || code == 422 {
+            return try await completeJSON(messages: messages, responseFormat: nil)
+        }
+    }
+
+    private func completeJSON(
+        messages: [ChatCompletionMessage],
+        responseFormat: ResponseFormat?
+    ) async throws -> String {
         guard config.isValid else {
             throw APIError.missingAPIKey
         }
@@ -35,7 +46,7 @@ final class LLMAPIClient {
                 stream: false,
                 temperature: 0.2,
                 maxTokens: 1200,
-                responseFormat: ResponseFormat(type: "json_object"),
+                responseFormat: responseFormat,
                 thinking: config.thinkingType.map { ThinkingConfig(type: $0) }
             ))
         } catch {
@@ -78,6 +89,56 @@ final class LLMAPIClient {
 
         guard let content = choice.message?.content,
               !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw APIError.emptyResponse
+        }
+
+        return content
+    }
+
+    func completeChat(messages: [ChatCompletionMessage]) async throws -> String {
+        guard config.isValid else {
+            throw APIError.missingAPIKey
+        }
+
+        let request = try makeRequest(body: ChatCompletionRequest(
+            model: config.model,
+            messages: messages,
+            stream: false,
+            temperature: 0.7,
+            maxTokens: 500,
+            responseFormat: nil,
+            thinking: config.thinkingType.map { ThinkingConfig(type: $0) }
+        ))
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.networkFailed(error)
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        guard (200...299).contains(http.statusCode) else {
+            let bodyText = String(data: data, encoding: .utf8) ?? ""
+            throw APIError.httpStatus(http.statusCode, bodyText)
+        }
+
+        let decoded: ChatCompletionResponse
+        do {
+            decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+        } catch {
+            throw APIError.decodingFailed
+        }
+
+        guard let content = decoded.choices.first?.message?.content?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !content.isEmpty else {
             throw APIError.emptyResponse
         }
 

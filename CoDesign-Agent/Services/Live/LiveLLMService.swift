@@ -2,7 +2,6 @@ import Foundation
 
 final class LiveLLMService: LLMServiceProtocol {
     private let fallback = MockLLMService()
-    private let apiClient = LLMAPIClient()
 
     func streamChat(
         messages: [ChatPayloadMessage],
@@ -13,18 +12,18 @@ final class LiveLLMService: LLMServiceProtocol {
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             Task {
-                do {
-                    // 1. 构造 API messages
-                    let apiMessages = self.buildAPIMessages(
-                        messages: messages,
-                        briefSnapshot: briefSnapshot,
-                        currentStage: currentStage,
-                        mode: mode,
-                        resourceCards: resourceCards
-                    )
+                // 1. 构造 API messages
+                let apiMessages = self.buildAPIMessages(
+                    messages: messages,
+                    briefSnapshot: briefSnapshot,
+                    currentStage: currentStage,
+                    mode: mode,
+                    resourceCards: resourceCards
+                )
 
+                do {
                     // 2. 调用流式 API
-                    let stream = self.apiClient.streamChat(messages: apiMessages)
+                    let stream = LLMAPIClient().streamChat(messages: apiMessages)
 
                     // 3. 转发 token
                     for try await token in stream {
@@ -33,9 +32,19 @@ final class LiveLLMService: LLMServiceProtocol {
 
                     continuation.finish()
                 } catch {
-                    print("[LiveLLMService] Live chat failed, fallback to Mock: \(error)")
+                    print("[LiveLLMService] Live streaming failed, retrying non-streaming: \(error)")
 
-                    // 4. Fallback to Mock
+                    do {
+                        let reply = try await LLMAPIClient().completeChat(messages: apiMessages)
+                        continuation.yield(reply)
+                        continuation.finish()
+                        return
+                    } catch {
+                        print("[LiveLLMService] Live non-streaming chat failed, fallback to Mock: \(error)")
+                        Self.reportFallback(error)
+                    }
+
+                    // 4. Fallback to Mock only after both Live paths fail.
                     let mockStream = self.fallback.streamChat(
                         messages: messages,
                         briefSnapshot: briefSnapshot,
@@ -57,6 +66,17 @@ final class LiveLLMService: LLMServiceProtocol {
                 }
             }
         }
+    }
+
+    private static func reportFallback(_ error: Error) {
+        NotificationCenter.default.post(
+            name: LLMRuntimeNotification.serviceFallback,
+            object: nil,
+            userInfo: [
+                LLMRuntimeNotification.serviceKey: "Live 对话",
+                LLMRuntimeNotification.messageKey: error.localizedDescription,
+            ]
+        )
     }
 
     // MARK: - Private

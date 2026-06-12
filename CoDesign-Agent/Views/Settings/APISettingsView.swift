@@ -37,10 +37,25 @@ struct APISettingsView: View {
                 Section("API 配置") {
                     SecureField("API Key", text: $apiKey)
                         .textContentType(.password)
+                        .autocorrectionDisabled(true)
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.asciiCapable)
+                        #endif
 
                     TextField("Base URL", text: $baseURL, prompt: Text("https://api.deepseek.com"))
+                        .autocorrectionDisabled(true)
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.URL)
+                        #endif
 
                     TextField("Model", text: $model, prompt: Text("deepseek-v4-flash"))
+                        .autocorrectionDisabled(true)
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.asciiCapable)
+                        #endif
 
                     Picker("Thinking Type", selection: $thinkingType) {
                         Text("不发送").tag("")
@@ -73,6 +88,10 @@ struct APISettingsView: View {
                         Label("填入 API Key 后可以测试当前配置是否可用。", systemImage: "info.circle")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    } else if serviceMode != "live" {
+                        Label("当前仍是 Mock 模式，聊天不会调用真实模型。测试成功后会自动切换到 Live。", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                     }
 
                     if let apiTestMessage, let apiTestSucceeded {
@@ -194,6 +213,7 @@ struct APISettingsView: View {
         baseURL = ""
         model = ""
         thinkingType = ""
+        serviceMode = "mock"
         resetAPITestResult()
     }
 
@@ -239,8 +259,9 @@ struct APISettingsView: View {
 
         do {
             let reply = try await client.testConnection()
+            serviceMode = "live"
             apiTestSucceeded = true
-            apiTestMessage = "连接成功，模型返回：\(shortMessage(reply))"
+            apiTestMessage = "连接成功，已切换到 Live 模式。模型返回：\(shortMessage(reply))"
         } catch {
             apiTestSucceeded = false
             apiTestMessage = shortMessage(error.localizedDescription)
