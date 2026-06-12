@@ -39,7 +39,7 @@ struct MarkdownReportRenderer {
         append(&lines, "## 0. 项目信息")
         append(&lines, "")
         appendKeyValue(&lines, "项目名称", snapshot.project.name)
-        appendKeyValue(&lines, "一句话描述", ReportSnapshotValue.text(snapshot.project.briefDescription))
+        appendKeyValue(&lines, "一句话描述", snapshot.project.briefDescription)
         appendKeyValue(&lines, "创建时间", formatDate(snapshot.project.createdAt))
         appendKeyValue(&lines, "更新时间", formatDate(snapshot.project.updatedAt))
         appendKeyValue(&lines, "导出时间", formatDate(snapshot.exportedAt))
@@ -82,11 +82,11 @@ struct MarkdownReportRenderer {
             return trimmed.isEmpty
         }
 
-        append(&lines, "* U 要求的 Bloom 层级 ≤ C 能达到的层级：待人工确认")
-        append(&lines, "* C 能做的范围 ≤ B 允许的范围：待人工确认")
-        append(&lines, "* B 允许的范围 ≥ U 真正需要的范围：待人工确认")
-        append(&lines, "* 三角任一支柱无空缺：\(hasEmptyBriefField ? "待补充" : "通过")")
-        append(&lines, "* 是否需要回环修订 Step 1：待人工确认")
+        if hasEmptyBriefField {
+            append(&lines, "* 核心 U/C/B 字段尚未全部形成，报告仅呈现已确认内容。")
+        } else {
+            append(&lines, "* 核心 U/C/B 字段已形成，可进入人工复核。")
+        }
         append(&lines, "")
     }
 
@@ -95,24 +95,18 @@ struct MarkdownReportRenderer {
         append(&lines, "")
 
         if snapshot.brief.successMetrics.isEmpty {
-            append(&lines, "暂无量化指标，待补充。")
+            append(&lines, "暂无已确认的量化指标。")
             append(&lines, "")
         } else {
-            append(&lines, "| 指标名称 | 测量方式 | 阈值 | 当前状态 |")
-            append(&lines, "| --- | --- | --- | --- |")
+            append(&lines, "| 指标名称 | 测量方式 | 阈值 |")
+            append(&lines, "| --- | --- | --- |")
             for metric in snapshot.brief.successMetrics {
-                append(&lines, "| \(cell(metric.metric)) | \(cell(metric.measurement ?? ReportSnapshotValue.missing)) | \(cell(metric.target)) | 待补充 |")
+                append(&lines, "| \(cell(metric.metric)) | \(cell(displayValue(metric.measurement))) | \(cell(metric.target)) |")
             }
             append(&lines, "")
         }
 
-        appendKeyValue(&lines, "Goodhart 自查", snapshot.reportSections.rewardFunction["Goodhart 自查"] ?? ReportSnapshotValue.missing)
-        append(&lines, "")
-        append(&lines, "Action Plan：")
-        append(&lines, "")
-        append(&lines, "* 如果 ______ 跌破 ______，我们将 ______。")
-        append(&lines, "* 如果 ______ 超过 ______，我们将 ______。")
-        append(&lines, "* 如果 ______ 跌破 ______，我们将 ______。")
+        appendKeyValueIfPresent(&lines, "Goodhart 自查", snapshot.reportSections.rewardFunction["Goodhart 自查"])
         append(&lines, "")
     }
 
@@ -123,7 +117,7 @@ struct MarkdownReportRenderer {
         if snapshot.brief.risks.isEmpty {
             append(&lines, "### 待分类风险")
             append(&lines, "")
-            append(&lines, "待补充")
+            append(&lines, "暂无已确认风险。")
             append(&lines, "")
         } else {
             append(&lines, "### 待分类风险")
@@ -131,28 +125,12 @@ struct MarkdownReportRenderer {
             append(&lines, "| 风险描述 | 概率 | 影响 | 应对措施 |")
             append(&lines, "| --- | --- | --- | --- |")
             for risk in snapshot.brief.risks {
-                append(&lines, "| \(cell(risk.desc)) | \(risk.probability)/5 | \(risk.impact)/5 | \(cell(risk.mitigation ?? ReportSnapshotValue.missing)) |")
+                append(&lines, "| \(cell(risk.desc)) | \(risk.probability)/5 | \(risk.impact)/5 | \(cell(displayValue(risk.mitigation))) |")
             }
             append(&lines, "")
         }
 
-        append(&lines, "### U-failure")
-        append(&lines, "")
-        append(&lines, "待补充")
-        append(&lines, "")
-        append(&lines, "### C-failure")
-        append(&lines, "")
-        append(&lines, "待补充")
-        append(&lines, "")
-        append(&lines, "### B-failure")
-        append(&lines, "")
-        append(&lines, "待补充")
-        append(&lines, "")
-        append(&lines, "| 层级 | Communicate 告知 | Empower 赋能 | Reduce future 减少再发 |")
-        append(&lines, "| --- | --- | --- | --- |")
-        for level in ["模型层", "交互层", "流程层", "责任层"] {
-            append(&lines, "| \(level) | 待补充 | 待补充 | 待补充 |")
-        }
+        appendDictionary(&lines, snapshot.reportSections.failureRecovery)
         append(&lines, "")
     }
 
@@ -160,23 +138,7 @@ struct MarkdownReportRenderer {
         append(&lines, "## 6. Intervention Spec")
         append(&lines, "")
 
-        let sections: [(String, String)] = [
-            ("6.1 时机", snapshot.reportSections.interventionSpec["时机"] ?? ReportSnapshotValue.missing),
-            ("6.2 强度", "待补充\n\n提示 / 建议 / 默认 / 自动执行 / 强制阻止"),
-            ("6.3 可见", "存在：待补充\n\n状态：待补充\n\n依据：待补充\n\n不确定性：待补充"),
-            ("6.4 干预", "暂停：待补充\n\n覆盖：待补充\n\n质疑：待补充\n\n恢复：待补充"),
-            ("6.5 实际场景验证", snapshot.reportSections.interventionSpec["实际场景验证"] ?? ReportSnapshotValue.missing),
-            ("6.6 失败恢复", "发现：\(snapshot.reportSections.interventionSpec["失败恢复"] ?? ReportSnapshotValue.missing)\n\n解释：待补充\n\n修正：待补充\n\n追责：待补充"),
-            ("6.7 关系识别", "用户：待补充\n\nAI：待补充\n\n平台：待补充\n\n组织：待补充\n\n第三方：待补充"),
-            ("6.8 层级定位", "微观：待补充\n\n中观：待补充\n\n宏观：待补充")
-        ]
-
-        for (title, body) in sections {
-            append(&lines, "### \(title)")
-            append(&lines, "")
-            append(&lines, body)
-            append(&lines, "")
-        }
+        appendDictionary(&lines, snapshot.reportSections.interventionSpec)
     }
 
     private func appendDecisionTrace(_ lines: inout [String], snapshot: ProjectReportSnapshot) {
@@ -224,17 +186,17 @@ struct MarkdownReportRenderer {
             append(&lines, "### \(resource.title)")
             append(&lines, "")
             appendKeyValue(&lines, "摘要", resource.summary)
-            appendKeyValue(&lines, "来源 / URL", resource.sourceURL ?? ReportSnapshotValue.missing)
-            appendKeyValue(&lines, "引用", resource.citation ?? ReportSnapshotValue.missing)
-            appendKeyValue(&lines, "作者", resource.authors ?? ReportSnapshotValue.missing)
-            appendKeyValue(&lines, "年份", resource.year.map(String.init) ?? ReportSnapshotValue.missing)
-            appendKeyValue(&lines, "venue", resource.venue ?? ReportSnapshotValue.missing)
+            appendKeyValueIfPresent(&lines, "来源 / URL", resource.sourceURL)
+            appendKeyValueIfPresent(&lines, "引用", resource.citation)
+            appendKeyValueIfPresent(&lines, "作者", resource.authors)
+            appendKeyValueIfPresent(&lines, "年份", resource.year.map(String.init))
+            appendKeyValueIfPresent(&lines, "venue", resource.venue)
             appendKeyValue(&lines, "关联阶段", resource.relatedStages.map { "Stage \($0)" }.joined(separator: "、"))
             appendKeyValue(&lines, "tags", resource.tags.joined(separator: "、"))
             appendKeyValue(&lines, "whyRelevant", resource.whyRelevant)
             appendKeyValue(&lines, "howToUse", resource.howToUse)
-            appendKeyValue(&lines, "researchInsight", resource.researchInsight ?? ReportSnapshotValue.missing)
-            appendKeyValue(&lines, "designImplication", resource.designImplication ?? ReportSnapshotValue.missing)
+            appendKeyValueIfPresent(&lines, "researchInsight", resource.researchInsight)
+            appendKeyValueIfPresent(&lines, "designImplication", resource.designImplication)
             append(&lines, "")
         }
     }
@@ -273,19 +235,36 @@ struct MarkdownReportRenderer {
 
     private func appendDictionary(_ lines: inout [String], _ dictionary: [String: String]) {
         if dictionary.isEmpty {
-            append(&lines, "待补充")
+            appendEmptyNotice(&lines)
             append(&lines, "")
             return
         }
 
+        var appended = false
         for key in dictionary.keys.sorted() {
-            appendKeyValue(&lines, key, dictionary[key] ?? ReportSnapshotValue.missing)
+            if appendKeyValueIfPresent(&lines, key, dictionary[key]) {
+                appended = true
+            }
+        }
+        if !appended {
+            appendEmptyNotice(&lines)
         }
         append(&lines, "")
     }
 
     private func appendKeyValue(_ lines: inout [String], _ key: String, _ value: String) {
-        append(&lines, "- **\(key)**：\(value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? ReportSnapshotValue.missing : value)")
+        append(&lines, "- **\(key)**：\(displayValue(value))")
+    }
+
+    @discardableResult
+    private func appendKeyValueIfPresent(_ lines: inout [String], _ key: String, _ value: String?) -> Bool {
+        guard let value = meaningfulValue(value) else { return false }
+        appendKeyValue(&lines, key, value)
+        return true
+    }
+
+    private func appendEmptyNotice(_ lines: inout [String]) {
+        append(&lines, "暂无已确认内容。")
     }
 
     private func append(_ lines: inout [String], _ line: String) {
@@ -309,6 +288,26 @@ struct MarkdownReportRenderer {
         value
             .replacingOccurrences(of: "\n", with: "<br>")
             .replacingOccurrences(of: "|", with: "\\|")
+    }
+
+    private func displayValue(_ value: String?) -> String {
+        meaningfulValue(value) ?? "未记录"
+    }
+
+    private func meaningfulValue(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let disallowedFragments = [
+            ReportSnapshotValue.missing,
+            "需要补充",
+            "待人工确认",
+            "______"
+        ]
+        guard !disallowedFragments.contains(where: { trimmed.contains($0) }) else {
+            return nil
+        }
+        return trimmed
     }
 
     private static let dateFormatter: DateFormatter = {

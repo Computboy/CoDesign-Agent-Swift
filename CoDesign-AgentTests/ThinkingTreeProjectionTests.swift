@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import CoDesign_Agent
 
@@ -109,6 +110,61 @@ struct ThinkingTreeProjectionTests {
         })
     }
 
+    @Test func layoutSeparatesArchivedQuestionNodesWithSharedTarget() {
+        let activeQuestionID = "moment-active-question"
+        let nodes = [
+            layoutNode(id: TreeBuilder.rootID, kind: .root, content: "根节点", stageOrder: nil),
+            layoutNode(id: TreeBuilder.stageNodeID(1), kind: .stage, content: "Stage 1", stageOrder: 1),
+            layoutNode(id: activeQuestionID, kind: .question, content: "现在的问题节点", stageOrder: 1),
+            layoutNode(
+                id: "archived-question-1",
+                kind: .question,
+                content: "旧问题节点 A",
+                stageOrder: 1,
+                isActive: false,
+                branchAnchorID: activeQuestionID
+            ),
+            layoutNode(
+                id: "archived-question-2",
+                kind: .question,
+                content: "旧问题节点 B",
+                stageOrder: 1,
+                isActive: false,
+                branchAnchorID: activeQuestionID
+            ),
+            layoutNode(
+                id: "archived-question-3",
+                kind: .question,
+                content: "旧问题节点 C",
+                stageOrder: 1,
+                isActive: false,
+                branchAnchorID: activeQuestionID
+            ),
+        ]
+        let layout = TreeLayoutEngine(
+            stageSpacing: 160,
+            sideBranchSpacing: 340,
+            topPadding: 82,
+            bottomPadding: 132,
+            contentWidth: 760
+        ).layout(TreeData(nodes: nodes, edges: [], contentSize: .zero), in: CGSize(width: 760, height: 620))
+        let archivedRects = layout.nodes
+            .filter { node in
+                if case .question = node.kind {
+                    return node.isArchived
+                }
+                return false
+            }
+            .map { questionRect(center: $0.position) }
+
+        #expect(archivedRects.count == 3)
+        for lhsIndex in archivedRects.indices {
+            for rhsIndex in archivedRects.indices where lhsIndex < rhsIndex {
+                #expect(!archivedRects[lhsIndex].intersects(archivedRects[rhsIndex]))
+            }
+        }
+    }
+
     @MainActor private func moment(
         _ type: String,
         _ content: String,
@@ -124,5 +180,41 @@ struct ThinkingTreeProjectionTests {
             timestamp: timestamp,
             isActiveBranch: isActive
         )
+    }
+
+    private func layoutNode(
+        id: String,
+        kind: TreeNodeKind,
+        content: String,
+        stageOrder: Int?,
+        isActive: Bool = true,
+        branchAnchorID: String? = nil
+    ) -> TreeNode {
+        TreeNode(
+            id: id,
+            kind: kind,
+            content: content,
+            subContent: nil,
+            stageOrder: stageOrder,
+            field: nil,
+            momentID: nil,
+            position: .zero,
+            nodeColor: .primaryAccent,
+            isActiveBranch: isActive,
+            branchVersion: 1,
+            richness: 0.4,
+            isGhost: false,
+            processLabel: nil,
+            processIcon: nil,
+            statusText: nil,
+            resource: nil,
+            timestamp: nil,
+            branchAnchorID: branchAnchorID
+        )
+    }
+
+    private func questionRect(center: CGPoint) -> CGRect {
+        CGRect(x: center.x - 92, y: center.y - 28, width: 184, height: 56)
+            .insetBy(dx: -18, dy: -18)
     }
 }

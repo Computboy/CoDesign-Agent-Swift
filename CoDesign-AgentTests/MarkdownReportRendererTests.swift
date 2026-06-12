@@ -14,7 +14,7 @@ struct MarkdownReportRendererTests {
         #expect(markdown.contains("外地大一新生"))
     }
 
-    @Test @MainActor func missingFieldsRenderAsPlaceholder() {
+    @Test @MainActor func missingFieldsDoNotExportTemplatePlaceholders() {
         let project = Project(name: "空项目", briefDescription: "")
         let snapshot = ProjectReportSnapshotBuilder().build(
             project: project,
@@ -22,7 +22,9 @@ struct MarkdownReportRendererTests {
         )
         let markdown = MarkdownReportRenderer().render(snapshot: snapshot)
 
-        #expect(markdown.contains("待补充"))
+        #expect(!markdown.contains("待补充"))
+        #expect(!markdown.contains("______"))
+        #expect(markdown.contains("暂无已确认内容") || markdown.contains("暂无已确认"))
     }
 
     @Test @MainActor func defaultIncludesDecisionTraceButNotFullMindTree() {

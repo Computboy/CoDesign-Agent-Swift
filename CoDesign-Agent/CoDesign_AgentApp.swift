@@ -46,6 +46,9 @@ extension EnvironmentValues {
 
 @main
 struct CoDesign_AgentApp: App {
+    @State private var openedPackage: CoDesignPackage?
+    @State private var packageOpenError: String?
+
     init() {
         configureScrollIndicators()
     }
@@ -78,6 +81,29 @@ struct CoDesign_AgentApp: App {
                 .coDesignHideScrollIndicators()
                 .environment(\.llmService, ModeSwitchingLLMService())
                 .environment(\.structuredExtractor, ModeSwitchingStructuredExtractor())
+                .onOpenURL { url in
+                    openCodesignPackage(at: url)
+                }
+                .sheet(item: $openedPackage) { package in
+                    CoDesignPackagePreviewView(package: package)
+                        #if os(iOS)
+                        .presentationDetents([.large])
+                        .presentationDragIndicator(.visible)
+                        #endif
+                }
+                .alert(
+                    "打开项目包失败",
+                    isPresented: Binding(
+                        get: { packageOpenError != nil },
+                        set: { if !$0 { packageOpenError = nil } }
+                    )
+                ) {
+                    Button("好", role: .cancel) {
+                        packageOpenError = nil
+                    }
+                } message: {
+                    Text(packageOpenError ?? "")
+                }
                 .task {
                     SeedDataFactory.seedIfNeeded(
                         context: sharedModelContainer.mainContext
@@ -92,6 +118,17 @@ struct CoDesign_AgentApp: App {
         UIScrollView.appearance().showsVerticalScrollIndicator = false
         UIScrollView.appearance().showsHorizontalScrollIndicator = false
         #endif
+    }
+
+    private func openCodesignPackage(at url: URL) {
+        guard url.pathExtension.lowercased() == "codesign" else { return }
+
+        do {
+            openedPackage = try CoDesignPackageImporter().loadPackage(from: url)
+            packageOpenError = nil
+        } catch {
+            packageOpenError = error.localizedDescription
+        }
     }
 }
 

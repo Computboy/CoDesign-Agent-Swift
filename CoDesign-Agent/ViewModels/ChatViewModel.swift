@@ -10,6 +10,7 @@ final class ChatViewModel {
     private var extractor: any StructuredExtractorProtocol
     private let analyzer = ProgressAnalyzer()
     @ObservationIgnored private nonisolated(unsafe) var fallbackObserver: NSObjectProtocol?
+    @ObservationIgnored private nonisolated(unsafe) var configurationObserver: NSObjectProtocol?
 
     var currentStreamingText: String = ""
     var isStreaming: Bool = false
@@ -27,6 +28,9 @@ final class ChatViewModel {
     deinit {
         if let fallbackObserver {
             NotificationCenter.default.removeObserver(fallbackObserver)
+        }
+        if let configurationObserver {
+            NotificationCenter.default.removeObserver(configurationObserver)
         }
     }
 
@@ -76,9 +80,13 @@ final class ChatViewModel {
 
         // ④ 先抽取并更新状态，再生成下一问。
         // 这样 Agent 问出的不是“更多细节”，而是当前 DesignBrief 中最值得推进的设计判断。
-        let extractionMessages = project.messages
+        let rawExtractionMessages = project.messages
             .sorted { $0.timestamp < $1.timestamp }
             .map { $0.toPayload() }
+        let extractionMessages = messagesWithTrustedImportContext(
+            rawExtractionMessages,
+            existing: previousBrief
+        )
 
         await applyStructuredExtraction(
             messages: extractionMessages,
@@ -188,6 +196,16 @@ final class ChatViewModel {
                 self?.errorMessage = "\(service)失败，已临时使用本地内置追问：\(message)"
             }
         }
+
+        configurationObserver = NotificationCenter.default.addObserver(
+            forName: LLMRuntimeNotification.configurationChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.errorMessage = nil
+            }
+        }
     }
 
     // MARK: - Conversation State Updates
@@ -215,6 +233,60 @@ final class ChatViewModel {
                 brief.applyValidatedExtraction(outcome: outcome, context: context)
             }
         }
+    }
+
+    private func messagesWithTrustedImportContext(
+        _ messages: [ChatPayloadMessage],
+        existing: DesignBriefSnapshot
+    ) -> [ChatPayloadMessage] {
+        guard messages.count <= 3,
+              let importSummary = trustedImportSummary(from: existing)
+        else {
+            return messages
+        }
+
+        return [.user(importSummary)] + messages
+    }
+
+    private func trustedImportSummary(from brief: DesignBriefSnapshot) -> String? {
+        var lines: [String] = []
+
+        appendBriefLine("目标用户", brief.targetUser, to: &lines)
+        appendBriefLine("核心痛点", brief.painPoint, to: &lines)
+        appendBriefLine("使用场景", brief.useScenario, to: &lines)
+        appendBriefLine("核心价值", brief.coreValue, to: &lines)
+        appendBriefLine("差异化价值", brief.differentiation, to: &lines)
+        appendBriefLine("MVP 功能", brief.mvpFeatures, to: &lines)
+        appendBriefLine("技术模块", brief.technicalModules, to: &lines)
+        appendBriefLine("交互流程", brief.interactionFlow, to: &lines)
+        appendBriefLine("运行逻辑", brief.operationLogic, to: &lines)
+        appendBriefLine("硬性约束", brief.hardConstraints, to: &lines)
+        appendBriefLine("里程碑", brief.milestones, to: &lines)
+
+        for item in brief.boundaryItems {
+            appendBriefLine(item.isIncluded ? "做的边界" : "不做的边界", item.content, to: &lines)
+        }
+        for metric in brief.successMetrics {
+            appendBriefLine("验收指标", "\(metric.metric)：\(metric.target)", to: &lines)
+            appendBriefLine("指标测量方式", metric.measurement, to: &lines)
+        }
+        for risk in brief.risks {
+            appendBriefLine("风险", risk.desc, to: &lines)
+            appendBriefLine("风险缓解", risk.mitigation, to: &lines)
+        }
+
+        guard !lines.isEmpty else { return nil }
+        return """
+        【导入的 .codesign 项目包摘要，仅用于延续结构化抽取证据】
+        \(lines.joined(separator: "\n"))
+        """
+    }
+
+    private func appendBriefLine(_ title: String, _ value: String?, to lines: inout [String]) {
+        guard let value else { return }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        lines.append("- \(title)：\(trimmed)")
     }
 
     private func recordBriefDecisionMoments(

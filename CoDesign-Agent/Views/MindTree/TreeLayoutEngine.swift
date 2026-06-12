@@ -9,8 +9,9 @@ struct TreeLayoutEngine {
     let bottomPadding: CGFloat
     let contentWidth: CGFloat
 
-    private var minimumSideCardSpacing: CGFloat { 148 }
-    private var sideCardColumnSpacing: CGFloat { 248 }
+    private var minimumSideCardSpacing: CGFloat { 176 }
+    private var sideCardColumnSpacing: CGFloat { 286 }
+    private var collisionPadding: CGFloat { 18 }
 
     init(
         stageSpacing: CGFloat = 118,
@@ -86,7 +87,15 @@ struct TreeLayoutEngine {
             }
         }
 
-        return TreeData(nodes: updatedNodes, edges: data.edges, contentSize: contentSize)
+        let resolvedNodes = resolveCollisions(
+            in: updatedNodes,
+            centerX: centerX,
+            rootY: rootY,
+            transitionSpacings: transitionSpacings,
+            contentSize: contentSize
+        )
+
+        return TreeData(nodes: resolvedNodes, edges: data.edges, contentSize: contentSize)
     }
 
     func minimumContentSize(maxStage: Int = 9) -> CGSize {
@@ -117,13 +126,13 @@ struct TreeLayoutEngine {
         guard !nodes.isEmpty else { return stageSpacing }
 
         let sideRowCount = maxSideCardRows(in: nodes)
-        let questionCount = nodes.filter { $0.kind == .question && !$0.isArchived }.count
-        let expandedMinimum = stageSpacing + 86
+        let questionCount = nodes.filter { $0.kind == .question }.count
+        let expandedMinimum = stageSpacing + 124
         let requiredSideSpacing = sideRowCount > 0
-            ? CGFloat(max(sideRowCount - 1, 0)) * minimumSideCardSpacing + 260
+            ? CGFloat(max(sideRowCount - 1, 0)) * minimumSideCardSpacing + 306
             : 0
         let requiredQuestionSpacing = questionCount > 0
-            ? CGFloat(max(questionCount - 1, 0)) * 82 + 214
+            ? CGFloat(max(questionCount - 1, 0)) * 96 + 244
             : 0
 
         return max(stageSpacing, expandedMinimum, requiredSideSpacing, requiredQuestionSpacing)
@@ -188,9 +197,22 @@ struct TreeLayoutEngine {
 
         if node.kind == .question && node.isArchived, let anchorID = node.branchAnchorID {
             let anchorY = siblings.first { $0.id == anchorID }?.position.y
+            let anchoredQuestions = siblings.filter {
+                $0.kind == .question &&
+                $0.isArchived &&
+                $0.branchAnchorID == anchorID
+            }
+            let ordinal = anchoredQuestions.firstIndex { $0.id == node.id } ?? 0
+            let lane = ordinal % 2
+            let row = ordinal / 2
+            let rowOffset = CGFloat(row) * 68
+            let laneOffset = CGFloat(lane) * 224
+            let baseX = sideBranchCenterX(centerX: centerX, contentWidth: contentWidth) + laneOffset
+            let halfWidth = estimatedHalfWidth(for: node)
+
             return CGPoint(
-                x: sideBranchCenterX(centerX: centerX, contentWidth: contentWidth),
-                y: min(max(anchorY ?? ((fromY + toY) / 2 + yJitter), topPadding + 44), fromY - 116)
+                x: min(max(baseX, halfWidth + 28), contentWidth - halfWidth - 28),
+                y: min(max((anchorY ?? ((fromY + toY) / 2)) + rowOffset + yJitter, topPadding + 62), fromY - 144)
             )
         }
 
@@ -214,14 +236,14 @@ struct TreeLayoutEngine {
         let laneIndex = sameSideOrdinal % laneCount
         let rowIndex = sameSideOrdinal / laneCount
         let rowCount = max(rowsNeeded(forSideCardCount: sameSideNodes.count, laneIndex: laneIndex), 1)
-        let safeTopY = min(fromY, toY) + 94
-        let safeBottomY = max(fromY, toY) - 132
+        let safeTopY = min(fromY, toY) + 118
+        let safeBottomY = max(fromY, toY) - 154
         let rowSpacing = rowCount > 1
             ? max(minimumSideCardSpacing, (safeBottomY - safeTopY) / CGFloat(rowCount - 1))
             : 0
         let sideDistance = min(
             sideBranchSpacing,
-            max(148, contentWidth / 2 - 136 - CGFloat(laneCount - 1) * sideCardColumnSpacing)
+            max(168, contentWidth / 2 - 146 - CGFloat(laneCount - 1) * sideCardColumnSpacing)
         )
         let xJitter = deterministicUnit(for: node.id + "-x") * 2
         let archivedOffset = node.isArchived ? CGFloat(28) : 0
@@ -234,7 +256,7 @@ struct TreeLayoutEngine {
 
         return CGPoint(
             x: min(max(x, halfWidth + 28), contentWidth - halfWidth - 28),
-            y: min(max(y, topPadding + 44), fromY - 116)
+            y: min(max(y, topPadding + 62), fromY - 144)
         )
     }
 
@@ -268,6 +290,178 @@ struct TreeLayoutEngine {
         guard count > laneIndex else { return 0 }
         let lanes = laneCount(forSideCardCount: count)
         return Int(ceil(Double(count - laneIndex) / Double(lanes)))
+    }
+
+    private func resolveCollisions(
+        in nodes: [TreeNode],
+        centerX: CGFloat,
+        rootY: CGFloat,
+        transitionSpacings: [Int: CGFloat],
+        contentSize: CGSize
+    ) -> [TreeNode] {
+        var resolved = nodes
+        var occupied: [CGRect] = []
+
+        let staticIndices = resolved.indices.filter { index in
+            switch resolved[index].kind {
+            case .root, .stage, .branchStage:
+                return true
+            case .question, .field, .process, .evidence, .revision:
+                return false
+            }
+        }
+        for index in staticIndices {
+            occupied.append(collisionRect(for: resolved[index], at: resolved[index].position))
+        }
+
+        let movableIndices = resolved.indices
+            .filter { !staticIndices.contains($0) }
+            .sorted { lhs, rhs in
+                collisionSortKey(resolved[lhs]) < collisionSortKey(resolved[rhs])
+            }
+
+        for index in movableIndices {
+            let node = resolved[index]
+            let yRange = collisionYRange(
+                for: node,
+                rootY: rootY,
+                transitionSpacings: transitionSpacings,
+                contentHeight: contentSize.height
+            )
+            let candidates = collisionCandidates(
+                for: node,
+                base: node.position,
+                centerX: centerX,
+                yRange: yRange,
+                contentWidth: contentSize.width
+            )
+
+            let position = candidates.first { candidate in
+                let rect = collisionRect(for: node, at: candidate)
+                return !occupied.contains { $0.intersects(rect) }
+            } ?? candidates.first ?? node.position
+
+            resolved[index].position = position
+            occupied.append(collisionRect(for: node, at: position))
+        }
+
+        return resolved
+    }
+
+    private func collisionSortKey(_ node: TreeNode) -> String {
+        let stage = String(format: "%02d", node.stageOrder ?? 0)
+        let branch = node.isActiveBranch ? "0" : "1"
+        let kind = String(format: "%02d", kindRank(node.kind))
+        let time = String(format: "%.6f", node.timestamp?.timeIntervalSinceReferenceDate ?? 0)
+        return "\(stage)-\(branch)-\(kind)-\(time)-\(node.id)"
+    }
+
+    private func collisionCandidates(
+        for node: TreeNode,
+        base: CGPoint,
+        centerX: CGFloat,
+        yRange: ClosedRange<CGFloat>,
+        contentWidth: CGFloat
+    ) -> [CGPoint] {
+        let verticalStep = estimatedSize(for: node).height + collisionPadding
+        let horizontalStep = estimatedSize(for: node).width + collisionPadding + 24
+        let yOffsets = alternatingOffsets(step: verticalStep, count: 7)
+        let xOffsets = horizontalOffsets(for: node, baseX: base.x, centerX: centerX, step: horizontalStep)
+        let halfWidth = estimatedHalfWidth(for: node)
+
+        var candidates: [(point: CGPoint, score: CGFloat)] = []
+        for yOffset in yOffsets {
+            for xOffset in xOffsets {
+                let x = min(max(base.x + xOffset, halfWidth + 28), contentWidth - halfWidth - 28)
+                let y = min(max(base.y + yOffset, yRange.lowerBound), yRange.upperBound)
+                let score = abs(yOffset) + abs(xOffset) * 1.18
+                candidates.append((CGPoint(x: x, y: y), score))
+            }
+        }
+
+        var seen = Set<String>()
+        return candidates
+            .sorted { lhs, rhs in
+                if lhs.score != rhs.score { return lhs.score < rhs.score }
+                if lhs.point.y != rhs.point.y { return lhs.point.y < rhs.point.y }
+                return lhs.point.x < rhs.point.x
+            }
+            .filter { candidate in
+                let key = "\(Int(candidate.point.x.rounded()))-\(Int(candidate.point.y.rounded()))"
+                return seen.insert(key).inserted
+            }
+            .map(\.point)
+    }
+
+    private func alternatingOffsets(step: CGFloat, count: Int) -> [CGFloat] {
+        var result: [CGFloat] = [0]
+        for index in 1...count {
+            let value = step * CGFloat(index)
+            result.append(-value)
+            result.append(value)
+        }
+        return result
+    }
+
+    private func horizontalOffsets(
+        for node: TreeNode,
+        baseX: CGFloat,
+        centerX: CGFloat,
+        step: CGFloat
+    ) -> [CGFloat] {
+        let direction: CGFloat
+        if node.kind == .question && node.isArchived {
+            direction = 1
+        } else if baseX < centerX {
+            direction = -1
+        } else if baseX > centerX {
+            direction = 1
+        } else {
+            direction = deterministicUnit(for: node.id + "-side") >= 0 ? 1 : -1
+        }
+
+        return [
+            0,
+            direction * step,
+            -direction * step,
+            direction * step * 2,
+            -direction * step * 2
+        ]
+    }
+
+    private func collisionYRange(
+        for node: TreeNode,
+        rootY: CGFloat,
+        transitionSpacings: [Int: CGFloat],
+        contentHeight: CGFloat
+    ) -> ClosedRange<CGFloat> {
+        let halfHeight = estimatedSize(for: node).height / 2
+        let globalLower = topPadding + halfHeight + 24
+        let globalUpper = contentHeight - bottomPadding - halfHeight - 24
+
+        guard let order = node.stageOrder else {
+            return globalLower...max(globalLower, globalUpper)
+        }
+
+        let fromY = transitionStartY(order: order, rootY: rootY, transitionSpacings: transitionSpacings)
+        let toY = stageY(order: order, rootY: rootY, transitionSpacings: transitionSpacings)
+        let lower = max(min(fromY, toY) + halfHeight + 40, globalLower)
+        let upper = min(max(fromY, toY) - halfHeight - 40, globalUpper)
+
+        if lower <= upper {
+            return lower...upper
+        }
+        return globalLower...max(globalLower, globalUpper)
+    }
+
+    private func collisionRect(for node: TreeNode, at point: CGPoint) -> CGRect {
+        let size = estimatedSize(for: node)
+        return CGRect(
+            x: point.x - size.width / 2,
+            y: point.y - size.height / 2,
+            width: size.width,
+            height: size.height
+        ).insetBy(dx: -collisionPadding, dy: -collisionPadding)
     }
 
     private func preferredSide(for node: TreeNode, ordinal: Int) -> CGFloat {
@@ -304,6 +498,25 @@ struct TreeLayoutEngine {
         }
     }
 
+    private func estimatedSize(for node: TreeNode) -> CGSize {
+        switch node.kind {
+        case .root:
+            return CGSize(width: 190, height: 78)
+        case .stage, .branchStage:
+            return CGSize(width: 214, height: 62)
+        case .question:
+            return CGSize(width: 184, height: 56)
+        case .field:
+            return CGSize(width: 174, height: 118)
+        case .process:
+            return CGSize(width: 166, height: 118)
+        case .evidence:
+            return CGSize(width: 178, height: 118)
+        case .revision:
+            return CGSize(width: 164, height: 118)
+        }
+    }
+
     /// Stable deterministic pseudo-random value in -1...1.
     private func deterministicUnit(for id: String) -> CGFloat {
         var hash: UInt64 = 1469598103934665603
@@ -316,7 +529,7 @@ struct TreeLayoutEngine {
     }
 
     private func sideBranchCenterX(centerX: CGFloat, contentWidth: CGFloat) -> CGFloat {
-        let sideDistance = min(sideBranchSpacing, max(220, contentWidth / 2 - 172))
+        let sideDistance = min(sideBranchSpacing + 220, max(240, contentWidth / 2 - 172))
         return min(max(centerX + sideDistance, 156), contentWidth - 156)
     }
 }

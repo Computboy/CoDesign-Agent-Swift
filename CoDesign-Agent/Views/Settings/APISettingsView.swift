@@ -9,10 +9,12 @@ struct APISettingsView: View {
     @AppStorage("llmModel") private var model: String = ""
     @AppStorage("llmThinkingType") private var thinkingType: String = ""
 
+    @FocusState private var focusedField: APISettingsField?
     @State private var showClearAlert = false
     @State private var isTestingAPI = false
     @State private var apiTestSucceeded: Bool?
     @State private var apiTestMessage: String?
+    @State private var lastTestedConfigurationFingerprint: String?
     #if DEBUG
     @State private var showDialogueGym = false
     #endif
@@ -38,6 +40,7 @@ struct APISettingsView: View {
                     SecureField("API Key", text: $apiKey)
                         .textContentType(.password)
                         .autocorrectionDisabled(true)
+                        .focused($focusedField, equals: .apiKey)
                         #if os(iOS)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.asciiCapable)
@@ -45,6 +48,7 @@ struct APISettingsView: View {
 
                     TextField("Base URL", text: $baseURL, prompt: Text("https://api.deepseek.com"))
                         .autocorrectionDisabled(true)
+                        .focused($focusedField, equals: .baseURL)
                         #if os(iOS)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
@@ -52,6 +56,7 @@ struct APISettingsView: View {
 
                     TextField("Model", text: $model, prompt: Text("deepseek-v4-flash"))
                         .autocorrectionDisabled(true)
+                        .focused($focusedField, equals: .model)
                         #if os(iOS)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.asciiCapable)
@@ -64,9 +69,7 @@ struct APISettingsView: View {
                     }
 
                     Button {
-                        Task {
-                            await testAPIConnection()
-                        }
+                        beginAPIConnectionTest()
                     } label: {
                         HStack {
                             Label(
@@ -82,6 +85,7 @@ struct APISettingsView: View {
                             }
                         }
                     }
+                    .buttonStyle(.borderless)
                     .disabled(isTestingAPI || trimmedAPIKey.isEmpty)
 
                     if trimmedAPIKey.isEmpty {
@@ -180,6 +184,7 @@ struct APISettingsView: View {
             .onChange(of: baseURL) { _, _ in resetAPITestResult() }
             .onChange(of: model) { _, _ in resetAPITestResult() }
             .onChange(of: thinkingType) { _, _ in resetAPITestResult() }
+            .interactiveDismissDisabled(isTestingAPI)
             #if DEBUG
             .sheet(isPresented: $showDialogueGym) {
                 DialogueGymDebugView()
@@ -187,6 +192,12 @@ struct APISettingsView: View {
             }
             #endif
         }
+    }
+
+    private enum APISettingsField: Hashable {
+        case apiKey
+        case baseURL
+        case model
     }
 
     private var trimmedAPIKey: String {
@@ -219,16 +230,26 @@ struct APISettingsView: View {
 
     private func resetAPITestResult() {
         guard !isTestingAPI else { return }
+        guard configurationFingerprint != lastTestedConfigurationFingerprint else { return }
         apiTestSucceeded = nil
         apiTestMessage = nil
     }
 
-    @MainActor
-    private func testAPIConnection() async {
+    private func beginAPIConnectionTest() {
+        guard !isTestingAPI else { return }
+        focusedField = nil
         isTestingAPI = true
         apiTestSucceeded = nil
         apiTestMessage = nil
+        lastTestedConfigurationFingerprint = nil
 
+        Task {
+            await testAPIConnection()
+        }
+    }
+
+    @MainActor
+    private func testAPIConnection() async {
         defer {
             isTestingAPI = false
         }
@@ -259,13 +280,33 @@ struct APISettingsView: View {
 
         do {
             let reply = try await client.testConnection()
+            persistLiveConfiguration(config)
             serviceMode = "live"
+            lastTestedConfigurationFingerprint = configurationFingerprint
             apiTestSucceeded = true
             apiTestMessage = "连接成功，已切换到 Live 模式。模型返回：\(shortMessage(reply))"
+            NotificationCenter.default.post(name: LLMRuntimeNotification.configurationChanged, object: nil)
         } catch {
             apiTestSucceeded = false
             apiTestMessage = shortMessage(error.localizedDescription)
         }
+    }
+
+    private func persistLiveConfiguration(_ config: LLMAPIConfig) {
+        apiKey = config.apiKey
+        baseURL = config.baseURL.absoluteString
+        model = config.model
+        thinkingType = config.thinkingType ?? ""
+        UserDefaults.standard.synchronize()
+    }
+
+    private var configurationFingerprint: String {
+        [
+            apiKey.trimmingCharacters(in: .whitespacesAndNewlines),
+            baseURL.trimmingCharacters(in: .whitespacesAndNewlines),
+            model.trimmingCharacters(in: .whitespacesAndNewlines),
+            thinkingType.trimmingCharacters(in: .whitespacesAndNewlines),
+        ].joined(separator: "\u{1F}")
     }
 
     private func shortMessage(_ message: String) -> String {

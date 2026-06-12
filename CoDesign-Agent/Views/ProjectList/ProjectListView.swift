@@ -42,6 +42,9 @@ struct ProjectListView: View {
         }
         .sheet(isPresented: $showingSettings) {
             APISettingsView()
+                #if os(iOS)
+                .presentationDetents([.large])
+                #endif
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $previewPackage) { package in

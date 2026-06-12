@@ -90,7 +90,7 @@ struct ThinkingTreeView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .clipped()
                 .contentShape(Rectangle())
-                .gesture(panGesture)
+                .simultaneousGesture(panGesture)
                 .simultaneousGesture(magnificationGesture)
             }
             .overlay(alignment: .topLeading) {
@@ -130,8 +130,11 @@ struct ThinkingTreeView: View {
         }
         .coDesignShadow(mode == .embedded ? .card : .elevated)
         #if os(iOS)
-        .fullScreenCover(item: $selectedNode) { node in
+        .sheet(item: $selectedNode) { node in
             nodeDetailSheet(node)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
         }
         #endif
         .sheet(item: $editingNode) { node in
@@ -205,19 +208,19 @@ struct ThinkingTreeView: View {
             return TreeLayoutEngine(
                 stageSpacing: stageSpacing,
                 sideBranchSpacing: 320,
-                sideNodeVerticalSpacing: 42,
+                sideNodeVerticalSpacing: 52,
                 topPadding: 82,
-                bottomPadding: 112,
-                contentWidth: max(viewport.width * 2.35, 1_260)
+                bottomPadding: 132,
+                contentWidth: max(viewport.width * 2.55, 1_420)
             )
         case .standalone:
             return TreeLayoutEngine(
-                stageSpacing: 146,
-                sideBranchSpacing: 410,
-                sideNodeVerticalSpacing: 46,
-                topPadding: 110,
-                bottomPadding: 150,
-                contentWidth: max(viewport.width * 1.9, 1_520)
+                stageSpacing: 164,
+                sideBranchSpacing: 430,
+                sideNodeVerticalSpacing: 56,
+                topPadding: 126,
+                bottomPadding: 170,
+                contentWidth: max(viewport.width * 2.05, 1_680)
             )
         }
     }
@@ -863,7 +866,7 @@ struct ThinkingTreeView: View {
     }
 
     private var panGesture: some Gesture {
-        DragGesture(minimumDistance: 1)
+        DragGesture(minimumDistance: 6, coordinateSpace: .local)
             .onChanged { value in
                 offset = CGSize(
                     width: lastOffset.width + value.translation.width,

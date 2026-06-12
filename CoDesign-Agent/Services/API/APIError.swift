@@ -31,6 +31,7 @@ enum APIError: Error, LocalizedError {
 
 enum LLMRuntimeNotification {
     static let serviceFallback = Notification.Name("coDesignLLMServiceFallback")
+    static let configurationChanged = Notification.Name("coDesignLLMConfigurationChanged")
     static let serviceKey = "service"
     static let messageKey = "message"
 }

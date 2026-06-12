@@ -537,7 +537,7 @@ struct TreeBuilder {
             return
         }
 
-        let maxArchivedOrder = min(max(archivedStageOrders.max() ?? sourceOrder, sourceOrder + 1), visibleLimit)
+        let maxArchivedOrder = visibleLimit
         guard sourceOrder < maxArchivedOrder else { return }
         let branchOrders = Array((sourceOrder + 1)...maxArchivedOrder)
         guard !branchOrders.isEmpty else { return }
