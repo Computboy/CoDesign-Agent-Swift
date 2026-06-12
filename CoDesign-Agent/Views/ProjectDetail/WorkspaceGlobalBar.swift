@@ -50,6 +50,7 @@ struct WorkspaceGlobalBar: View {
             mindTreeButton
             visualBoardButton
             portfolioButton
+            exportButton
             viewModeMenu
         }
     }
@@ -61,6 +62,7 @@ struct WorkspaceGlobalBar: View {
                 mindTreeButton
                 visualBoardButton
                 portfolioButton
+                exportButton
                 viewModeMenu
             }
             .padding(.horizontal, 1)
@@ -203,7 +205,7 @@ struct WorkspaceGlobalBar: View {
         Button {
             onExportBrief()
         } label: {
-            Label("导出简报", systemImage: "square.and.arrow.up")
+            Label("导出报告", systemImage: "square.and.arrow.up")
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, AppTheme.spacingMedium)
@@ -220,6 +222,14 @@ struct WorkspaceGlobalBar: View {
 
     private var viewModeMenu: some View {
         Menu {
+            Button {
+                onExportBrief()
+            } label: {
+                Label("导出报告", systemImage: "square.and.arrow.up")
+            }
+
+            Divider()
+
             Picker("视图模式", selection: $selectedTab) {
                 ForEach(ProjectDetailTab.allCases) { tab in
                     Label(tab.title, systemImage: tab.systemImage)

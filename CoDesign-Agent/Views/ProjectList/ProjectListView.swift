@@ -7,6 +7,9 @@ struct ProjectListView: View {
     @State private var viewModel = ProjectListViewModel()
     @State private var isShowingNewProject = false
     @State private var showingSettings = false
+    @State private var isImportingCodesign = false
+    @State private var previewPackage: CoDesignPackage?
+    @State private var importErrorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -18,6 +21,9 @@ struct ProjectListView: View {
                 isFiltering: !viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                 onCreateProject: {
                     isShowingNewProject = true
+                },
+                onImportPackage: {
+                    isImportingCodesign = true
                 },
                 onShowSettings: {
                     showingSettings = true
@@ -38,6 +44,32 @@ struct ProjectListView: View {
             APISettingsView()
                 .presentationDragIndicator(.visible)
         }
+        .sheet(item: $previewPackage) { package in
+            CoDesignPackagePreviewView(package: package)
+                #if os(iOS)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                #endif
+        }
+        .fileImporter(
+            isPresented: $isImportingCodesign,
+            allowedContentTypes: [.codesignProject]
+        ) { result in
+            handleCodesignImport(result)
+        }
+        .alert(
+            "导入失败",
+            isPresented: Binding(
+                get: { importErrorMessage != nil },
+                set: { if !$0 { importErrorMessage = nil } }
+            )
+        ) {
+            Button("好", role: .cancel) {
+                importErrorMessage = nil
+            }
+        } message: {
+            Text(importErrorMessage ?? "")
+        }
     }
 
     // MARK: - Deletion
@@ -46,6 +78,23 @@ struct ProjectListView: View {
         withAnimation(AppTheme.Animation.standard) {
             modelContext.delete(project)
             try? modelContext.save()
+        }
+    }
+
+    private func handleCodesignImport(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            do {
+                previewPackage = try CoDesignPackageImporter().loadPackage(from: url)
+            } catch {
+                importErrorMessage = error.localizedDescription
+            }
+        case .failure(let error):
+            let nsError = error as NSError
+            if nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError {
+                return
+            }
+            importErrorMessage = error.localizedDescription
         }
     }
 }
@@ -61,6 +110,7 @@ struct ProjectLibraryView: View {
     @State private var isLeaving = false
 
     let onCreateProject: () -> Void
+    let onImportPackage: () -> Void
     let onShowSettings: () -> Void
     let onDeleteProject: (Project) -> Void
 
@@ -141,6 +191,13 @@ struct ProjectLibraryView: View {
                 .accessibilityLabel("返回")
             }
             #endif
+
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: onImportPackage) {
+                    Image(systemName: "square.and.arrow.down")
+                }
+                .accessibilityLabel("导入 CoDesign 项目包")
+            }
 
             ToolbarItem(placement: .primaryAction) {
                 Button(action: onShowSettings) {

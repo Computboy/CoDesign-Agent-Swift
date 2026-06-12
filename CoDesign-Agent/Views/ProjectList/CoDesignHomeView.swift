@@ -7,6 +7,7 @@ struct CoDesignHomeView: View {
     let projects: [Project]
     let isFiltering: Bool
     let onCreateProject: () -> Void
+    let onImportPackage: () -> Void
     let onShowSettings: () -> Void
     let onDeleteProject: (Project) -> Void
 
@@ -59,6 +60,7 @@ private extension CoDesignHomeView {
                     Spacer()
 
                     HomeIconButton(systemName: "gearshape", title: "设置", action: onShowSettings)
+                    HomeIconButton(systemName: "square.and.arrow.down", title: "导入 CoDesign 项目包", action: onImportPackage)
 
                     createProjectButton
                 }
@@ -80,6 +82,7 @@ private extension CoDesignHomeView {
                 Spacer(minLength: 24)
 
                 HomeIconButton(systemName: "gearshape", title: "设置", action: onShowSettings)
+                HomeIconButton(systemName: "square.and.arrow.down", title: "导入 CoDesign 项目包", action: onImportPackage)
 
                 createProjectButton
 
@@ -316,6 +319,7 @@ private extension CoDesignHomeView {
                         ProjectLibraryView(
                             searchText: $searchText,
                             onCreateProject: onCreateProject,
+                            onImportPackage: onImportPackage,
                             onShowSettings: onShowSettings,
                             onDeleteProject: onDeleteProject
                         )
@@ -1259,6 +1263,7 @@ private extension Color {
             ],
             isFiltering: false,
             onCreateProject: {},
+            onImportPackage: {},
             onShowSettings: {},
             onDeleteProject: { _ in }
         )

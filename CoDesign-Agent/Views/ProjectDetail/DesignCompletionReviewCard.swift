@@ -88,7 +88,7 @@ struct DesignCompletionReviewCard: View {
                     .font(AppTheme.Typography.headline)
                     .foregroundStyle(Color.textPrimary)
 
-                Text("9 阶段设计澄清已完成。你可以查看简报、导出、或继续优化。")
+                Text("9 阶段设计澄清已完成。你可以查看简报、导出报告、或继续优化。")
                     .font(AppTheme.Typography.caption)
                     .foregroundStyle(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -163,7 +163,7 @@ struct DesignCompletionReviewCard: View {
                 Button {
                     onExport()
                 } label: {
-                    Label("导出简报", systemImage: "square.and.arrow.up")
+                    Label("导出报告", systemImage: "square.and.arrow.up")
                         .font(AppTheme.Typography.caption.weight(.semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 14)

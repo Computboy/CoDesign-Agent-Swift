@@ -5,6 +5,7 @@ struct ProjectDetailView: View {
     let project: Project
     @State private var viewModel = ProjectDetailViewModel()
     @State private var chatViewModel: ChatViewModel?
+    @State private var isShowingExportSheet = false
     @AppStorage("serviceMode") private var serviceModeRaw: String = "mock"
     @Environment(\.llmService) private var llmService
     @Environment(\.structuredExtractor) private var structuredExtractor
@@ -18,7 +19,7 @@ struct ProjectDetailView: View {
                     set: { viewModel.selectedTab = $0 }
                 ),
                 onExportBrief: {
-                    print("[WorkspaceGlobalBar] Export Brief tapped for project: \(project.name)")
+                    isShowingExportSheet = true
                 }
             )
 
@@ -60,7 +61,7 @@ struct ProjectDetailView: View {
                                 }
                             },
                             onExportBrief: {
-                                print("[WorkspaceGlobalBar] Export Brief tapped for project: \(project.name)")
+                                isShowingExportSheet = true
                             }
                         )
                     case .mindTree:
@@ -88,6 +89,13 @@ struct ProjectDetailView: View {
         }
         .background(Color.appBackground)
         .navigationTitle(project.name)
+        .sheet(isPresented: $isShowingExportSheet) {
+            ReportExportSheet(project: project)
+                #if os(iOS)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                #endif
+        }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
