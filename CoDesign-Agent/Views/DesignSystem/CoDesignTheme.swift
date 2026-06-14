@@ -11,20 +11,20 @@ extension AppTheme {
     // MARK: - Typography
 
     enum Typography {
-        static let largeTitle  = Font.system(.largeTitle, design: .rounded).weight(.bold)
-        static let title       = Font.system(.title2, design: .rounded).weight(.bold)
-        static let headline    = Font.system(.headline, design: .default).weight(.semibold)
-        static let subheadline = Font.system(.subheadline, design: .default)
-        static let body        = Font.system(.body, design: .default)
-        static let callout     = Font.system(.callout, design: .default)
-        static let caption     = Font.system(.caption, design: .default)
-        static let captionMono = Font.system(.caption, design: .monospaced).weight(.medium)
+        static let largeTitle  = Font.system(size: 36, weight: .bold, design: .rounded)
+        static let title       = Font.system(size: 24, weight: .bold, design: .rounded)
+        static let headline    = Font.system(size: 18, weight: .semibold, design: .default)
+        static let subheadline = Font.system(size: 16, weight: .regular, design: .default)
+        static let body        = Font.system(size: 17.5, weight: .regular, design: .default)
+        static let callout     = Font.system(size: 16.5, weight: .regular, design: .default)
+        static let caption     = Font.system(size: 13.5, weight: .regular, design: .default)
+        static let captionMono = Font.system(size: 13, weight: .medium, design: .monospaced)
 
         // Micro / Tiny — metadata, timestamps, field labels, compact UI
-        static let micro          = Font.system(size: 10, weight: .regular)
-        static let microSemibold  = Font.system(size: 10, weight: .semibold)
-        static let tiny           = Font.system(size: 11, weight: .regular)
-        static let tinySemibold   = Font.system(size: 11, weight: .semibold)
+        static let micro          = Font.system(size: 11, weight: .regular)
+        static let microSemibold  = Font.system(size: 11, weight: .semibold)
+        static let tiny           = Font.system(size: 12, weight: .regular)
+        static let tinySemibold   = Font.system(size: 12, weight: .semibold)
     }
 
     // MARK: - Extended Spacing
@@ -85,10 +85,10 @@ extension AppTheme {
         static let cardPadding: CGFloat = 16
         static let sectionSpacing: CGFloat = 20
         static let inlineSpacing: CGFloat = 8
-        static let buttonHeight: CGFloat = 44
-        static let buttonHeightSmall: CGFloat = 32
-        static let stagePillHeight: CGFloat = 26
-        static let badgeHeight: CGFloat = 22
+        static let buttonHeight: CGFloat = 46
+        static let buttonHeightSmall: CGFloat = 34
+        static let stagePillHeight: CGFloat = 28
+        static let badgeHeight: CGFloat = 24
 
         // Dense content padding (insight cards, rail rows, editables)
         static let compactPadding: CGFloat = 10

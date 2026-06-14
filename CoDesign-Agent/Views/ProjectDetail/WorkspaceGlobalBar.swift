@@ -246,7 +246,7 @@ struct WorkspaceGlobalBar: View {
             }
         } label: {
             Image(systemName: "ellipsis.circle")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(Color.textSecondary)
                 .frame(width: controlHeight, height: controlHeight)
                 .background(
@@ -263,7 +263,7 @@ struct WorkspaceGlobalBar: View {
 
     private var controlHeight: CGFloat {
         #if os(iOS)
-        return 40
+        return 42
         #else
         return AppTheme.Layout.buttonHeightSmall
         #endif

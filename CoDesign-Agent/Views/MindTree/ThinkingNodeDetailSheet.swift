@@ -181,7 +181,7 @@ struct ThinkingNodeDetailSheet: View {
                         .font(AppTheme.Typography.caption.weight(.semibold))
                         .foregroundStyle(Color.textTertiary)
 
-                    Text(node.content)
+                    Text(questionText)
                         .font(AppTheme.Typography.body.weight(.semibold))
                         .foregroundStyle(Color.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -191,7 +191,7 @@ struct ThinkingNodeDetailSheet: View {
                         Text("当前回答")
                             .font(AppTheme.Typography.caption.weight(.semibold))
                             .foregroundStyle(Color.textTertiary)
-                        Text(answer.content)
+                        Text(ThinkingTreeMomentProjector.displayAnswerText(for: answer, in: project.messages))
                             .font(AppTheme.Typography.body)
                             .foregroundStyle(Color.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -207,7 +207,7 @@ struct ThinkingNodeDetailSheet: View {
                 DisclosureGroup {
                     VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
                         ForEach(archivedAnswersForQuestion, id: \.id) { answer in
-                            Text(answer.content)
+                            Text(ThinkingTreeMomentProjector.displayAnswerText(for: answer, in: project.messages))
                                 .font(AppTheme.Typography.body)
                                 .foregroundStyle(Color.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -455,6 +455,10 @@ struct ThinkingNodeDetailSheet: View {
         }
 
         return ThinkingTreeMomentProjector.archivedAnswers(for: question, in: project.thinkingMoments)
+    }
+
+    private var questionText: String {
+        ThinkingTreeMomentProjector.displayQuestionText(for: node, in: project.messages)
     }
 
     private func fieldRow(_ field: BriefField, brief: DesignBriefSnapshot) -> some View {

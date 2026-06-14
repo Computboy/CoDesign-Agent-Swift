@@ -10,6 +10,7 @@ import SwiftUI
 struct ClarificationWorkspaceView: View {
     let project: Project
     let chatViewModel: ChatViewModel
+    var resourcePanelStartsExpanded: Bool = false
     var onReviewBrief: () -> Void = {}
     var onRevisitPreviousStage: () -> Void = {}
     var onExportBrief: () -> Void = {}
@@ -75,7 +76,7 @@ struct ClarificationWorkspaceView: View {
         let treeWidth = clamp(availableWidth * 0.44, min: 360, max: 620)
 
         return HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
-            ThinkingTreeView(project: project, mode: .embedded)
+            ThinkingTreeView(project: project, mode: .embedded, chatViewModel: chatViewModel)
                 .frame(width: treeWidth)
                 .frame(maxHeight: .infinity)
 
@@ -84,6 +85,7 @@ struct ClarificationWorkspaceView: View {
                     CurrentWorkspaceColumn(
                         project: project,
                         chatViewModel: chatViewModel,
+                        resourcePanelStartsExpanded: resourcePanelStartsExpanded,
                         onReviewBrief: onReviewBrief,
                         onRevisitPreviousStage: onRevisitPreviousStage,
                         onExportBrief: onExportBrief
@@ -109,7 +111,7 @@ struct ClarificationWorkspaceView: View {
         let treeWidth = clamp(width * 0.42, min: 420, max: 560)
 
         return HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
-            ThinkingTreeView(project: project, mode: .embedded)
+            ThinkingTreeView(project: project, mode: .embedded, chatViewModel: chatViewModel)
                 .frame(width: treeWidth)
                 .frame(maxHeight: .infinity)
 
@@ -118,6 +120,7 @@ struct ClarificationWorkspaceView: View {
                     CurrentWorkspaceColumn(
                         project: project,
                         chatViewModel: chatViewModel,
+                        resourcePanelStartsExpanded: resourcePanelStartsExpanded,
                         onReviewBrief: onReviewBrief,
                         onRevisitPreviousStage: onRevisitPreviousStage,
                         onExportBrief: onExportBrief
@@ -158,6 +161,7 @@ struct ClarificationWorkspaceView: View {
                     CurrentWorkspaceColumn(
                         project: project,
                         chatViewModel: chatViewModel,
+                        resourcePanelStartsExpanded: resourcePanelStartsExpanded,
                         onReviewBrief: onReviewBrief,
                         onRevisitPreviousStage: onRevisitPreviousStage,
                         onExportBrief: onExportBrief
@@ -186,6 +190,7 @@ struct ClarificationWorkspaceView: View {
                     project: project,
                     chatViewModel: chatViewModel,
                     includesHeader: true,
+                    resourcePanelStartsExpanded: resourcePanelStartsExpanded,
                     onReviewBrief: onReviewBrief,
                     onRevisitPreviousStage: onRevisitPreviousStage,
                     onExportBrief: onExportBrief
@@ -207,7 +212,7 @@ struct ClarificationWorkspaceView: View {
             Group {
                 switch accessory {
                 case .mindTree:
-                    ThinkingTreeView(project: project, mode: .standalone)
+                    ThinkingTreeView(project: project, mode: .standalone, chatViewModel: chatViewModel)
                 case .resources:
                     ScrollView(.vertical, showsIndicators: false) {
                         ResourceCardPanel(
@@ -371,6 +376,7 @@ private struct CurrentWorkspaceColumn: View {
     let chatViewModel: ChatViewModel
     var includesHeader: Bool = true
     var showsResourcePanel: Bool = true
+    var resourcePanelStartsExpanded: Bool = false
     var onReviewBrief: () -> Void = {}
     var onRevisitPreviousStage: () -> Void = {}
     var onExportBrief: () -> Void = {}
@@ -431,7 +437,9 @@ private struct CurrentWorkspaceColumn: View {
                     project: project,
                     isStreaming: chatViewModel.isStreaming,
                     streamingText: chatViewModel.currentStreamingText,
+                    activityText: chatViewModel.assistantActivityText,
                     showsResourcePanel: showsResourcePanel,
+                    resourcePanelStartsExpanded: resourcePanelStartsExpanded,
                     onQuickAction: send,
                     onSend: send
                 )

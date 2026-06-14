@@ -14,6 +14,7 @@ final class ChatViewModel {
 
     var currentStreamingText: String = ""
     var isStreaming: Bool = false
+    var assistantActivityText: String = ""
     var errorMessage: String?
 
     init(project: Project,
@@ -48,7 +49,127 @@ final class ChatViewModel {
         try? project.modelContext?.save()
     }
 
+    func continueAfterQuestionRevision(
+        question: String,
+        revisedAnswer: String,
+        stageOrder: Int
+    ) async {
+        guard !isStreaming else { return }
+        guard let context = project.modelContext else { return }
+
+        let trimmedAnswer = revisedAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAnswer.isEmpty else { return }
+
+        let previousBrief = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
+        let revisionMessage = revisionContinuationMessage(
+            question: question,
+            revisedAnswer: trimmedAnswer,
+            stageOrder: stageOrder
+        )
+
+        let userMsg = ChatMessage(role: "user", content: revisionMessage)
+        context.insert(userMsg)
+        project.messages.append(userMsg)
+        project.updatedAt = Date()
+        try? context.save()
+
+        beginAssistantActivity("正在分析回答……")
+
+        await applyStructuredExtraction(
+            messages: messagesWithTrustedImportContext([.user(revisionMessage)], existing: previousBrief),
+            existing: previousBrief,
+            context: context
+        )
+
+        let updatedBriefSnapshot = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
+        recordBriefDecisionMoments(
+            previous: previousBrief,
+            current: updatedBriefSnapshot,
+            context: context
+        )
+        updateStageProgress(brief: updatedBriefSnapshot)
+
+        let nextActiveStage = currentActiveStage()
+        let activeStageOrder = nextActiveStage?.order ?? stageOrder
+        appendLearningTraces(
+            previousBrief: previousBrief,
+            currentBrief: updatedBriefSnapshot,
+            activeStageOrder: activeStageOrder,
+            context: context
+        )
+        try? context.save()
+
+        let payloadMessages = revisionPayloadMessages(
+            revisionMessage: revisionMessage,
+            stageOrder: activeStageOrder,
+            brief: updatedBriefSnapshot
+        )
+        let stageSnapshot = nextActiveStage?.toSnapshot()
+        let selectedResourceCards = ResourceRecommendationService().recommend(
+            currentStageOrder: stageSnapshot?.order ?? activeStageOrder,
+            briefSnapshot: updatedBriefSnapshot,
+            recentMessage: revisionMessage,
+            limit: 5,
+            mode: .normal
+        )
+        let selectedMethodCard = selectedResourceCards.first
+
+        assistantActivityText = "正在生成下一轮澄清问题……"
+
+        do {
+            let stream = llmService.streamChat(
+                messages: payloadMessages,
+                briefSnapshot: updatedBriefSnapshot,
+                currentStage: stageSnapshot,
+                mode: .normal,
+                resourceCards: selectedResourceCards
+            )
+            for try await token in stream {
+                if currentStreamingText.isEmpty {
+                    assistantActivityText = "正在生成回复……"
+                }
+                currentStreamingText += token
+            }
+        } catch {
+            errorMessage = "回溯后的追问生成失败，请重试"
+            endAssistantActivity()
+            return
+        }
+
+        let assistantMsg = ChatMessage(role: "assistant", content: currentStreamingText)
+        context.insert(assistantMsg)
+        project.messages.append(assistantMsg)
+        if let selectedMethodCard {
+            recordMethodInvocation(
+                card: selectedMethodCard,
+                generatedQuestion: assistantMsg.content,
+                stageOrder: activeStageOrder,
+                mode: .normal,
+                context: context
+            )
+            appendMethodLearningTrace(
+                card: selectedMethodCard,
+                stageOrder: activeStageOrder,
+                context: context
+            )
+        }
+        if shouldRecordFormalQuestion(mode: .normal, assistantText: assistantMsg.content) {
+            recordThinkingMoment(
+                momType: "question",
+                content: assistantMsg.content,
+                stageOrder: activeStageOrder,
+                relatedField: nil,
+                parentMomentID: parentForNewMoment(stageOrder: activeStageOrder, momType: "question"),
+                context: context
+            )
+        }
+
+        endAssistantActivity()
+        try? context.save()
+    }
+
     func sendMessage(_ text: String) async {
+        guard !isStreaming else { return }
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         guard let context = project.modelContext else { return }
 
@@ -69,7 +190,7 @@ final class ChatViewModel {
         if shouldRecordFormalAnswer(text: text, mode: clarificationMode) {
             recordThinkingMoment(
                 momType: "answer",
-                content: truncatedMomentText(text),
+                content: storedMomentText(text),
                 stageOrder: activeStageOrder,
                 relatedField: nil,
                 parentMomentID: parentForNewMoment(stageOrder: activeStageOrder, momType: "answer"),
@@ -77,6 +198,7 @@ final class ChatViewModel {
             )
         }
         try? context.save()
+        beginAssistantActivity("正在分析回答……")
 
         // ④ 先抽取并更新状态，再生成下一问。
         // 这样 Agent 问出的不是“更多细节”，而是当前 DesignBrief 中最值得推进的设计判断。
@@ -125,9 +247,7 @@ final class ChatViewModel {
         )
         let selectedMethodCard = selectedResourceCards.first
 
-        isStreaming = true
-        currentStreamingText = ""
-        errorMessage = nil
+        assistantActivityText = "正在生成下一轮澄清问题……"
 
         do {
             let stream = llmService.streamChat(
@@ -138,12 +258,15 @@ final class ChatViewModel {
                 resourceCards: selectedResourceCards
             )
             for try await token in stream {
+                if currentStreamingText.isEmpty {
+                    assistantActivityText = "正在生成回复……"
+                }
                 currentStreamingText += token
             }
         } catch {
             // v0.1: 简单错误提示
             errorMessage = "回复生成失败，请重试"
-            isStreaming = false
+            endAssistantActivity()
             return
         }
 
@@ -169,18 +292,30 @@ final class ChatViewModel {
             let questionStageOrder = nextActiveStage?.order ?? activeStageOrder
             recordThinkingMoment(
                 momType: "question",
-                content: questionMomentText(from: assistantMsg.content),
+                content: assistantMsg.content,
                 stageOrder: questionStageOrder,
                 relatedField: nil,
                 parentMomentID: parentForNewMoment(stageOrder: questionStageOrder, momType: "question"),
                 context: context
             )
         }
-        currentStreamingText = ""
-        isStreaming = false
+        endAssistantActivity()
 
         // ⑦ 保存
         try? context.save()
+    }
+
+    private func beginAssistantActivity(_ text: String) {
+        isStreaming = true
+        currentStreamingText = ""
+        assistantActivityText = text
+        errorMessage = nil
+    }
+
+    private func endAssistantActivity() {
+        currentStreamingText = ""
+        assistantActivityText = ""
+        isStreaming = false
     }
 
     private func observeServiceFallbacks() {
@@ -206,6 +341,99 @@ final class ChatViewModel {
                 self?.errorMessage = nil
             }
         }
+    }
+
+    private func revisionContinuationMessage(
+        question: String,
+        revisedAnswer: String,
+        stageOrder: Int
+    ) -> String {
+        """
+        【回溯修改】
+        我从 Stage \(stageOrder) 的一个旧问题回溯，并修改了当时的回答。
+        原问题：\(question)
+        修改后的回答：\(revisedAnswer)
+
+        请忽略这个回答之后旧分支里的后续推导，基于这条新回答继续推进，并只提出下一步最关键的一个澄清问题。
+        """
+    }
+
+    private func revisionPayloadMessages(
+        revisionMessage: String,
+        stageOrder: Int,
+        brief: DesignBriefSnapshot
+    ) -> [ChatPayloadMessage] {
+        var messages: [ChatPayloadMessage] = []
+        messages.append(.user(activeBranchSummary(stageOrder: stageOrder, brief: brief)))
+        messages.append(.user(revisionMessage))
+        return messages
+    }
+
+    private func activeBranchSummary(stageOrder: Int, brief: DesignBriefSnapshot) -> String {
+        var lines: [String] = [
+            "【当前有效分支摘要】",
+            "项目：\(project.name)",
+        ]
+
+        if !project.briefDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.append("初始想法：\(project.briefDescription)")
+        }
+
+        let activeMoments = project.thinkingMoments
+            .filter { $0.isActiveBranch && $0.stageOrder <= max(stageOrder, project.currentStageOrder) }
+            .sorted { $0.timestamp < $1.timestamp }
+            .suffix(24)
+
+        for moment in activeMoments {
+            lines.append("- Stage \(moment.stageOrder) \(momentDisplayLabel(moment.momType))：\(moment.content)")
+        }
+
+        let briefLines = compactBriefLines(from: brief)
+        if !briefLines.isEmpty {
+            lines.append("【当前 Design Brief 已确认信息】")
+            lines.append(contentsOf: briefLines)
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    private func momentDisplayLabel(_ momType: String) -> String {
+        switch momType {
+        case "question": return "AI 问题"
+        case "answer": return "用户回答"
+        case "decision", "deepen": return "结构化判断"
+        case "method": return "设计依据"
+        case "evidence": return "采纳依据"
+        case "revise": return "回溯修改"
+        case "branch": return "阶段探索"
+        default: return momType
+        }
+    }
+
+    private func compactBriefLines(from brief: DesignBriefSnapshot) -> [String] {
+        var lines: [String] = []
+        appendBriefLine("目标用户", brief.targetUser, to: &lines)
+        appendBriefLine("核心痛点", brief.painPoint, to: &lines)
+        appendBriefLine("使用场景", brief.useScenario, to: &lines)
+        appendBriefLine("核心价值", brief.coreValue, to: &lines)
+        appendBriefLine("差异化价值", brief.differentiation, to: &lines)
+        appendBriefLine("MVP 功能", brief.mvpFeatures, to: &lines)
+        appendBriefLine("技术模块", brief.technicalModules, to: &lines)
+        appendBriefLine("交互流程", brief.interactionFlow, to: &lines)
+        appendBriefLine("运行逻辑", brief.operationLogic, to: &lines)
+        appendBriefLine("硬性约束", brief.hardConstraints, to: &lines)
+        appendBriefLine("里程碑", brief.milestones, to: &lines)
+
+        for item in brief.boundaryItems {
+            appendBriefLine(item.isIncluded ? "做的边界" : "不做的边界", item.content, to: &lines)
+        }
+        for metric in brief.successMetrics {
+            appendBriefLine("验收指标", "\(metric.metric)：\(metric.target)", to: &lines)
+        }
+        for risk in brief.risks {
+            appendBriefLine("风险", risk.desc, to: &lines)
+        }
+        return lines
     }
 
     // MARK: - Conversation State Updates
@@ -410,7 +638,7 @@ final class ChatViewModel {
         parentMomentID: UUID? = nil,
         context: ModelContext
     ) -> ThinkingMoment? {
-        let normalized = truncatedMomentText(content)
+        let normalized = storedMomentText(content)
         guard !normalized.isEmpty else { return nil }
 
         let now = Date()
@@ -505,7 +733,7 @@ final class ChatViewModel {
         project.learningTraces.append(trace)
     }
 
-    private func truncatedMomentText(_ text: String, limit: Int = 60) -> String {
+    private func storedMomentText(_ text: String, limit: Int = 1_200) -> String {
         let flattened = text
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "\n", with: " ")
@@ -520,21 +748,21 @@ final class ChatViewModel {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if !followUp.isEmpty {
                 if let question = lastQuestionSentence(in: String(followUp)) {
-                    return truncatedMomentText(question)
+                    return storedMomentText(question)
                 }
-                return truncatedMomentText(String(followUp))
+                return storedMomentText(String(followUp))
             }
         }
 
         if let question = lastQuestionSentence(in: text) {
-            return truncatedMomentText(question)
+            return storedMomentText(question)
         }
 
         if let sentence = lastSentence(in: text) {
-            return truncatedMomentText(sentence)
+            return storedMomentText(sentence)
         }
 
-        return truncatedMomentText(text)
+        return storedMomentText(text)
     }
 
     private func lastQuestionSentence(in text: String) -> String? {

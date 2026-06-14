@@ -2,12 +2,17 @@ import SwiftUI
 import Combine
 
 struct TypingIndicatorView: View {
+    var message: String = "正在分析回答……"
     @State private var dotCount = 0
     private let timer = Timer.publish(every: 0.4, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        HStack {
-            Text("AI 正在思考")
+        HStack(spacing: AppTheme.spacingSmall) {
+            ProgressView()
+                .controlSize(.small)
+                .tint(Color.primaryAccent)
+
+            Text(message)
                 .font(AppTheme.Typography.caption)
                 .foregroundStyle(Color.textSecondary)
 
@@ -26,6 +31,7 @@ struct TypingIndicatorView: View {
         .padding(.vertical, AppTheme.spacingSmall)
         .background(Color.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
+        .accessibilityLabel(message)
         .onReceive(timer) { _ in
             withAnimation(.easeInOut(duration: 0.2)) {
                 dotCount = (dotCount + 1) % 3

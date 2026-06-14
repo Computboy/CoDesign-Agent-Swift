@@ -8,7 +8,9 @@ struct CurrentClarificationCard: View {
     let project: Project
     let isStreaming: Bool
     let streamingText: String
+    var activityText: String = "正在分析回答……"
     var showsResourcePanel: Bool = true
+    var resourcePanelStartsExpanded: Bool = false
     let onQuickAction: (String) -> Void
     let onSend: (String) -> Void
     private let contextPanelMinHeight: CGFloat = 76
@@ -153,7 +155,8 @@ struct CurrentClarificationCard: View {
                     ResourceCardPanel(
                         project: project,
                         title: "本轮设计依据",
-                        subtitle: "查看 AI 为什么这样问。"
+                        subtitle: "查看 AI 为什么这样问。",
+                        startsExpanded: resourcePanelStartsExpanded
                     )
                 }
 
@@ -285,7 +288,7 @@ struct CurrentClarificationCard: View {
                 HStack(spacing: AppTheme.spacingSmall) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("AI 正在准备下一轮澄清问题...")
+                    Text(resolvedActivityText)
                         .font(AppTheme.Typography.body)
                         .foregroundStyle(Color.textSecondary)
                 }
@@ -306,6 +309,10 @@ struct CurrentClarificationCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var resolvedActivityText: String {
+        activityText.isEmpty ? "正在分析回答……" : activityText
     }
 
     private var responseContent: some View {

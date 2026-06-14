@@ -12,10 +12,12 @@ struct ThinkingTreeView: View {
 
     let project: Project
     var mode: DisplayMode = .standalone
+    var chatViewModel: ChatViewModel?
 
     @Environment(\.modelContext) private var modelContext
 
     @State private var expandedTransitionOrders: Set<Int> = []
+    @State private var expandedArchivedStageOrders: Set<Int> = []
     @State private var selectedNode: TreeNode?
     @State private var editingNode: TreeNode?
     @State private var scale: CGFloat = 1
@@ -138,7 +140,11 @@ struct ThinkingTreeView: View {
         }
         #endif
         .sheet(item: $editingNode) { node in
-            NodeEditSheet(node: node, project: project)
+            NodeEditSheet(
+                node: node,
+                project: project,
+                onQuestionRevisionSaved: continueAfterQuestionRevision
+            )
                 .presentationDragIndicator(.visible)
         }
     }
@@ -184,6 +190,7 @@ struct ThinkingTreeView: View {
         let raw = TreeBuilder().build(
             project: project,
             expandedTransitionOrders: effectiveExpandedTransitions,
+            expandedArchivedStageOrders: expandedArchivedStageOrders,
             evidenceResourcesByStage: evidence,
             visibleStageLimit: visibleStageLimit
         )
@@ -192,6 +199,10 @@ struct ThinkingTreeView: View {
     }
 
     private var visibleStageLimit: Int {
+        if project.stages.contains(where: { $0.status == "needsReview" }) {
+            return min(max(project.currentStageOrder, 1), 9)
+        }
+
         guard mode == .embedded else { return 9 }
         let expandedMaxOrder = expandedTransitionOrders.max() ?? project.currentStageOrder
         return min(max(project.currentStageOrder, expandedMaxOrder), 9)
@@ -476,12 +487,28 @@ struct ThinkingTreeView: View {
     // MARK: - Interaction
 
     private func handleTap(_ node: TreeNode) {
+        if node.kind == .branchStage, let order = node.stageOrder {
+            toggleArchivedStage(order)
+            return
+        }
+
         if node.kind == .stage, let order = node.stageOrder {
             if mode == .embedded {
                 locateStage(order, in: lastViewportSize, preserveScale: true)
             }
         }
         selectedNode = node
+    }
+
+    private func continueAfterQuestionRevision(_ revision: QuestionRevisionContext) {
+        guard let chatViewModel else { return }
+        Task {
+            await chatViewModel.continueAfterQuestionRevision(
+                question: revision.question,
+                revisedAnswer: revision.revisedAnswer,
+                stageOrder: revision.stageOrder
+            )
+        }
     }
 
     private func toggleTransition(_ order: Int, graph: TreeData, viewport: CGSize) {
@@ -534,6 +561,16 @@ struct ThinkingTreeView: View {
                 expandedTransitionOrders.remove(order)
             } else {
                 expandedTransitionOrders.insert(order)
+            }
+        }
+    }
+
+    private func toggleArchivedStage(_ order: Int) {
+        withAnimation(AppTheme.Animation.spring) {
+            if expandedArchivedStageOrders.contains(order) {
+                expandedArchivedStageOrders.remove(order)
+            } else {
+                expandedArchivedStageOrders.insert(order)
             }
         }
     }
@@ -620,7 +657,7 @@ struct ThinkingTreeView: View {
                         .contentShape(Rectangle())
 
                     transitionLabel(order: transitionOrder)
-                        .offset(x: 112)
+                        .offset(x: TreeNodeMetrics.stageSize.width / 2 + 48)
                 }
                 .position(
                     CGPoint(
@@ -659,9 +696,9 @@ struct ThinkingTreeView: View {
 
     private var edgeHitWidth: CGFloat {
         #if os(iOS)
-        return 230
+        return 276
         #else
-        return 190
+        return 226
         #endif
     }
 
@@ -732,15 +769,15 @@ struct ThinkingTreeView: View {
     }
 
     private func edgePath(from: TreeNode, to: TreeNode, graph: TreeData) -> Path {
-        let trunkX = graph.contentSize.width / 2
+        let trunkX = mainTrunkX(in: graph)
         let isTrunk = (from.kind == .root || from.kind == .stage) && to.kind == .stage
 
-        var path = Path()
-
         if isTrunk {
-            path.move(to: from.position)
-            path.addLine(to: to.position)
-            return path
+            return directEdgePath(from: from, to: to)
+        }
+
+        if isArchivedTimelineEdge(from: from, to: to) {
+            return directEdgePath(from: from, to: to)
         }
 
         if isBranchNode(to) {
@@ -748,63 +785,134 @@ struct ThinkingTreeView: View {
         }
 
         if isBranchNode(from) {
-            path.move(to: from.position)
-            path.addLine(to: CGPoint(x: trunkX, y: from.position.y))
+            var path = Path()
+            let target = CGPoint(x: trunkX, y: from.position.y)
+            let start = edgeAnchor(for: from, toward: target)
+            path.move(to: start)
+            path.addLine(to: target)
             return path
         }
 
         let dy = abs(to.position.y - from.position.y)
-        path.move(to: from.position)
+        let start = edgeAnchor(for: from, toward: to.position)
+        let end = edgeAnchor(for: to, toward: from.position)
+        var path = Path()
+        path.move(to: start)
         path.addCurve(
-            to: to.position,
-            control1: CGPoint(x: from.position.x, y: from.position.y - max(dy * 0.34, 24)),
-            control2: CGPoint(x: to.position.x, y: to.position.y + max(dy * 0.18, 18))
+            to: end,
+            control1: CGPoint(x: start.x, y: start.y - max(dy * 0.34, 24)),
+            control2: CGPoint(x: end.x, y: end.y + max(dy * 0.18, 18))
         )
         return path
     }
 
     private func branchEdgePath(from: TreeNode, to: TreeNode, trunkX: CGFloat) -> Path {
-        var path = Path()
+        if to.kind == .branchStage {
+            return orthogonalEdgePath(from: from, to: to)
+        }
 
         if to.kind == .question && !to.isArchived {
-            path.move(to: CGPoint(x: trunkX, y: from.position.y))
-            path.addLine(to: to.position)
-            return path
+            return orthogonalEdgePath(from: from, to: to)
         }
 
         let side: CGFloat = to.position.x >= trunkX ? 1 : -1
         let railX = to.position.x - side * branchRailInset(for: to)
-        let sourceY = to.kind == .branchStage ? from.position.y : (isBranchNode(from) ? from.position.y : to.position.y)
-        let startX = isBranchNode(from) ? from.position.x : trunkX
-        let start = CGPoint(x: startX, y: sourceY)
-        let railStart = CGPoint(x: railX, y: sourceY)
-        let railEnd = CGPoint(x: railX, y: to.position.y)
+        let sourceY = isBranchNode(from) ? from.position.y : to.position.y
+        let sourceTarget = CGPoint(x: railX, y: sourceY)
+        let start = isBranchNode(from)
+            ? edgeAnchor(for: from, toward: sourceTarget)
+            : CGPoint(x: trunkX, y: sourceY)
+        let end = edgeAnchor(for: to, toward: CGPoint(x: railX, y: to.position.y))
+        let railStart = CGPoint(x: railX, y: start.y)
+        let railEnd = CGPoint(x: railX, y: end.y)
 
+        var path = Path()
         path.move(to: start)
-        path.addLine(to: railStart)
-        if abs(sourceY - to.position.y) > 1 {
+        if abs(start.x - railStart.x) > 1 {
+            path.addLine(to: railStart)
+        }
+        if abs(railStart.y - railEnd.y) > 1 {
             path.addLine(to: railEnd)
         }
-        path.addLine(to: to.position)
+        path.addLine(to: end)
 
         return path
     }
 
     private func branchRailInset(for node: TreeNode) -> CGFloat {
         switch node.kind {
-        case .evidence:
-            return 104
-        case .field:
-            return 100
-        case .process, .revision:
-            return 96
-        case .question:
-            return 42
-        case .branchStage:
+        case .root, .stage, .branchStage:
             return 0
-        case .root, .stage:
-            return 0
+        case .question, .field, .process, .evidence, .revision:
+            return TreeNodeMetrics.size(for: node.kind).width / 2 + 18
         }
+    }
+
+    private func mainTrunkX(in graph: TreeData) -> CGFloat {
+        graph.node(for: TreeBuilder.rootID)?.position.x
+            ?? graph.nodes.first { $0.kind == .stage }?.position.x
+            ?? graph.contentSize.width / 2
+    }
+
+    private func directEdgePath(from: TreeNode, to: TreeNode) -> Path {
+        var path = Path()
+        path.move(to: edgeAnchor(for: from, toward: to.position))
+        path.addLine(to: edgeAnchor(for: to, toward: from.position))
+        return path
+    }
+
+    private func orthogonalEdgePath(from: TreeNode, to: TreeNode) -> Path {
+        let start = edgeAnchor(for: from, toward: to.position)
+        let end = edgeAnchor(for: to, toward: from.position)
+        var path = Path()
+        path.move(to: start)
+
+        if abs(start.x - end.x) > 1, abs(start.y - end.y) > 1 {
+            path.addLine(to: CGPoint(x: start.x, y: end.y))
+        }
+        path.addLine(to: end)
+        return path
+    }
+
+    private func edgeAnchor(for node: TreeNode, toward target: CGPoint) -> CGPoint {
+        let size = TreeNodeMetrics.size(for: node.kind)
+        let halfWidth = size.width / 2
+        let halfHeight = size.height / 2
+        let dx = target.x - node.position.x
+        let dy = target.y - node.position.y
+
+        guard abs(dx) > 0.5 || abs(dy) > 0.5 else {
+            return node.position
+        }
+
+        let horizontalReach = abs(dx) / max(halfWidth, 1)
+        let verticalReach = abs(dy) / max(halfHeight, 1)
+
+        if horizontalReach > verticalReach {
+            return CGPoint(
+                x: node.position.x + (dx >= 0 ? halfWidth : -halfWidth),
+                y: node.position.y
+            )
+        } else {
+            return CGPoint(
+                x: node.position.x,
+                y: node.position.y + (dy >= 0 ? halfHeight : -halfHeight)
+            )
+        }
+    }
+
+    private func isArchivedTimelineEdge(from: TreeNode, to: TreeNode) -> Bool {
+        guard to.isArchived,
+              let anchorID = to.branchAnchorID,
+              anchorID.hasPrefix("branch-stage-") else {
+            return false
+        }
+
+        if from.id == anchorID {
+            return true
+        }
+
+        return from.isArchived && from.branchAnchorID == anchorID
     }
 
     private func edgeColor(_ edge: TreeEdge, to node: TreeNode) -> Color {

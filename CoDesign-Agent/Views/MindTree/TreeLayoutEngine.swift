@@ -12,6 +12,16 @@ struct TreeLayoutEngine {
     private var minimumSideCardSpacing: CGFloat { 176 }
     private var sideCardColumnSpacing: CGFloat { 286 }
     private var collisionPadding: CGFloat { 18 }
+    private var archivedTimelineTopOffset: CGFloat { 154 }
+    private var archivedTimelineRowSpacing: CGFloat { 176 }
+    private var archivedTimelineHalfWidth: CGFloat { questionNodeWidth / 2 }
+    private var archivedBranchHalfWidth: CGFloat { TreeNodeMetrics.stageSize.width / 2 }
+    private var archivedBranchReservedWidth: CGFloat { 430 }
+    private var archivedBranchGapFromMain: CGFloat { 280 }
+    private var activeQuestionRowSpacing: CGFloat { 88 }
+    private var archivedQuestionRowSpacing: CGFloat { 108 }
+    private var questionNodeWidth: CGFloat { TreeNodeMetrics.questionSize.width }
+    private var questionNodeHeight: CGFloat { TreeNodeMetrics.questionSize.height }
 
     init(
         stageSpacing: CGFloat = 118,
@@ -31,13 +41,20 @@ struct TreeLayoutEngine {
 
     func layout(_ data: TreeData, in size: CGSize) -> TreeData {
         let maxStage = max(data.nodes.compactMap(\.stageOrder).max() ?? 1, 1)
-        let width = max(size.width, contentWidth)
+        let hasArchivedBranch = data.nodes.contains { $0.kind == .branchStage }
+        let width = max(size.width, contentWidth + (hasArchivedBranch ? archivedBranchReservedWidth : 0))
+        let mainContentWidth = hasArchivedBranch ? max(contentWidth, width - archivedBranchReservedWidth) : width
         let nodesByStage = Dictionary(grouping: data.nodes.filter { node in
             node.stageOrder != nil && node.kind != .stage && node.kind != .branchStage
         }, by: { $0.stageOrder ?? 0 })
         let transitionSpacings = transitionSpacings(maxStage: maxStage, nodesByStage: nodesByStage)
         let height = max(size.height, minimumContentSize(transitionSpacings: transitionSpacings).height)
-        let centerX = width / 2
+        let centerX = mainContentWidth / 2
+        let archivedBranchX = archivedBranchX(
+            centerX: centerX,
+            contentWidth: width,
+            usesSecondaryRightLane: usesSecondaryRightLane(nodesByStage: nodesByStage)
+        )
         let rootY = height - bottomPadding
         let contentSize = CGSize(width: width, height: height)
 
@@ -58,7 +75,7 @@ struct TreeLayoutEngine {
             case .branchStage:
                 guard let order = updatedNodes[index].stageOrder else { continue }
                 updatedNodes[index].position = CGPoint(
-                    x: sideBranchCenterX(centerX: centerX, contentWidth: width),
+                    x: archivedBranchX,
                     y: stageY(order: order, rootY: rootY, transitionSpacings: transitionSpacings)
                 )
 
@@ -82,7 +99,9 @@ struct TreeLayoutEngine {
                     centerX: centerX,
                     fromY: transitionStartY(order: order, rootY: rootY, transitionSpacings: transitionSpacings),
                     toY: stageY(order: order, rootY: rootY, transitionSpacings: transitionSpacings),
-                    contentWidth: width
+                    contentWidth: width,
+                    mainContentWidth: mainContentWidth,
+                    archivedBranchX: archivedBranchX
                 )
             }
         }
@@ -127,15 +146,19 @@ struct TreeLayoutEngine {
 
         let sideRowCount = maxSideCardRows(in: nodes)
         let questionCount = nodes.filter { $0.kind == .question }.count
+        let archivedTimelineRowCount = maxArchivedTimelineRows(in: nodes)
         let expandedMinimum = stageSpacing + 124
         let requiredSideSpacing = sideRowCount > 0
             ? CGFloat(max(sideRowCount - 1, 0)) * minimumSideCardSpacing + 306
             : 0
         let requiredQuestionSpacing = questionCount > 0
-            ? CGFloat(max(questionCount - 1, 0)) * 96 + 244
+            ? CGFloat(max(questionCount - 1, 0)) * activeQuestionRowSpacing + questionNodeHeight + 210
+            : 0
+        let requiredTimelineSpacing = archivedTimelineRowCount > 0
+            ? archivedTimelineTopOffset + CGFloat(max(archivedTimelineRowCount - 1, 0)) * archivedTimelineRowSpacing + 282
             : 0
 
-        return max(stageSpacing, expandedMinimum, requiredSideSpacing, requiredQuestionSpacing)
+        return max(stageSpacing, expandedMinimum, requiredSideSpacing, requiredQuestionSpacing, requiredTimelineSpacing)
     }
 
     private func stageY(order: Int, rootY: CGFloat, transitionSpacings: [Int: CGFloat]) -> CGFloat {
@@ -190,10 +213,25 @@ struct TreeLayoutEngine {
         centerX: CGFloat,
         fromY: CGFloat,
         toY: CGFloat,
-        contentWidth: CGFloat
+        contentWidth: CGFloat,
+        mainContentWidth: CGFloat,
+        archivedBranchX: CGFloat
     ) -> CGPoint {
-        let corridorHeight = max(abs(fromY - toY), stageSpacing)
         let yJitter = deterministicUnit(for: node.id + "-y") * 1.5
+
+        if isArchivedStageTimelineNode(node), let anchorID = node.branchAnchorID {
+            let timelineNodes = sortedSideNodes(siblings.filter {
+                $0.branchAnchorID == anchorID && isArchivedStageTimelineNode($0)
+            })
+            let ordinal = timelineNodes.firstIndex { $0.id == node.id } ?? 0
+            let x = timelineColumnX(archivedBranchX: archivedBranchX, contentWidth: contentWidth)
+            let y = toY + archivedTimelineTopOffset + CGFloat(ordinal) * archivedTimelineRowSpacing
+
+            return CGPoint(
+                x: x,
+                y: min(max(y, topPadding + 62), fromY - 112)
+            )
+        }
 
         if node.kind == .question && node.isArchived, let anchorID = node.branchAnchorID {
             let anchorY = siblings.first { $0.id == anchorID }?.position.y
@@ -203,26 +241,36 @@ struct TreeLayoutEngine {
                 $0.branchAnchorID == anchorID
             }
             let ordinal = anchoredQuestions.firstIndex { $0.id == node.id } ?? 0
-            let lane = ordinal % 2
-            let row = ordinal / 2
-            let rowOffset = CGFloat(row) * 68
-            let laneOffset = CGFloat(lane) * 224
-            let baseX = sideBranchCenterX(centerX: centerX, contentWidth: contentWidth) + laneOffset
+            let rowOffset = CGFloat(ordinal) * archivedQuestionRowSpacing
+            let baseX = archivedBranchX
             let halfWidth = estimatedHalfWidth(for: node)
+            let baseY: CGFloat
+            if anchorID.hasPrefix("branch-stage-") {
+                baseY = toY - 92 - rowOffset
+            } else {
+                baseY = (anchorY ?? ((fromY + toY) / 2)) + rowOffset
+            }
 
             return CGPoint(
                 x: min(max(baseX, halfWidth + 28), contentWidth - halfWidth - 28),
-                y: min(max((anchorY ?? ((fromY + toY) / 2)) + rowOffset + yJitter, topPadding + 62), fromY - 144)
+                y: min(max(baseY + yJitter, topPadding + 62), fromY - 144)
             )
         }
 
         if node.kind == .question && !node.isArchived {
             let questionNodes = siblings.filter { $0.kind == .question && !$0.isArchived }
             let questionIndex = questionNodes.firstIndex(where: { $0.id == node.id }) ?? 0
-            let fraction = CGFloat(questionIndex + 1) / CGFloat(max(questionNodes.count + 1, 2))
+            let safeTopY = min(fromY, toY) + questionNodeHeight / 2 + 58
+            let safeBottomY = max(fromY, toY) - questionNodeHeight / 2 - 72
+            let blockHeight = CGFloat(max(questionNodes.count - 1, 0)) * activeQuestionRowSpacing
+            let proposedFirstY = (safeTopY + safeBottomY - blockHeight) / 2
+            let maxFirstY = max(safeTopY, safeBottomY - blockHeight)
+            let firstY = min(max(proposedFirstY, safeTopY), maxFirstY)
+            let y = firstY + CGFloat(questionIndex) * activeQuestionRowSpacing + yJitter
+
             return CGPoint(
                 x: centerX,
-                y: min(max(fromY - corridorHeight * fraction + yJitter, topPadding + 44), fromY - 116)
+                y: min(max(y, topPadding + questionNodeHeight / 2 + 24), fromY - questionNodeHeight / 2 - 74)
             )
         }
 
@@ -243,7 +291,7 @@ struct TreeLayoutEngine {
             : 0
         let sideDistance = min(
             sideBranchSpacing,
-            max(168, contentWidth / 2 - 146 - CGFloat(laneCount - 1) * sideCardColumnSpacing)
+            max(168, mainContentWidth / 2 - 146 - CGFloat(laneCount - 1) * sideCardColumnSpacing)
         )
         let xJitter = deterministicUnit(for: node.id + "-x") * 2
         let archivedOffset = node.isArchived ? CGFloat(28) : 0
@@ -255,13 +303,16 @@ struct TreeLayoutEngine {
         let halfWidth = estimatedHalfWidth(for: node)
 
         return CGPoint(
-            x: min(max(x, halfWidth + 28), contentWidth - halfWidth - 28),
+            x: min(max(x, halfWidth + 28), mainContentWidth - halfWidth - 28),
             y: min(max(y, topPadding + 62), fromY - 144)
         )
     }
 
     private func maxSideCardRows(in nodes: [TreeNode]) -> Int {
-        let sideNodes = sortedSideNodes(nodes).filter { $0.kind != .question || ($0.isArchived && $0.branchAnchorID == nil) }
+        let sideNodes = sortedSideNodes(nodes).filter {
+            !isArchivedStageTimelineNode($0) &&
+            ($0.kind != .question || ($0.isArchived && $0.branchAnchorID == nil))
+        }
         var left = 0
         var right = 0
 
@@ -274,6 +325,11 @@ struct TreeLayoutEngine {
         }
 
         return max(rowsNeeded(forSideCardCount: left), rowsNeeded(forSideCardCount: right))
+    }
+
+    private func maxArchivedTimelineRows(in nodes: [TreeNode]) -> Int {
+        let grouped = Dictionary(grouping: nodes.filter(isArchivedStageTimelineNode), by: { $0.branchAnchorID ?? "" })
+        return grouped.values.map(\.count).max() ?? 0
     }
 
     private func laneCount(forSideCardCount count: Int) -> Int {
@@ -290,6 +346,21 @@ struct TreeLayoutEngine {
         guard count > laneIndex else { return 0 }
         let lanes = laneCount(forSideCardCount: count)
         return Int(ceil(Double(count - laneIndex) / Double(lanes)))
+    }
+
+    private func usesSecondaryRightLane(nodesByStage: [Int: [TreeNode]]) -> Bool {
+        nodesByStage.values.contains { nodes in
+            let sideNodes = sortedSideNodes(nodes).filter {
+                !isArchivedStageTimelineNode($0) &&
+                ($0.kind != .question || ($0.isArchived && $0.branchAnchorID == nil))
+            }
+
+            let rightSideCount = sideNodes.enumerated().filter { offset, node in
+                preferredSide(for: node, ordinal: offset) > 0
+            }.count
+
+            return laneCount(forSideCardCount: rightSideCount) > 1
+        }
     }
 
     private func resolveCollisions(
@@ -350,6 +421,12 @@ struct TreeLayoutEngine {
 
     private func collisionSortKey(_ node: TreeNode) -> String {
         let stage = String(format: "%02d", node.stageOrder ?? 0)
+
+        if isArchivedStageTimelineNode(node) {
+            let time = String(format: "%.6f", node.timestamp?.timeIntervalSinceReferenceDate ?? 0)
+            return "\(stage)-1-timeline-\(node.branchAnchorID ?? "")-\(time)-\(node.id)"
+        }
+
         let branch = node.isActiveBranch ? "0" : "1"
         let kind = String(format: "%02d", kindRank(node.kind))
         let time = String(format: "%.6f", node.timestamp?.timeIntervalSinceReferenceDate ?? 0)
@@ -365,8 +442,12 @@ struct TreeLayoutEngine {
     ) -> [CGPoint] {
         let verticalStep = estimatedSize(for: node).height + collisionPadding
         let horizontalStep = estimatedSize(for: node).width + collisionPadding + 24
-        let yOffsets = alternatingOffsets(step: verticalStep, count: 7)
-        let xOffsets = horizontalOffsets(for: node, baseX: base.x, centerX: centerX, step: horizontalStep)
+        let yOffsets = isArchivedStageTimelineNode(node)
+            ? forwardOffsets(step: max(verticalStep, archivedTimelineRowSpacing), count: 9)
+            : alternatingOffsets(step: verticalStep, count: 7)
+        let xOffsets = isArchivedStageTimelineNode(node)
+            ? [CGFloat(0)]
+            : horizontalOffsets(for: node, baseX: base.x, centerX: centerX, step: horizontalStep)
         let halfWidth = estimatedHalfWidth(for: node)
 
         var candidates: [(point: CGPoint, score: CGFloat)] = []
@@ -401,6 +482,10 @@ struct TreeLayoutEngine {
             result.append(value)
         }
         return result
+    }
+
+    private func forwardOffsets(step: CGFloat, count: Int) -> [CGFloat] {
+        (0...count).map { CGFloat($0) * step }
     }
 
     private func horizontalOffsets(
@@ -480,41 +565,11 @@ struct TreeLayoutEngine {
     }
 
     private func estimatedHalfWidth(for node: TreeNode) -> CGFloat {
-        switch node.kind {
-        case .root:
-            return 95
-        case .stage:
-            return 107
-        case .branchStage:
-            return 107
-        case .question:
-            return 92
-        case .field:
-            return 87
-        case .process, .revision:
-            return 83
-        case .evidence:
-            return 89
-        }
+        TreeNodeMetrics.size(for: node.kind).width / 2
     }
 
     private func estimatedSize(for node: TreeNode) -> CGSize {
-        switch node.kind {
-        case .root:
-            return CGSize(width: 190, height: 78)
-        case .stage, .branchStage:
-            return CGSize(width: 214, height: 62)
-        case .question:
-            return CGSize(width: 184, height: 56)
-        case .field:
-            return CGSize(width: 174, height: 118)
-        case .process:
-            return CGSize(width: 166, height: 118)
-        case .evidence:
-            return CGSize(width: 178, height: 118)
-        case .revision:
-            return CGSize(width: 164, height: 118)
-        }
+        TreeNodeMetrics.size(for: node.kind)
     }
 
     /// Stable deterministic pseudo-random value in -1...1.
@@ -528,8 +583,32 @@ struct TreeLayoutEngine {
         return CGFloat(bucket) / 1000
     }
 
-    private func sideBranchCenterX(centerX: CGFloat, contentWidth: CGFloat) -> CGFloat {
-        let sideDistance = min(sideBranchSpacing + 220, max(240, contentWidth / 2 - 172))
-        return min(max(centerX + sideDistance, 156), contentWidth - 156)
+    private func archivedBranchX(
+        centerX: CGFloat,
+        contentWidth: CGFloat,
+        usesSecondaryRightLane: Bool
+    ) -> CGFloat {
+        let laneOffset = usesSecondaryRightLane ? sideCardColumnSpacing : 0
+        let preferredX = centerX + sideBranchSpacing + laneOffset + archivedBranchGapFromMain
+        let minimumX = centerX + sideBranchSpacing + archivedBranchGapFromMain
+        let maximumX = contentWidth - max(archivedTimelineHalfWidth, archivedBranchHalfWidth) - 28
+
+        return min(max(preferredX, minimumX), maximumX)
+    }
+
+    private func timelineColumnX(archivedBranchX: CGFloat, contentWidth: CGFloat) -> CGFloat {
+        min(
+            max(archivedBranchX, archivedTimelineHalfWidth + 28),
+            contentWidth - archivedTimelineHalfWidth - 28
+        )
+    }
+
+    private func isArchivedStageTimelineNode(_ node: TreeNode) -> Bool {
+        guard node.isArchived,
+              let anchorID = node.branchAnchorID,
+              anchorID.hasPrefix("branch-stage-") else {
+            return false
+        }
+        return node.kind != .branchStage && node.kind != .root && node.kind != .stage
     }
 }

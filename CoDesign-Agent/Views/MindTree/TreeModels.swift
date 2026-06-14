@@ -189,6 +189,81 @@ struct ThinkingTreeMomentProjector {
             .sorted { $0.timestamp < $1.timestamp }
     }
 
+    static func displayQuestionText(
+        for node: TreeNode,
+        in messages: [ChatMessage]
+    ) -> String {
+        reconstructedContent(
+            stored: node.content,
+            role: "assistant",
+            in: messages,
+            sentenceContainingStoredPrefix: false
+        )
+    }
+
+    static func displayAnswerText(
+        for answer: ThinkingMoment,
+        in messages: [ChatMessage]
+    ) -> String {
+        reconstructedContent(
+            stored: answer.content,
+            role: "user",
+            in: messages,
+            sentenceContainingStoredPrefix: false
+        )
+    }
+
+    private static func reconstructedContent(
+        stored: String,
+        role: String,
+        in messages: [ChatMessage],
+        sentenceContainingStoredPrefix: Bool
+    ) -> String {
+        let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasSuffix("...") else { return stored }
+
+        let prefix = String(trimmed.dropLast(3))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prefix.isEmpty else { return stored }
+
+        let candidates = messages
+            .filter { $0.role == role }
+            .sorted { $0.timestamp > $1.timestamp }
+
+        for message in candidates where message.content.contains(prefix) {
+            if sentenceContainingStoredPrefix,
+               let sentence = sentenceFragments(in: message.content).first(where: { $0.contains(prefix) }) {
+                return sentence
+            }
+            return message.content
+        }
+
+        return stored
+    }
+
+    private static func sentenceFragments(in text: String) -> [String] {
+        let terminators: Set<Character> = ["。", "！", "？", "!", "?", "\n"]
+        var fragments: [String] = []
+        var current = ""
+
+        for character in text {
+            current.append(character)
+            if terminators.contains(character) {
+                let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    fragments.append(trimmed)
+                }
+                current = ""
+            }
+        }
+
+        let tail = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !tail.isEmpty {
+            fragments.append(tail)
+        }
+        return fragments
+    }
+
     static func isStuckAnswer(_ content: String) -> Bool {
         if ClarificationMode.detect(from: content) == .stuckScaffold {
             return true
@@ -244,12 +319,18 @@ struct ThinkingTreeMomentProjector {
 struct TreeBuilder {
 
     func build(project: Project) -> TreeData {
-        build(project: project, expandedTransitionOrders: [], evidenceResourcesByStage: [:])
+        build(
+            project: project,
+            expandedTransitionOrders: [],
+            expandedArchivedStageOrders: [],
+            evidenceResourcesByStage: [:]
+        )
     }
 
     func build(
         project: Project,
         expandedTransitionOrders: Set<Int>,
+        expandedArchivedStageOrders: Set<Int> = [],
         evidenceResourcesByStage: [Int: [ResourceCard]] = [:],
         visibleStageLimit: Int = 9
     ) -> TreeData {
@@ -306,14 +387,21 @@ struct TreeBuilder {
 
         appendCollapsedArchivedBranches(
             project: project,
-            visibleLimit: visibleLimit,
-            expandedTransitionOrders: expandedTransitionOrders,
+            expandedArchivedStageOrders: expandedArchivedStageOrders,
+            nodes: &nodes,
+            edges: &edges
+        )
+
+        appendExpandedArchivedBranchContent(
+            project: project,
+            brief: brief,
+            expandedArchivedStageOrders: expandedArchivedStageOrders,
             nodes: &nodes,
             edges: &edges
         )
 
         let visibleMoments = project.thinkingMoments
-            .filter { expandedTransitionOrders.contains($0.stageOrder) && $0.stageOrder <= visibleLimit }
+            .filter { $0.isActiveBranch && expandedTransitionOrders.contains($0.stageOrder) && $0.stageOrder <= visibleLimit }
             .sorted { lhs, rhs in
                 if lhs.stageOrder == rhs.stageOrder {
                     return lhs.timestamp < rhs.timestamp
@@ -327,68 +415,12 @@ struct TreeBuilder {
             let projectedMoments = ThinkingTreeMomentProjector.visibleMoments(transitionMoments)
             let previousStageID = transitionStartNodeID(for: stageOrder)
             var latestQuestionID: String?
-            var archivedQuestionIDsByParent: [UUID: String] = [:]
 
             for moment in projectedMoments {
-                let archivedQuestionID: String?
-                if !moment.isActiveBranch,
-                   let question = visibleQuestionParent(
-                    for: moment,
-                    allMoments: transitionMoments,
-                    projectedMoments: projectedMoments
-                   ) {
-                    if let existingID = archivedQuestionIDsByParent[question.id] {
-                        archivedQuestionID = existingID
-                    } else {
-                        let archivedID = Self.archivedQuestionNodeID(question.id, branchVersion: moment.branchVersion)
-                        let questionNode = momentNode(question, brief: brief, project: project)
-                        nodes.append(
-                            TreeNode(
-                                id: archivedID,
-                                kind: .question,
-                                content: questionNode.content,
-                                subContent: "旧分支 v\(moment.branchVersion)",
-                                stageOrder: question.stageOrder,
-                                field: nil,
-                                momentID: question.id,
-                                position: .zero,
-                                nodeColor: archivedBranchColor,
-                                isActiveBranch: false,
-                                branchVersion: moment.branchVersion,
-                                richness: 0.36,
-                                isGhost: false,
-                                processLabel: "回溯问题",
-                                processIcon: "arrow.uturn.backward",
-                                statusText: "旧问题",
-                                resource: nil,
-                                timestamp: question.timestamp,
-                                branchAnchorID: "moment-\(question.id)"
-                            )
-                        )
-                        edges.append(
-                            TreeEdge(
-                                id: "moment-\(question.id)-\(archivedID)",
-                                fromID: "moment-\(question.id)",
-                                toID: archivedID,
-                                style: .archived
-                            )
-                        )
-                        archivedQuestionIDsByParent[question.id] = archivedID
-                        archivedQuestionID = archivedID
-                    }
-                } else {
-                    archivedQuestionID = nil
-                }
-
-                let node = momentNode(
-                    moment,
-                    brief: brief,
-                    project: project,
-                    branchAnchorID: archivedQuestionID
-                )
+                let node = momentNode(moment, brief: brief, project: project)
                 nodes.append(node)
 
-                var parentID = parentNodeID(
+                let parentID = parentNodeID(
                     for: moment,
                     node: node,
                     allMoments: transitionMoments,
@@ -397,16 +429,12 @@ struct TreeBuilder {
                     latestQuestionID: latestQuestionID
                 )
 
-                if let archivedQuestionID {
-                    parentID = archivedQuestionID
-                }
-
                 edges.append(
                     TreeEdge(
                         id: "\(parentID)-\(node.id)",
                         fromID: parentID,
                         toID: node.id,
-                        style: moment.isActiveBranch ? (node.kind == .evidence ? .evidence : .active) : .archived
+                        style: node.kind == .evidence ? .evidence : .active
                     )
                 )
 
@@ -420,6 +448,11 @@ struct TreeBuilder {
             .filter({ expandedTransitionOrders.contains($0.stageOrder) && $0.stageOrder <= visibleLimit })
             .sorted(by: { $0.timestamp < $1.timestamp }) {
             let nodeID = "trace-\(trace.id)"
+            let parentID = latestActiveQuestionNodeID(
+                stageOrder: trace.stageOrder,
+                before: trace.timestamp,
+                in: nodes
+            ) ?? transitionStartNodeID(for: trace.stageOrder)
             nodes.append(
                 TreeNode(
                     id: nodeID,
@@ -445,8 +478,8 @@ struct TreeBuilder {
             )
             edges.append(
                 TreeEdge(
-                    id: "\(transitionStartNodeID(for: trace.stageOrder))-\(nodeID)",
-                    fromID: transitionStartNodeID(for: trace.stageOrder),
+                    id: "\(parentID)-\(nodeID)",
+                    fromID: parentID,
                     toID: nodeID,
                     style: .transition
                 )
@@ -462,6 +495,11 @@ struct TreeBuilder {
 
             for resource in resources where !adoptedTitles.contains(resource.title) {
                 let nodeID = "evidence-\(stageOrder)-\(resource.id)"
+                let parentID = latestActiveQuestionNodeID(
+                    stageOrder: stageOrder,
+                    before: nil,
+                    in: nodes
+                ) ?? transitionStartNodeID(for: stageOrder)
                 nodes.append(
                     TreeNode(
                         id: nodeID,
@@ -487,8 +525,8 @@ struct TreeBuilder {
                 )
                 edges.append(
                     TreeEdge(
-                        id: "\(transitionStartNodeID(for: stageOrder))-\(nodeID)",
-                        fromID: transitionStartNodeID(for: stageOrder),
+                        id: "\(parentID)-\(nodeID)",
+                        fromID: parentID,
                         toID: nodeID,
                         style: .evidence
                     )
@@ -521,25 +559,17 @@ struct TreeBuilder {
 
     private func appendCollapsedArchivedBranches(
         project: Project,
-        visibleLimit: Int,
-        expandedTransitionOrders: Set<Int>,
+        expandedArchivedStageOrders: Set<Int>,
         nodes: inout [TreeNode],
         edges: inout [TreeEdge]
     ) {
-        let archivedStageOrders = Set(
-            project.thinkingMoments
-                .filter { !$0.isActiveBranch && $0.stageOrder <= visibleLimit }
-                .map(\.stageOrder)
-        )
-        guard let sourceOrder = archivedStageOrders.min(),
-              !expandedTransitionOrders.contains(sourceOrder)
-        else {
+        let archivedStageOrders = archivedAnsweredStageOrders(in: project)
+        guard let sourceOrder = archivedStageOrders.min() else {
             return
         }
 
-        let maxArchivedOrder = visibleLimit
-        guard sourceOrder < maxArchivedOrder else { return }
-        let branchOrders = Array((sourceOrder + 1)...maxArchivedOrder)
+        let maxArchivedOrder = archivedStageOrders.max() ?? sourceOrder
+        let branchOrders = Array(sourceOrder...maxArchivedOrder)
         guard !branchOrders.isEmpty else { return }
 
         let branchSourceID = Self.stageNodeID(sourceOrder)
@@ -581,6 +611,147 @@ struct TreeBuilder {
             )
             previousID = id
         }
+    }
+
+    private func appendExpandedArchivedBranchContent(
+        project: Project,
+        brief: DesignBriefSnapshot,
+        expandedArchivedStageOrders: Set<Int>,
+        nodes: inout [TreeNode],
+        edges: inout [TreeEdge]
+    ) {
+        let archivedStageOrders = archivedAnsweredStageOrders(in: project)
+        guard let sourceOrder = archivedStageOrders.min() else { return }
+
+        let shouldExpandWholeBranch = !expandedArchivedStageOrders.isEmpty
+        guard shouldExpandWholeBranch else { return }
+
+        for stageOrder in Array(sourceOrder...(archivedStageOrders.max() ?? sourceOrder))
+        where archivedStageOrders.contains(stageOrder) {
+            let branchStageID = Self.branchStageNodeID(sourceOrder: sourceOrder, order: stageOrder)
+            guard nodes.contains(where: { $0.id == branchStageID }) else { continue }
+
+            let allStageMoments = project.thinkingMoments
+                .filter { $0.stageOrder == stageOrder }
+                .sorted { $0.timestamp < $1.timestamp }
+            let archivedStageMoments = allStageMoments.filter { !$0.isActiveBranch }
+            let projectedMoments = ThinkingTreeMomentProjector.visibleMoments(archivedStageMoments)
+            let timelineNodes = archivedTimelineNodes(
+                stageOrder: stageOrder,
+                branchStageID: branchStageID,
+                allStageMoments: allStageMoments,
+                projectedMoments: projectedMoments,
+                brief: brief,
+                project: project
+            )
+            var previousID = branchStageID
+
+            for node in timelineNodes {
+                nodes.append(node)
+                edges.append(
+                    TreeEdge(
+                        id: "\(previousID)-\(node.id)",
+                        fromID: previousID,
+                        toID: node.id,
+                        style: .archived
+                    )
+                )
+                previousID = node.id
+            }
+        }
+    }
+
+    private func archivedTimelineNodes(
+        stageOrder: Int,
+        branchStageID: String,
+        allStageMoments: [ThinkingMoment],
+        projectedMoments: [ThinkingMoment],
+        brief: DesignBriefSnapshot,
+        project: Project
+    ) -> [TreeNode] {
+        var nodesByID: [String: TreeNode] = [:]
+
+        for answer in allStageMoments where answer.momType == "answer" && !answer.isActiveBranch {
+            guard let question = questionAncestor(for: answer, in: allStageMoments) else { continue }
+            if !projectedMoments.contains(where: { $0.id == question.id }) {
+                let questionNode = momentNode(question, brief: brief, project: project)
+                let archivedID = Self.archivedQuestionNodeID(question.id, branchVersion: answer.branchVersion)
+                nodesByID[archivedID] = TreeNode(
+                    id: archivedID,
+                    kind: .question,
+                    content: questionNode.content,
+                    subContent: "旧分支 v\(answer.branchVersion)",
+                    stageOrder: stageOrder,
+                    field: nil,
+                    momentID: question.id,
+                    position: .zero,
+                    nodeColor: archivedBranchColor,
+                    isActiveBranch: false,
+                    branchVersion: answer.branchVersion,
+                    richness: 0.36,
+                    isGhost: false,
+                    processLabel: "回溯问题",
+                    processIcon: "arrow.uturn.backward",
+                    statusText: "旧问题",
+                    resource: nil,
+                    timestamp: min(question.timestamp, answer.timestamp),
+                    branchAnchorID: branchStageID
+                )
+            }
+        }
+
+        for moment in projectedMoments {
+            let node = momentNode(
+                moment,
+                brief: brief,
+                project: project,
+                branchAnchorID: branchStageID
+            )
+            nodesByID[node.id] = node
+        }
+
+        return nodesByID.values.sorted { lhs, rhs in
+            if let lhsDate = lhs.timestamp, let rhsDate = rhs.timestamp, lhsDate != rhsDate {
+                return lhsDate < rhsDate
+            }
+            if kindRankForTimeline(lhs.kind) != kindRankForTimeline(rhs.kind) {
+                return kindRankForTimeline(lhs.kind) < kindRankForTimeline(rhs.kind)
+            }
+            return lhs.id < rhs.id
+        }
+    }
+
+    private func questionAncestor(for moment: ThinkingMoment, in moments: [ThinkingMoment]) -> ThinkingMoment? {
+        guard let parentID = moment.parentMomentID,
+              let parent = moments.first(where: { $0.id == parentID }) else {
+            return nil
+        }
+
+        if parent.momType == "question" {
+            return parent
+        }
+
+        return questionAncestor(for: parent, in: moments)
+    }
+
+    private func kindRankForTimeline(_ kind: TreeNodeKind) -> Int {
+        switch kind {
+        case .question: return 0
+        case .revision: return 1
+        case .field: return 2
+        case .process: return 3
+        case .evidence: return 4
+        case .branchStage: return 5
+        case .root, .stage: return 6
+        }
+    }
+
+    private func archivedAnsweredStageOrders(in project: Project) -> Set<Int> {
+        Set(
+            project.thinkingMoments
+                .filter { !$0.isActiveBranch && $0.momType == "answer" }
+                .map(\.stageOrder)
+        )
     }
 
     private func rootNode(project: Project) -> TreeNode {
@@ -747,6 +918,30 @@ struct TreeBuilder {
         return latestQuestionID ?? previousStageID
     }
 
+    private func latestActiveQuestionNodeID(
+        stageOrder: Int,
+        before timestamp: Date?,
+        in nodes: [TreeNode]
+    ) -> String? {
+        nodes
+            .filter { node in
+                guard node.stageOrder == stageOrder,
+                      node.kind == .question,
+                      node.isActiveBranch else {
+                    return false
+                }
+                guard let timestamp, let nodeTimestamp = node.timestamp else {
+                    return true
+                }
+                return nodeTimestamp <= timestamp
+            }
+            .sorted {
+                ($0.timestamp ?? .distantPast) < ($1.timestamp ?? .distantPast)
+            }
+            .last?
+            .id
+    }
+
     private func visibleParentID(
         for moment: ThinkingMoment,
         allMoments: [ThinkingMoment],
@@ -762,28 +957,6 @@ struct TreeBuilder {
         }
 
         return visibleParentID(
-            for: parent,
-            allMoments: allMoments,
-            projectedMoments: projectedMoments
-        )
-    }
-
-    private func visibleQuestionParent(
-        for moment: ThinkingMoment,
-        allMoments: [ThinkingMoment],
-        projectedMoments: [ThinkingMoment]
-    ) -> ThinkingMoment? {
-        guard let parentID = moment.parentMomentID,
-              let parent = allMoments.first(where: { $0.id == parentID }) else {
-            return nil
-        }
-
-        if parent.momType == "question",
-           projectedMoments.contains(where: { $0.id == parent.id }) {
-            return parent
-        }
-
-        return visibleQuestionParent(
             for: parent,
             allMoments: allMoments,
             projectedMoments: projectedMoments

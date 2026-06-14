@@ -55,8 +55,8 @@ struct ChatPanel: View {
                     // Typing indicator
                     if chatViewModel.isStreaming && chatViewModel.currentStreamingText.isEmpty {
                         HStack {
-                            TypingIndicatorView()
-                                .frame(maxWidth: 200)
+                            TypingIndicatorView(message: activityMessage)
+                                .frame(maxWidth: 260)
                             Spacer()
                         }
                         .id("typing")
@@ -78,8 +78,24 @@ struct ChatPanel: View {
                     }
                 }
             }
+            .onChange(of: chatViewModel.isStreaming) { _, streaming in
+                if streaming {
+                    withAnimation {
+                        proxy.scrollTo(
+                            chatViewModel.currentStreamingText.isEmpty ? "typing" : "streaming",
+                            anchor: .bottom
+                        )
+                    }
+                }
+            }
             .coDesignHideScrollIndicators()
         }
+    }
+
+    private var activityMessage: String {
+        chatViewModel.assistantActivityText.isEmpty
+            ? "正在分析回答……"
+            : chatViewModel.assistantActivityText
     }
 
     private var streamingBubble: some View {

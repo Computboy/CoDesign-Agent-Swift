@@ -57,7 +57,7 @@ struct CoDesignButton: View {
                         .controlSize(.small)
                 } else if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 15, weight: .medium))
                 }
 
                 Text(title)
@@ -151,7 +151,7 @@ struct CoDesignSmallButton: View {
             HStack(spacing: AppTheme.spacingXS) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                 }
                 Text(title)
                     .font(AppTheme.Typography.caption.weight(.medium))

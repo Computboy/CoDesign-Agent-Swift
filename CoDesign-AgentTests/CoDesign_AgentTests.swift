@@ -95,8 +95,55 @@ struct CoDesign_AgentTests {
         #expect(llm.capturedBrief?.targetUser == "外地大一新生")
         #expect(llm.capturedBrief?.painPoint == "开学第一周经常找不到教学楼")
         #expect(llm.capturedStage?.order == 1)
-        #expect(messages.last?.content.contains("这个问题会决定") == true)
-        #expect(messages.last?.content.contains("所以这轮只问一个问题") == true)
+        #expect(messages.last?.content.contains("这个判断会影响") == true)
+        #expect(messages.last?.content.contains("所以这轮我只想先确认") == true)
+    }
+
+    @Test @MainActor func questionRevisionGeneratesNewQuestionFromActiveBranchContext() async throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let project = Project(name: "回溯项目", briefDescription: "测试回溯续问")
+        let brief = DesignBrief()
+        let stage = ProgressStage(order: 1, name: "痛点与场景锚定", status: "needsReview", completionRatio: 0.3)
+        let oldAssistant = ChatMessage(role: "assistant", content: "旧分支里已经生成的 Stage 3 问题")
+        context.insert(project)
+        context.insert(brief)
+        context.insert(stage)
+        context.insert(oldAssistant)
+        project.brief = brief
+        project.stages = [stage]
+        project.messages = [oldAssistant]
+
+        let question = ThinkingMoment(momType: "question", content: "原问题是什么？", stageOrder: 1)
+        let answer = ThinkingMoment(
+            momType: "answer",
+            content: "新答案",
+            stageOrder: 1,
+            parentMomentID: question.id,
+            isActiveBranch: true
+        )
+        context.insert(question)
+        context.insert(answer)
+        project.thinkingMoments = [question, answer]
+
+        let llm = CapturingPlannerLLMService()
+        let viewModel = ChatViewModel(
+            project: project,
+            llmService: llm,
+            extractor: RecordingExtractor()
+        )
+
+        await viewModel.continueAfterQuestionRevision(
+            question: "原问题是什么？",
+            revisedAnswer: "新答案",
+            stageOrder: 1
+        )
+
+        let messages = project.messages.sorted { $0.timestamp < $1.timestamp }
+        #expect(messages.last?.role == "assistant")
+        #expect(messages.contains { $0.role == "user" && $0.content.contains("【回溯修改】") })
+        #expect(llm.capturedMessages.contains { $0.content.contains("新答案") })
+        #expect(!llm.capturedMessages.contains { $0.content.contains("旧分支里已经生成的 Stage 3 问题") })
     }
 
     @MainActor
@@ -138,6 +185,7 @@ private struct ImmediateLLMService: LLMServiceProtocol {
 private final class CapturingPlannerLLMService: LLMServiceProtocol {
     var capturedBrief: DesignBriefSnapshot?
     var capturedStage: ProgressStageSnapshot?
+    var capturedMessages: [ChatPayloadMessage] = []
 
     func streamChat(
         messages: [ChatPayloadMessage],
@@ -146,6 +194,7 @@ private final class CapturingPlannerLLMService: LLMServiceProtocol {
         mode: ClarificationMode,
         resourceCards: [ResourceCard]
     ) -> AsyncThrowingStream<String, Error> {
+        capturedMessages = messages
         capturedBrief = briefSnapshot
         capturedStage = currentStage
 

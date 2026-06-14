@@ -1,11 +1,19 @@
 import SwiftUI
 import SwiftData
 
+struct QuestionRevisionContext {
+    let question: String
+    let revisedAnswer: String
+    let stageOrder: Int
+}
+
 /// Sheet for editing a thinking tree node.
 /// Question nodes edit the user's answer, not the AI question.
 struct NodeEditSheet: View {
     let node: TreeNode
     let project: Project
+    var onQuestionRevisionSaved: (QuestionRevisionContext) -> Void = { _ in }
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -57,7 +65,14 @@ struct NodeEditSheet: View {
             .onAppear {
                 editLabel = node.content
                 if isQuestionNode {
-                    editDetail = pairedAnswerForQuestion()?.content ?? ""
+                    if let answer = pairedAnswerForQuestion() {
+                        editDetail = ThinkingTreeMomentProjector.displayAnswerText(
+                            for: answer,
+                            in: project.messages
+                        )
+                    } else {
+                        editDetail = ""
+                    }
                 } else if isFieldNode {
                     editDetail = node.subContent ?? ""
                 }
@@ -122,7 +137,7 @@ struct NodeEditSheet: View {
                         .font(AppTheme.Typography.caption.weight(.semibold))
                         .foregroundStyle(Color.textTertiary)
 
-                    Text(node.content)
+                    Text(originalQuestionText)
                         .font(AppTheme.Typography.body.weight(.semibold))
                         .foregroundStyle(Color.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -291,8 +306,16 @@ struct NodeEditSheet: View {
         project.thinkingMoments.append(newAnswer)
 
         markStagesForReview(from: questionMoment.stageOrder)
+        clearBriefFieldsAfter(stageOrder: questionMoment.stageOrder, context: context)
         project.updatedAt = Date()
         try? context.save()
+        onQuestionRevisionSaved(
+            QuestionRevisionContext(
+                question: originalQuestionText,
+                revisedAnswer: trimmedAnswer,
+                stageOrder: questionMoment.stageOrder
+            )
+        )
         dismiss()
     }
 
@@ -370,6 +393,18 @@ struct NodeEditSheet: View {
         }
     }
 
+    private func clearBriefFieldsAfter(stageOrder: Int, context: ModelContext) {
+        guard let brief = project.brief else { return }
+        let fieldsToClear = StageDefinition.all
+            .filter { $0.order > stageOrder }
+            .flatMap(\.briefFields)
+
+        for field in fieldsToClear {
+            clearBriefField(field, brief: brief, context: context)
+        }
+        brief.lastExtractedAt = Date()
+    }
+
     private func markStagesForReview(from stageOrder: Int) {
         for stage in project.stages {
             if stage.order == stageOrder {
@@ -395,6 +430,10 @@ struct NodeEditSheet: View {
 
     private func pairedAnswerForQuestion(_ question: ThinkingMoment) -> ThinkingMoment? {
         ThinkingTreeMomentProjector.pairedAnswer(for: question, in: project.thinkingMoments)
+    }
+
+    private var originalQuestionText: String {
+        ThinkingTreeMomentProjector.displayQuestionText(for: node, in: project.messages)
     }
 
     private func collectDescendants(of parentID: UUID, in moments: [ThinkingMoment]) -> [ThinkingMoment] {
@@ -460,6 +499,31 @@ struct NodeEditSheet: View {
                 }
         }
         brief.lastExtractedAt = Date()
+    }
+
+    private func clearBriefField(_ field: BriefField, brief: DesignBrief, context: ModelContext) {
+        switch field {
+        case .targetUser:       brief.targetUser = nil
+        case .painPoint:        brief.painPoint = nil
+        case .useScenario:      brief.useScenario = nil
+        case .coreValue:        brief.coreValue = nil
+        case .differentiation:  brief.differentiation = nil
+        case .mvpFeatures:      brief.mvpFeatures = nil
+        case .technicalModules: brief.technicalModules = nil
+        case .interactionFlow:  brief.interactionFlow = nil
+        case .operationLogic:   brief.operationLogic = nil
+        case .hardConstraints:  brief.hardConstraints = nil
+        case .milestones:       brief.milestones = nil
+        case .boundaryItems:
+            brief.boundaryItems.forEach { context.delete($0) }
+            brief.boundaryItems = []
+        case .successMetrics:
+            brief.successMetrics.forEach { context.delete($0) }
+            brief.successMetrics = []
+        case .risks:
+            brief.risks.forEach { context.delete($0) }
+            brief.risks = []
+        }
     }
 
     private var nodeTypeName: String {

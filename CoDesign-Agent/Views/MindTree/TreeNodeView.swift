@@ -25,13 +25,13 @@ struct TreeNodeView: View {
         case .question:
             questionContent
         case .field:
-            processContent(width: 174)
+            processContent(width: TreeNodeMetrics.fieldSize.width)
         case .process:
-            processContent(width: 166)
+            processContent(width: TreeNodeMetrics.processSize.width)
         case .evidence:
             evidenceContent
         case .revision:
-            processContent(width: 164)
+            processContent(width: TreeNodeMetrics.revisionSize.width)
         }
     }
 
@@ -40,18 +40,18 @@ struct TreeNodeView: View {
     private var rootContent: some View {
         VStack(spacing: 6) {
             Image(systemName: "lightbulb.fill")
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 18, weight: .bold))
 
             Text(node.content)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .font(.system(size: 15.5, weight: .bold, design: .rounded))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .frame(width: 190)
-        .frame(minHeight: 78)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 13)
+        .frame(width: TreeNodeMetrics.rootSize.width)
+        .frame(minHeight: TreeNodeMetrics.rootSize.height)
         .background {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(
@@ -82,31 +82,31 @@ struct TreeNodeView: View {
     // MARK: - Stage Node
 
     private var stageContent: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: 11) {
             ZStack {
                 Circle()
                     .fill(node.nodeColor.opacity(node.isGhost ? 0.12 : 0.18))
-                    .frame(width: 34, height: 34)
+                    .frame(width: 40, height: 40)
 
                 Image(systemName: node.iconSystemName ?? "circle.grid.3x3")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(node.isGhost ? Color.textTertiary : node.nodeColor)
             }
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(node.content)
-                        .font(AppTheme.Typography.captionMono)
+                        .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
                         .foregroundStyle(node.isGhost ? Color.textTertiary : node.nodeColor)
                     if let statusText = node.statusText {
                         Text(statusText)
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(node.isGhost ? Color.textTertiary : node.nodeColor)
                     }
                 }
 
                 Text(node.subContent ?? "")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(node.isGhost ? Color.textSecondary : Color.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
@@ -114,9 +114,10 @@ struct TreeNodeView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, AppTheme.spacingMedium)
-        .padding(.vertical, AppTheme.Layout.compactPadding)
-        .frame(width: 214, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(width: TreeNodeMetrics.stageSize.width, alignment: .leading)
+        .frame(minHeight: TreeNodeMetrics.stageSize.height)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
                 .fill(stageBackground)
@@ -149,26 +150,26 @@ struct TreeNodeView: View {
     // MARK: - Process Nodes
 
     private var questionContent: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 10) {
             Image(systemName: node.isArchived ? "arrow.uturn.backward" : "questionmark")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(questionForeground)
-                .frame(width: 20, height: 20)
+                .frame(width: 24, height: 24)
                 .background(Circle().fill(questionForeground.opacity(0.12)))
 
             Text(questionSummary)
-                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 13.8, weight: .semibold, design: .rounded))
                 .foregroundStyle(questionTextColor)
-                .lineLimit(2)
-                .minimumScaleFactor(0.78)
+                .lineLimit(3)
+                .minimumScaleFactor(0.84)
                 .multilineTextAlignment(.leading)
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(width: 184, alignment: .leading)
-        .frame(minHeight: 48)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(width: TreeNodeMetrics.questionSize.width, alignment: .leading)
+        .frame(minHeight: TreeNodeMetrics.questionSize.height)
         .background(
             Capsule(style: .continuous)
                 .fill(questionBackground)
@@ -198,8 +199,7 @@ struct TreeNodeView: View {
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "  ", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard flattened.count > 28 else { return flattened }
-        return String(flattened.prefix(28)) + "..."
+        return flattened
     }
 
     private var questionForeground: Color {
@@ -221,34 +221,34 @@ struct TreeNodeView: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 6) {
                 Image(systemName: node.iconSystemName ?? "sparkles")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(node.nodeColor)
-                    .frame(width: 18, height: 18)
+                    .frame(width: 20, height: 20)
                     .background(Circle().fill(node.nodeColor.opacity(0.12)))
 
                 Text(node.processLabel ?? "Process")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(node.nodeColor)
 
                 Spacer(minLength: 0)
             }
 
             Text(node.content)
-                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 12.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(Color.textPrimary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let subContent = node.subContent {
                 Text(subContent)
-                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
                     .foregroundStyle(Color.textTertiary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, 11)
-        .padding(.vertical, 9)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .frame(width: width, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
@@ -270,41 +270,41 @@ struct TreeNodeView: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 6) {
                 Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.secondaryAccent)
-                    .frame(width: 18, height: 18)
+                    .frame(width: 20, height: 20)
                     .background(Circle().fill(Color.secondaryAccent.opacity(0.12)))
 
                 Text("RAG")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.secondaryAccent)
 
                 Spacer(minLength: 0)
 
                 if node.isGhost {
                     Text("推荐")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(Color.textTertiary)
                 }
             }
 
             Text(node.content)
-                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 12.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(Color.textPrimary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let subContent = node.subContent {
                 Text(subContent)
-                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
                     .foregroundStyle(Color.textTertiary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, 11)
-        .padding(.vertical, 9)
-        .frame(width: 178, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(width: TreeNodeMetrics.evidenceSize.width, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
                 .fill(Color.secondaryAccent.opacity(node.isGhost ? 0.055 : AppTheme.Opacity.light))

@@ -57,7 +57,7 @@ final class NewProjectViewModel {
 
         let openingMoment = ThinkingMoment(
             momType: "question",
-            content: Self.truncatedMomentText(openingQuestion),
+            content: Self.storedMomentText(openingQuestion),
             stageOrder: 1,
             relatedField: nil
         )
@@ -90,7 +90,7 @@ final class NewProjectViewModel {
         """
     }
 
-    private static func truncatedMomentText(_ text: String, limit: Int = 60) -> String {
+    private static func storedMomentText(_ text: String, limit: Int = 1_200) -> String {
         let flattened = text
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "\n", with: " ")
