@@ -10,7 +10,6 @@ import SwiftUI
 struct ClarificationWorkspaceView: View {
     let project: Project
     let chatViewModel: ChatViewModel
-    var resourcePanelStartsExpanded: Bool = false
     var onReviewBrief: () -> Void = {}
     var onRevisitPreviousStage: () -> Void = {}
     var onExportBrief: () -> Void = {}
@@ -85,7 +84,6 @@ struct ClarificationWorkspaceView: View {
                     CurrentWorkspaceColumn(
                         project: project,
                         chatViewModel: chatViewModel,
-                        resourcePanelStartsExpanded: resourcePanelStartsExpanded,
                         onReviewBrief: onReviewBrief,
                         onRevisitPreviousStage: onRevisitPreviousStage,
                         onExportBrief: onExportBrief
@@ -120,7 +118,6 @@ struct ClarificationWorkspaceView: View {
                     CurrentWorkspaceColumn(
                         project: project,
                         chatViewModel: chatViewModel,
-                        resourcePanelStartsExpanded: resourcePanelStartsExpanded,
                         onReviewBrief: onReviewBrief,
                         onRevisitPreviousStage: onRevisitPreviousStage,
                         onExportBrief: onExportBrief
@@ -161,7 +158,6 @@ struct ClarificationWorkspaceView: View {
                     CurrentWorkspaceColumn(
                         project: project,
                         chatViewModel: chatViewModel,
-                        resourcePanelStartsExpanded: resourcePanelStartsExpanded,
                         onReviewBrief: onReviewBrief,
                         onRevisitPreviousStage: onRevisitPreviousStage,
                         onExportBrief: onExportBrief
@@ -190,7 +186,6 @@ struct ClarificationWorkspaceView: View {
                     project: project,
                     chatViewModel: chatViewModel,
                     includesHeader: true,
-                    resourcePanelStartsExpanded: resourcePanelStartsExpanded,
                     onReviewBrief: onReviewBrief,
                     onRevisitPreviousStage: onRevisitPreviousStage,
                     onExportBrief: onExportBrief
@@ -376,7 +371,6 @@ private struct CurrentWorkspaceColumn: View {
     let chatViewModel: ChatViewModel
     var includesHeader: Bool = true
     var showsResourcePanel: Bool = true
-    var resourcePanelStartsExpanded: Bool = false
     var onReviewBrief: () -> Void = {}
     var onRevisitPreviousStage: () -> Void = {}
     var onExportBrief: () -> Void = {}
@@ -439,7 +433,6 @@ private struct CurrentWorkspaceColumn: View {
                     streamingText: chatViewModel.currentStreamingText,
                     activityText: chatViewModel.assistantActivityText,
                     showsResourcePanel: showsResourcePanel,
-                    resourcePanelStartsExpanded: resourcePanelStartsExpanded,
                     onQuickAction: send,
                     onSend: send
                 )

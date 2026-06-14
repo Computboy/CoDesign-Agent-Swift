@@ -11,12 +11,6 @@ import SwiftData
 import UIKit
 #endif
 
-#if DEBUG
-private let isPresentationMode = ProcessInfo.processInfo.arguments.contains(PresentationMode.launchArgument)
-#else
-private let isPresentationMode = false
-#endif
-
 // MARK: - ServiceMode
 
 enum ServiceMode: String {
@@ -83,8 +77,10 @@ struct CoDesign_AgentApp: App {
 
     var body: some Scene {
         WindowGroup {
-            rootView
+            ProjectListView()
                 .coDesignHideScrollIndicators()
+                .environment(\.llmService, ModeSwitchingLLMService())
+                .environment(\.structuredExtractor, ModeSwitchingStructuredExtractor())
                 .onOpenURL { url in
                     openCodesignPackage(at: url)
                 }
@@ -108,34 +104,13 @@ struct CoDesign_AgentApp: App {
                 } message: {
                     Text(packageOpenError ?? "")
                 }
+                .task {
+                    SeedDataFactory.seedIfNeeded(
+                        context: sharedModelContainer.mainContext
+                    )
+                }
         }
         .modelContainer(sharedModelContainer)
-    }
-
-    @ViewBuilder
-    private var rootView: some View {
-        #if DEBUG
-        if isPresentationMode {
-            PresentationHostView()
-                .environment(\.llmService, PresentationLLMService())
-                .environment(\.structuredExtractor, PresentationStructuredExtractor())
-        } else {
-            standardRootView
-        }
-        #else
-        standardRootView
-        #endif
-    }
-
-    private var standardRootView: some View {
-        ProjectListView()
-            .environment(\.llmService, ModeSwitchingLLMService())
-            .environment(\.structuredExtractor, ModeSwitchingStructuredExtractor())
-            .task {
-                SeedDataFactory.seedIfNeeded(
-                    context: sharedModelContainer.mainContext
-                )
-            }
     }
 
     private func configureScrollIndicators() {

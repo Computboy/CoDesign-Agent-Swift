@@ -4,7 +4,6 @@ import UniformTypeIdentifiers
 
 struct ProjectDetailView: View {
     let project: Project
-    var isPresentationMode: Bool = false
 
     @State private var viewModel = ProjectDetailViewModel()
     @State private var chatViewModel: ChatViewModel?
@@ -14,12 +13,7 @@ struct ProjectDetailView: View {
     @State private var exportContentType: UTType = .markdownReport
     @State private var exportDefaultFilename = "CoDesign报告.md"
     @State private var exportStatusMessage: ProjectExportStatusMessage?
-    #if DEBUG
-    @State private var didRunPresentationScript = false
-    @State private var presentationScriptTask: Task<Void, Never>?
-    #endif
     @AppStorage("serviceMode") private var serviceModeRaw: String = "mock"
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.llmService) private var llmService
     @Environment(\.structuredExtractor) private var structuredExtractor
 
@@ -63,7 +57,6 @@ struct ProjectDetailView: View {
                         ClarificationWorkspaceView(
                             project: project,
                             chatViewModel: chatVM,
-                            resourcePanelStartsExpanded: isPresentationMode,
                             onReviewBrief: {
                                 withAnimation(AppTheme.Animation.standard) {
                                     viewModel.selectedTab = .insights
@@ -138,11 +131,6 @@ struct ProjectDetailView: View {
             }
             chatViewModel?.refreshStageProgress()
         }
-        #if DEBUG
-        .task(id: presentationTaskID) {
-            startPresentationScriptIfNeeded()
-        }
-        #endif
         .onChange(of: serviceModeRaw) { _, _ in
             chatViewModel?.updateServices(
                 llmService: llmService,
@@ -208,89 +196,6 @@ struct ProjectDetailView: View {
             exportStatusMessage = ProjectExportStatusMessage(text: error.localizedDescription, isError: true)
         }
     }
-
-    #if DEBUG
-    private var presentationTaskID: String {
-        "\(isPresentationMode)-\(chatViewModel == nil ? "pending" : "ready")"
-    }
-
-    @MainActor
-    private func startPresentationScriptIfNeeded() {
-        guard isPresentationMode, !didRunPresentationScript, let chatViewModel else { return }
-        didRunPresentationScript = true
-        presentationScriptTask = Task {
-            await runPresentationScript(chatViewModel: chatViewModel)
-        }
-    }
-
-    @MainActor
-    private func runPresentationScript(chatViewModel: ChatViewModel) async {
-        await presentationPause(1.2)
-        await setPresentationTab(.workspace)
-
-        await presentationPause(1.0)
-        await chatViewModel.sendMessage(PresentationScript.firstAnswer)
-
-        await presentationPause(1.4)
-        await setPresentationTab(.insights)
-
-        await presentationPause(3.2)
-        acceptFirstPresentationCandidate()
-
-        await presentationPause(1.8)
-        await setPresentationTab(.workspace)
-
-        await presentationPause(0.8)
-        await chatViewModel.sendMessage(PresentationScript.boundaryAnswer)
-
-        await presentationPause(1.6)
-        await setPresentationTab(.mindTree)
-
-        await presentationPause(5.2)
-        await setPresentationTab(.progress)
-
-        await presentationPause(4.0)
-        await setPresentationTab(.workspace)
-
-        await presentationPause(0.8)
-        await chatViewModel.sendMessage(PresentationScript.finalAnswer)
-
-        await presentationPause(1.6)
-        await setPresentationTab(.visualBoard)
-
-        await presentationPause(5.0)
-        await setPresentationTab(.portfolio)
-
-        await presentationPause(5.0)
-        await setPresentationTab(.insights)
-    }
-
-    @MainActor
-    private func setPresentationTab(_ tab: ProjectDetailTab) async {
-        withAnimation(.spring(response: 0.72, dampingFraction: 0.86, blendDuration: 0.12)) {
-            viewModel.selectedTab = tab
-        }
-    }
-
-    @MainActor
-    private func acceptFirstPresentationCandidate() {
-        guard let brief = project.brief,
-              let pendingLog = brief.pendingExtractionReviewLogs().first
-        else {
-            return
-        }
-
-        withAnimation(AppTheme.Animation.spring) {
-            brief.acceptPendingExtraction(pendingLog, context: modelContext)
-            chatViewModel?.refreshStageProgress()
-            try? modelContext.save()
-        }
-    }
-
-    private func presentationPause(_ seconds: Double) async {
-        try? await Task.sleep(for: .seconds(seconds))
-    }
-    #endif
 }
 
 private struct ProjectExportStatusMessage: Identifiable {
@@ -298,22 +203,6 @@ private struct ProjectExportStatusMessage: Identifiable {
     let text: String
     let isError: Bool
 }
-
-#if DEBUG
-private enum PresentationScript {
-    static let firstAnswer = """
-    目标用户是 18 到 24 岁大学生。他们平时刷短视频，但传统文化内容经常像课堂讲稿，太说教、离生活远，看完也记不住。真实场景是课程展示或校园文化活动前，学生需要快速把一个文化主题做成能打动同学的短视频创意。
-    """
-
-    static let boundaryAnswer = """
-    第一版必须保留主题输入、受众画像、情绪目标、脚本生成、分镜草稿和文化依据卡片。暂时不做真实视频渲染、复杂剪辑，也不做社交平台自动发布。AI 只生成草稿，关键解释和最终采用都要由用户确认。
-    """
-
-    static let finalAnswer = """
-    我们用三周完成课堂可演示原型。成功指标是脚本可用率达到 80%，文化事实错误率不超过 5%，从输入主题到导出简报不超过 10 分钟。最大风险是 AI 事实不准和内容仍然太像讲稿，所以需要依据卡片、人工确认和不自动发布的预案。
-    """
-}
-#endif
 
 // MARK: - Header
 

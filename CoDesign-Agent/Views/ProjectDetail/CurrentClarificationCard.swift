@@ -10,7 +10,6 @@ struct CurrentClarificationCard: View {
     let streamingText: String
     var activityText: String = "正在分析回答……"
     var showsResourcePanel: Bool = true
-    var resourcePanelStartsExpanded: Bool = false
     let onQuickAction: (String) -> Void
     let onSend: (String) -> Void
     private let contextPanelMinHeight: CGFloat = 76
@@ -155,8 +154,7 @@ struct CurrentClarificationCard: View {
                     ResourceCardPanel(
                         project: project,
                         title: "本轮设计依据",
-                        subtitle: "查看 AI 为什么这样问。",
-                        startsExpanded: resourcePanelStartsExpanded
+                        subtitle: "查看 AI 为什么这样问。"
                     )
                 }
 
