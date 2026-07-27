@@ -48,6 +48,18 @@ final class MindTreeAnnotation {
     }
 }
 
+enum MindTreeAnnotationLayerSelector {
+    static func annotation(
+        matching fingerprint: String,
+        in annotations: [MindTreeAnnotation]
+    ) -> MindTreeAnnotation? {
+        annotations
+            .filter { !$0.isArchived && $0.treeFingerprint == fingerprint }
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .first
+    }
+}
+
 extension Notification.Name {
     static let mindTreeAnnotationWillExport = Notification.Name(
         "CoDesignAgent.MindTreeAnnotationWillExport"

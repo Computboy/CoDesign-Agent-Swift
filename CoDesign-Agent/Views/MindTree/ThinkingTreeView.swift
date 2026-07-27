@@ -48,8 +48,6 @@ struct ThinkingTreeView: View {
     @State private var interactionMode: InteractionMode = .browsing
     @State private var annotationDrawingData = Data()
     @State private var loadedAnnotationID: UUID?
-    @State private var staleAnnotationID: UUID?
-    @State private var hidesStaleAnnotationNotice = false
     @State private var showsClearAnnotationConfirmation = false
     @State private var annotationSession: AnnotationSession?
     @State private var annotationSaveError: String?
@@ -150,7 +148,7 @@ struct ThinkingTreeView: View {
                     .allowsHitTesting(interactionMode == .browsing)
             }
             .overlay(alignment: .bottom) {
-                annotationStatusPanel(graph: graph, fingerprint: fingerprint)
+                annotationStatusPanel
                     .padding(mode == .embedded ? 12 : AppTheme.spacingLarge)
             }
             .overlay(alignment: .bottomTrailing) {
@@ -430,12 +428,7 @@ struct ThinkingTreeView: View {
             Button {
                 beginAnnotatingCurrentTree()
             } label: {
-                Label(
-                    staleAnnotationID == nil ? "开始批注" : "处理旧批注",
-                    systemImage: staleAnnotationID == nil
-                        ? "pencil.tip.crop.circle.fill"
-                        : "exclamationmark.triangle.fill"
-                )
+                Label("开始批注", systemImage: "pencil.tip.crop.circle.fill")
                 .font(AppTheme.Typography.subheadline.weight(.bold))
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, 18)
@@ -447,7 +440,7 @@ struct ThinkingTreeView: View {
                 .coDesignShadow(.elevated)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(staleAnnotationID == nil ? "开始思维树批注" : "处理旧版思维树批注")
+            .accessibilityLabel("开始思维树批注")
             .accessibilityIdentifier("mindTree.startAnnotation")
         }
         #else
@@ -615,54 +608,9 @@ struct ThinkingTreeView: View {
     }
 
     @ViewBuilder
-    private func annotationStatusPanel(graph: TreeData, fingerprint: String) -> some View {
+    private var annotationStatusPanel: some View {
         #if os(iOS) && canImport(PencilKit)
-        if let annotation = staleMindTreeAnnotation,
-           !hidesStaleAnnotationNotice {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("批注基于旧版思维树", systemImage: "exclamationmark.triangle.fill")
-                    .font(AppTheme.Typography.subheadline.weight(.bold))
-                    .foregroundStyle(Color.warning)
-
-                Text("当前节点、展开状态或画布尺寸已变化。为避免笔迹错位，旧批注不会自动叠加。")
-                    .font(AppTheme.Typography.caption)
-                    .foregroundStyle(Color.textSecondary)
-
-                if mode == .standalone {
-                    HStack(spacing: 8) {
-                        Button("隐藏旧批注") {
-                            hidesStaleAnnotationNotice = true
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button("恢复旧展开状态") {
-                            restoreExpansionState(from: annotation)
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button("归档并新建批注") {
-                            archiveStaleAnnotationAndStartNew(
-                                graph: graph,
-                                fingerprint: fingerprint
-                            )
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .font(AppTheme.Typography.caption.weight(.semibold))
-                }
-            }
-            .padding(AppTheme.Layout.cardPadding)
-            .frame(maxWidth: 620, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
-                    .fill(Color.cardBackground.opacity(0.97))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
-                    .strokeBorder(Color.warning.opacity(0.35), lineWidth: 1)
-            )
-            .coDesignShadow(.elevated)
-        } else if let annotationSaveError {
+        if let annotationSaveError {
             Label(annotationSaveError, systemImage: "exclamationmark.circle.fill")
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(Color.danger)
@@ -678,16 +626,11 @@ struct ThinkingTreeView: View {
         #endif
     }
 
-    private var activeMindTreeAnnotation: MindTreeAnnotation? {
-        project.mindTreeAnnotations
-            .filter { !$0.isArchived }
-            .sorted { $0.updatedAt > $1.updatedAt }
-            .first
-    }
-
-    private var staleMindTreeAnnotation: MindTreeAnnotation? {
-        guard let staleAnnotationID else { return nil }
-        return project.mindTreeAnnotations.first { $0.id == staleAnnotationID }
+    private func annotationLayer(matching fingerprint: String) -> MindTreeAnnotation? {
+        MindTreeAnnotationLayerSelector.annotation(
+            matching: fingerprint,
+            in: project.mindTreeAnnotations
+        )
     }
 
     private func treeFingerprint(for graph: TreeData) -> String {
@@ -740,23 +683,12 @@ struct ThinkingTreeView: View {
         #if os(iOS) && canImport(PencilKit)
         guard interactionMode == .browsing else { return }
 
-        guard let annotation = activeMindTreeAnnotation else {
+        guard let annotation = annotationLayer(matching: fingerprint) else {
             loadedAnnotationID = nil
-            staleAnnotationID = nil
-            annotationDrawingData = Data()
-            hidesStaleAnnotationNotice = false
-            return
-        }
-
-        guard annotation.treeFingerprint == fingerprint else {
-            loadedAnnotationID = nil
-            staleAnnotationID = annotation.id
             annotationDrawingData = Data()
             return
         }
 
-        staleAnnotationID = nil
-        hidesStaleAnnotationNotice = false
         if loadedAnnotationID != annotation.id {
             annotationDrawingData = annotation.drawingData
             loadedAnnotationID = annotation.id
@@ -789,14 +721,8 @@ struct ThinkingTreeView: View {
         let fingerprint = treeFingerprint(for: graph)
         refreshAnnotationState(for: fingerprint)
 
-        if staleAnnotationID != nil {
-            hidesStaleAnnotationNotice = false
-            return
-        }
-
         let annotation: MindTreeAnnotation
-        if let existing = activeMindTreeAnnotation,
-           existing.treeFingerprint == fingerprint {
+        if let existing = annotationLayer(matching: fingerprint) {
             annotation = existing
         } else {
             annotation = createAnnotation(graph: graph, fingerprint: fingerprint)
@@ -881,51 +807,6 @@ struct ThinkingTreeView: View {
         guard interactionMode == .annotating, annotationSession != nil else { return }
         annotationCanvasController.flushPendingChanges()
         saveAnnotationContext()
-    }
-
-    private func restoreExpansionState(from annotation: MindTreeAnnotation) {
-        withAnimation(AppTheme.Animation.spring) {
-            expandedTransitionOrders = MindTreeAnnotationExpansionCodec.decode(
-                annotation.expandedTransitionOrders
-            )
-            expandedArchivedStageOrders = MindTreeAnnotationExpansionCodec.decode(
-                annotation.expandedArchivedStageOrders
-            )
-        }
-
-        DispatchQueue.main.async {
-            guard lastViewportSize.width > 0, lastViewportSize.height > 0 else { return }
-            let graph = layoutGraph(for: lastViewportSize)
-            refreshAnnotationState(for: treeFingerprint(for: graph))
-        }
-    }
-
-    private func archiveStaleAnnotationAndStartNew(
-        graph: TreeData,
-        fingerprint: String
-    ) {
-        if let annotation = staleMindTreeAnnotation {
-            annotation.isArchived = true
-            annotation.updatedAt = Date()
-        }
-        saveAnnotationContext()
-
-        loadedAnnotationID = nil
-        staleAnnotationID = nil
-        hidesStaleAnnotationNotice = false
-        annotationDrawingData = Data()
-
-        let annotation = createAnnotation(graph: graph, fingerprint: fingerprint)
-        loadedAnnotationID = annotation.id
-        annotationSession = AnnotationSession(
-            annotationID: annotation.id,
-            fingerprint: fingerprint,
-            contentWidth: Double(graph.contentSize.width),
-            contentHeight: Double(graph.contentSize.height),
-            expandedTransitionOrders: MindTreeAnnotationExpansionCodec.encode(expandedTransitionOrders),
-            expandedArchivedStageOrders: MindTreeAnnotationExpansionCodec.encode(expandedArchivedStageOrders)
-        )
-        interactionMode = .annotating
     }
 
     private func saveAnnotationContext() {
