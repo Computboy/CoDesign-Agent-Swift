@@ -16,86 +16,74 @@ struct ProjectDetailView: View {
     @AppStorage("serviceMode") private var serviceModeRaw: String = "mock"
     @Environment(\.llmService) private var llmService
     @Environment(\.structuredExtractor) private var structuredExtractor
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 0) {
-            WorkspaceGlobalBar(
-                project: project,
-                selectedTab: Binding(
-                    get: { viewModel.selectedTab },
-                    set: { viewModel.selectedTab = $0 }
-                ),
-                onExportBrief: {
-                    isShowingExportSheet = true
-                }
-            )
+        ZStack {
+            WorkspacePageBackground()
+                .ignoresSafeArea()
 
-            if viewModel.selectedTab != .workspace {
-                HStack(spacing: AppTheme.spacingSmall) {
-                    Label(viewModel.selectedTab.title, systemImage: viewModel.selectedTab.systemImage)
-                        .font(AppTheme.Typography.caption.weight(.semibold))
-                        .foregroundStyle(Color.textSecondary)
+            VStack(spacing: 0) {
+                WorkspaceGlobalBar(
+                    project: project,
+                    selectedTab: Binding(
+                        get: { viewModel.selectedTab },
+                        set: { viewModel.selectedTab = $0 }
+                    ),
+                    onBack: {
+                        dismiss()
+                    },
+                    onExportBrief: {
+                        isShowingExportSheet = true
+                    }
+                )
 
-                    Spacer()
-
-                    CoDesignSmallButton("回到工作台", icon: "square.grid.2x2") {
-                        withAnimation(AppTheme.Animation.standard) {
-                            viewModel.selectedTab = .workspace
+                // MARK: - Tab Content
+                Group {
+                    if let chatVM = chatViewModel {
+                        switch viewModel.selectedTab {
+                        case .workspace:
+                            ClarificationWorkspaceView(
+                                project: project,
+                                chatViewModel: chatVM,
+                                onReviewBrief: {
+                                    withAnimation(AppTheme.Animation.standard) {
+                                        viewModel.selectedTab = .insights
+                                    }
+                                },
+                                onRevisitPreviousStage: {
+                                    withAnimation(AppTheme.Animation.standard) {
+                                        viewModel.selectedTab = .progress
+                                    }
+                                },
+                                onExportBrief: {
+                                    isShowingExportSheet = true
+                                }
+                            )
+                        case .mindTree:
+                            ThinkingTreeView(project: project, chatViewModel: chatVM)
+                        case .visualBoard:
+                            VisualBoardView(project: project)
+                        case .portfolio:
+                            VisualPortfolioView(project: project)
+                        case .chat:
+                            ChatPanel(
+                                project: project,
+                                chatViewModel: chatVM
+                            )
+                        case .progress:
+                            ProgressPanel(project: project)
+                        case .insights:
+                            InsightsPanel(project: project)
                         }
+                    } else {
+                        ProgressView("正在准备工作台...")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
-                .padding(.horizontal, AppTheme.spacingMedium)
-                .padding(.vertical, AppTheme.spacingSmall)
-                .background(Color.appBackground)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-
-            // MARK: - Tab Content
-            Group {
-                if let chatVM = chatViewModel {
-                    switch viewModel.selectedTab {
-                    case .workspace:
-                        ClarificationWorkspaceView(
-                            project: project,
-                            chatViewModel: chatVM,
-                            onReviewBrief: {
-                                withAnimation(AppTheme.Animation.standard) {
-                                    viewModel.selectedTab = .insights
-                                }
-                            },
-                            onRevisitPreviousStage: {
-                                withAnimation(AppTheme.Animation.standard) {
-                                    viewModel.selectedTab = .progress
-                                }
-                            },
-                            onExportBrief: {
-                                isShowingExportSheet = true
-                            }
-                        )
-                    case .mindTree:
-                        ThinkingTreeView(project: project, chatViewModel: chatVM)
-                    case .visualBoard:
-                        VisualBoardView(project: project)
-                    case .portfolio:
-                        VisualPortfolioView(project: project)
-                    case .chat:
-                        ChatPanel(
-                            project: project,
-                            chatViewModel: chatVM
-                        )
-                    case .progress:
-                        ProgressPanel(project: project)
-                    case .insights:
-                        InsightsPanel(project: project)
-                    }
-                } else {
-                    ProgressView("正在准备工作台...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Color.appBackground)
-        .navigationTitle(project.name)
         .sheet(isPresented: $isShowingExportSheet) {
             ReportExportSheet(project: project, onPreparedExport: presentExport)
                 #if os(iOS)
@@ -118,7 +106,7 @@ struct ProjectDetailView: View {
             )
         }
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         #endif
         .task {
             // 只在首次加载时初始化一次
@@ -194,6 +182,34 @@ struct ProjectDetailView: View {
                 return
             }
             exportStatusMessage = ProjectExportStatusMessage(text: error.localizedDescription, isError: true)
+        }
+    }
+}
+
+private struct WorkspacePageBackground: View {
+    var body: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.984, green: 0.986, blue: 1.0),
+                Color(red: 0.965, green: 0.968, blue: 0.995),
+                Color(red: 0.988, green: 0.982, blue: 1.0),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay(alignment: .topTrailing) {
+            Circle()
+                .fill(Color(red: 1.0, green: 0.88, blue: 0.77).opacity(0.22))
+                .frame(width: 420, height: 420)
+                .blur(radius: 90)
+                .offset(x: 100, y: -180)
+        }
+        .overlay(alignment: .bottomLeading) {
+            Circle()
+                .fill(Color.primaryAccent.opacity(0.08))
+                .frame(width: 520, height: 520)
+                .blur(radius: 120)
+                .offset(x: -170, y: 220)
         }
     }
 }

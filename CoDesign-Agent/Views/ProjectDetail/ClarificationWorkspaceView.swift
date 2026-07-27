@@ -28,7 +28,7 @@ struct ClarificationWorkspaceView: View {
         GeometryReader { proxy in
             content(for: layoutMode(in: proxy.size), proxy: proxy)
         }
-        .background(Color.appBackground)
+        .background(Color.clear)
         .sheet(item: $presentedAccessory) { accessory in
             accessorySheet(accessory)
                 #if os(iOS)
@@ -71,64 +71,83 @@ struct ClarificationWorkspaceView: View {
     // MARK: - Desktop Wide Layout (thinking tree + workspace)
 
     private func desktopWideLayout(proxy: GeometryProxy) -> some View {
-        let availableWidth = proxy.size.width
-        let treeWidth = clamp(availableWidth * 0.44, min: 360, max: 620)
-
-        return HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
-            ThinkingTreeView(project: project, mode: .embedded, chatViewModel: chatViewModel)
-                .frame(width: treeWidth)
-                .frame(maxHeight: .infinity)
-
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: AppTheme.spacingMedium) {
-                    CurrentWorkspaceColumn(
-                        project: project,
-                        chatViewModel: chatViewModel,
-                        onReviewBrief: onReviewBrief,
-                        onRevisitPreviousStage: onRevisitPreviousStage,
-                        onExportBrief: onExportBrief
-                    )
-
-                    DesignBriefDisclosurePanel(project: project)
-                }
-                .frame(
-                    minHeight: max(proxy.size.height - AppTheme.spacingLarge * 2, 0),
-                    alignment: .top
-                )
-            }
-            .coDesignHideScrollIndicators()
-        }
-        .padding(AppTheme.spacingLarge)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        wideDashboardLayout(proxy: proxy, treeFraction: 0.39, treeMinimum: 360, treeMaximum: 560)
     }
 
     // MARK: - iPad Landscape Layout (Mac-aligned tree + workspace)
 
     private func iPadLandscapeLayout(proxy: GeometryProxy) -> some View {
-        let width = proxy.size.width
-        let treeWidth = clamp(width * 0.42, min: 420, max: 560)
+        wideDashboardLayout(proxy: proxy, treeFraction: 0.39, treeMinimum: 390, treeMaximum: 520)
+    }
 
-        return HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
-            ThinkingTreeView(project: project, mode: .embedded, chatViewModel: chatViewModel)
-                .frame(width: treeWidth)
+    private func wideDashboardLayout(
+        proxy: GeometryProxy,
+        treeFraction: CGFloat,
+        treeMinimum: CGFloat,
+        treeMaximum: CGFloat
+    ) -> some View {
+        let railWidth: CGFloat = 72
+        let availableWidth = max(proxy.size.width - railWidth - 36, 1)
+        let treeWidth = clamp(
+            availableWidth * treeFraction,
+            min: treeMinimum,
+            max: treeMaximum
+        )
+        let dashboardActions = WorkspaceDashboardActions(
+            showResources: {
+                presentedAccessory = .resources
+            },
+            showBrief: {
+                presentedAccessory = .brief
+            },
+            showLearning: {
+                presentedAccessory = .learning
+            }
+        )
+
+        return HStack(spacing: AppTheme.spacingMedium) {
+            WorkspaceSideRail(
+                onShowResources: {
+                    presentedAccessory = .resources
+                },
+                onShowBrief: {
+                    presentedAccessory = .brief
+                },
+                onShowProgress: onRevisitPreviousStage,
+                onExport: onExportBrief
+            )
+            .frame(width: railWidth)
+
+            VStack(spacing: AppTheme.spacingMedium) {
+                HStack(alignment: .top, spacing: AppTheme.spacingMedium) {
+                    ThinkingTreeView(project: project, mode: .embedded, chatViewModel: chatViewModel)
+                        .frame(width: treeWidth)
+                        .frame(maxHeight: .infinity)
+
+                    ScrollView(.vertical, showsIndicators: false) {
+                        CurrentWorkspaceColumn(
+                            project: project,
+                            chatViewModel: chatViewModel,
+                            includesHeader: false,
+                            showsResourcePanel: false,
+                            dashboardActions: dashboardActions,
+                            onReviewBrief: onReviewBrief,
+                            onRevisitPreviousStage: onRevisitPreviousStage,
+                            onExportBrief: onExportBrief
+                        )
+                        .frame(
+                            minHeight: max(proxy.size.height - 124, 0),
+                            alignment: .top
+                        )
+                    }
+                    .coDesignInteractiveKeyboardDismissal()
+                    .coDesignHideScrollIndicators()
+                }
                 .frame(maxHeight: .infinity)
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: AppTheme.spacingMedium) {
-                    CurrentWorkspaceColumn(
-                        project: project,
-                        chatViewModel: chatViewModel,
-                        onReviewBrief: onReviewBrief,
-                        onRevisitPreviousStage: onRevisitPreviousStage,
-                        onExportBrief: onExportBrief
-                    )
-
-                    DesignBriefDisclosurePanel(project: project)
-                }
-                .frame(minHeight: max(proxy.size.height - AppTheme.spacingMedium * 2, 0), alignment: .top)
+                WorkspaceStageTimeline(stages: project.stages)
+                    .frame(height: 76)
             }
-            .coDesignInteractiveKeyboardDismissal()
-            .coDesignHideScrollIndicators()
         }
         .padding(.horizontal, AppTheme.spacingMedium)
         .padding(.vertical, AppTheme.spacingSmall)
@@ -227,6 +246,13 @@ struct ClarificationWorkspaceView: View {
                     }
                     .coDesignHideScrollIndicators()
                     .background(Color.appBackground)
+                case .learning:
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LearningTraceSection(project: project)
+                            .padding(AppTheme.spacingMedium)
+                    }
+                    .coDesignHideScrollIndicators()
+                    .background(Color.appBackground)
                 }
             }
             .navigationTitle(accessory.title)
@@ -243,6 +269,7 @@ private enum WorkspaceAccessory: String, Identifiable {
     case mindTree
     case resources
     case brief
+    case learning
 
     var id: String { rawValue }
 
@@ -251,6 +278,7 @@ private enum WorkspaceAccessory: String, Identifiable {
         case .mindTree: return "思维树"
         case .resources: return "资源线索"
         case .brief: return "Design Brief"
+        case .learning: return "学习轨迹"
         }
     }
 
@@ -259,6 +287,7 @@ private enum WorkspaceAccessory: String, Identifiable {
         case .mindTree: return "tree"
         case .resources: return "books.vertical"
         case .brief: return "rectangle.stack"
+        case .learning: return "clock.arrow.2.circlepath"
         }
     }
 
@@ -267,7 +296,7 @@ private enum WorkspaceAccessory: String, Identifiable {
         switch self {
         case .mindTree:
             return [.large]
-        case .resources, .brief:
+        case .resources, .brief, .learning:
             return [.medium, .large]
         }
     }
@@ -298,6 +327,394 @@ private struct WorkspaceAccessoryBar: View {
             }
         }
         .accessibilityElement(children: .contain)
+    }
+}
+
+// MARK: - Wide Workspace Navigation
+
+private struct WorkspaceDashboardActions {
+    let showResources: () -> Void
+    let showBrief: () -> Void
+    let showLearning: () -> Void
+}
+
+private struct WorkspaceSideRail: View {
+    let onShowResources: () -> Void
+    let onShowBrief: () -> Void
+    let onShowProgress: () -> Void
+    let onExport: () -> Void
+
+    var body: some View {
+        VStack(spacing: 6) {
+            sideRailItem(
+                title: "澄清",
+                icon: "sparkles",
+                isSelected: true,
+                action: {}
+            )
+
+            sideRailItem(
+                title: "资源",
+                icon: "books.vertical",
+                action: onShowResources
+            )
+
+            sideRailItem(
+                title: "简报",
+                icon: "rectangle.stack",
+                action: onShowBrief
+            )
+
+            sideRailItem(
+                title: "阶段",
+                icon: "point.bottomleft.forward.to.point.topright.scurvepath",
+                action: onShowProgress
+            )
+
+            Spacer(minLength: 12)
+
+            sideRailItem(
+                title: "导出",
+                icon: "square.and.arrow.up",
+                action: onExport
+            )
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 10)
+        .frame(maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.86))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(Color.primaryAccent.opacity(0.08), lineWidth: 1)
+        )
+        .coDesignShadow(.card)
+    }
+
+    private func sideRailItem(
+        title: String,
+        icon: String,
+        isSelected: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .semibold))
+
+                Text(title)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(isSelected ? Color.white : Color.textSecondary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 54)
+            .background(
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(
+                        isSelected
+                            ? AnyShapeStyle(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.34, green: 0.28, blue: 0.96),
+                                        Color(red: 0.47, green: 0.38, blue: 0.96),
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            : AnyShapeStyle(Color.clear)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isSelected)
+        .accessibilityIdentifier("workspace.sideRail.\(title)")
+    }
+}
+
+// MARK: - Wide Workspace Summary
+
+private struct WorkspaceSummaryCards: View {
+    let project: Project
+    let actions: WorkspaceDashboardActions
+
+    private var currentDefinition: StageDefinition {
+        StageDefinition.all.first(where: { $0.order == project.currentStageOrder })
+            ?? StageDefinition.all[0]
+    }
+
+    private var recommendedResources: [ResourceCard] {
+        ResourceRecommendationService().recommend(
+            currentStageOrder: project.currentStageOrder,
+            brief: project.brief,
+            recentMessage: project.latestConversationText,
+            limit: 3
+        )
+    }
+
+    private var currentFields: [BriefField] {
+        let fields = currentDefinition.briefFields
+        return fields.isEmpty ? [.targetUser, .painPoint, .useScenario] : fields
+    }
+
+    private var snapshot: DesignBriefSnapshot {
+        project.brief?.toSnapshot() ?? DesignBriefSnapshot()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
+            summaryCard(
+                title: "本轮设计依据",
+                icon: "books.vertical.fill",
+                tint: Color.primaryAccent,
+                actionTitle: "查看详情",
+                action: actions.showResources
+            ) {
+                if let first = recommendedResources.first {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(first.title)
+                            .font(AppTheme.Typography.caption.weight(.semibold))
+                            .foregroundStyle(Color.primaryAccent)
+                            .lineLimit(1)
+
+                        Text(first.whyRelevant)
+                            .font(AppTheme.Typography.tiny)
+                            .foregroundStyle(Color.textSecondary)
+                            .lineLimit(2)
+                    }
+                } else {
+                    Text("当前阶段暂无资源建议")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(Color.textSecondary)
+                }
+            }
+
+            summaryCard(
+                title: "可能更新的字段",
+                icon: "list.bullet.rectangle",
+                tint: Color.warning,
+                actionTitle: "查看全部字段",
+                action: actions.showBrief
+            ) {
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(Array(currentFields.prefix(3)), id: \.rawValue) { field in
+                        HStack(spacing: 6) {
+                            Image(systemName: field.isFilled(in: snapshot) ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(field.isFilled(in: snapshot) ? Color.success : Color.warning)
+
+                            Text(field.displayName)
+                                .font(AppTheme.Typography.tiny.weight(.medium))
+                                .foregroundStyle(Color.textPrimary)
+
+                            Spacer(minLength: 4)
+
+                            Text(field.isFilled(in: snapshot) ? "已提取" : "待输入")
+                                .font(AppTheme.Typography.micro)
+                                .foregroundStyle(field.isFilled(in: snapshot) ? Color.success : Color.warning)
+                        }
+                    }
+                }
+            }
+
+            summaryCard(
+                title: "学习轨迹",
+                icon: "clock.arrow.2.circlepath",
+                tint: Color.primaryAccent,
+                actionTitle: "查看学习记录",
+                action: actions.showLearning
+            ) {
+                VStack(alignment: .leading, spacing: 5) {
+                    metricRow("已完成追问", value: "\(completedQuestionCount)")
+                    metricRow("学习记录", value: "\(project.learningTraces.count)")
+                    metricRow("已确认字段", value: "\(filledCurrentFieldCount)")
+                }
+            }
+        }
+    }
+
+    private var completedQuestionCount: Int {
+        project.messages.filter { $0.role == "user" }.count
+    }
+
+    private var filledCurrentFieldCount: Int {
+        currentFields.filter { $0.isFilled(in: snapshot) }.count
+    }
+
+    private func metricRow(_ title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .font(AppTheme.Typography.tiny)
+                .foregroundStyle(Color.textSecondary)
+            Spacer(minLength: 4)
+            Text(value)
+                .font(AppTheme.Typography.tiny.weight(.bold))
+                .foregroundStyle(Color.textPrimary)
+        }
+    }
+
+    private func summaryCard<Content: View>(
+        title: String,
+        icon: String,
+        tint: Color,
+        actionTitle: String,
+        action: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(tint)
+
+                Text(title)
+                    .font(AppTheme.Typography.caption.weight(.bold))
+                    .foregroundStyle(Color.textPrimary)
+
+                Spacer(minLength: 0)
+            }
+
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: 0)
+
+            Button(action: action) {
+                HStack(spacing: 5) {
+                    Text(actionTitle)
+                    Image(systemName: "arrow.right")
+                }
+                .font(AppTheme.Typography.tiny.weight(.semibold))
+                .foregroundStyle(Color.primaryAccent)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 142, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.92))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.primaryAccent.opacity(0.09), lineWidth: 1)
+        )
+        .coDesignShadow(.card)
+    }
+}
+
+// MARK: - Wide Workspace Stage Timeline
+
+private struct WorkspaceStageTimeline: View {
+    let stages: [ProgressStage]
+    @State private var selectedStage: ProgressStage?
+    @State private var selectedDefinition: StageDefinition?
+
+    private var sortedStages: [ProgressStage] {
+        stages.sorted { $0.order < $1.order }
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(sortedStages.enumerated()), id: \.element.id) { index, stage in
+                stageButton(stage)
+
+                if index < sortedStages.count - 1 {
+                    Rectangle()
+                        .fill(connectorColor(after: stage))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 1)
+                        .padding(.horizontal, 3)
+                        .padding(.bottom, 20)
+                }
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.88))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(Color.primaryAccent.opacity(0.08), lineWidth: 1)
+        )
+        .coDesignShadow(.card)
+        .overlay {
+            if let selectedStage, let selectedDefinition {
+                StageExplanationPopover(
+                    stage: selectedStage,
+                    definition: selectedDefinition,
+                    onDismiss: dismissExplanation
+                )
+            }
+        }
+    }
+
+    private func stageButton(_ stage: ProgressStage) -> some View {
+        let definition = StageDefinition.all.first(where: { $0.order == stage.order })
+        let tint = stageTint(stage)
+        let isCurrent = stage.status == "active" || stage.status == "needsReview"
+
+        return Button {
+            guard let definition else { return }
+            withAnimation(AppTheme.Animation.spring) {
+                selectedStage = stage
+                selectedDefinition = definition
+            }
+        } label: {
+            VStack(spacing: 4) {
+                ZStack {
+                    Circle()
+                        .fill(isCurrent ? tint : tint.opacity(0.12))
+                        .frame(width: 27, height: 27)
+
+                    if stage.status == "completed" {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(isCurrent ? Color.white : tint)
+                    } else {
+                        Text("\(stage.order)")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(isCurrent ? Color.white : tint)
+                    }
+                }
+
+                Text(definition?.shortSubtitle ?? stage.name)
+                    .font(.system(size: 8, weight: isCurrent ? .bold : .medium))
+                    .foregroundStyle(isCurrent ? Color.primaryAccent : Color.textTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(width: 76)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("阶段 \(stage.order)，\(stage.name)")
+    }
+
+    private func stageTint(_ stage: ProgressStage) -> Color {
+        switch stage.status {
+        case "completed": return .success
+        case "active": return .primaryAccent
+        case "needsReview": return .warning
+        default: return .textTertiary
+        }
+    }
+
+    private func connectorColor(after stage: ProgressStage) -> Color {
+        stage.status == "completed"
+            ? Color.primaryAccent.opacity(0.42)
+            : Color.textTertiary.opacity(0.18)
+    }
+
+    private func dismissExplanation() {
+        withAnimation(AppTheme.Animation.spring) {
+            selectedStage = nil
+            selectedDefinition = nil
+        }
     }
 }
 
@@ -371,6 +788,7 @@ private struct CurrentWorkspaceColumn: View {
     let chatViewModel: ChatViewModel
     var includesHeader: Bool = true
     var showsResourcePanel: Bool = true
+    var dashboardActions: WorkspaceDashboardActions?
     var onReviewBrief: () -> Void = {}
     var onRevisitPreviousStage: () -> Void = {}
     var onExportBrief: () -> Void = {}
@@ -438,8 +856,15 @@ private struct CurrentWorkspaceColumn: View {
                 )
             }
 
-            // Learning trace — shown in both completed and uncompleted states
-            LearningTraceSection(project: project)
+            if let dashboardActions {
+                WorkspaceSummaryCards(
+                    project: project,
+                    actions: dashboardActions
+                )
+            } else {
+                // The stacked and narrow layouts retain the full learning trace.
+                LearningTraceSection(project: project)
+            }
 
             if let errorMessage = chatViewModel.errorMessage {
                 CoDesignCard(style: .highlighted(.danger)) {

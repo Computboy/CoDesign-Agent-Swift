@@ -100,6 +100,54 @@ final class CoDesign_AgentUITests: XCTestCase {
     }
 
     @MainActor
+    func testWorkspaceRedesignKeepsCoreDestinationsAccessible() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+
+        let app = XCUIApplication()
+        app.launch()
+
+        let continueProjectButton = app.buttons["继续最近项目"].firstMatch
+        XCTAssertTrue(
+            continueProjectButton.waitForExistence(timeout: 10),
+            "首页应提供进入最近项目的入口"
+        )
+        continueProjectButton.tap()
+
+        XCTAssertTrue(
+            app.buttons["澄清模式"].waitForExistence(timeout: 10),
+            "横屏工作台应显示澄清模式入口"
+        )
+        XCTAssertTrue(app.buttons["思维树"].exists)
+        XCTAssertTrue(app.buttons["成果看板"].exists)
+        XCTAssertTrue(app.buttons["导出报告"].exists)
+
+        XCTAssertTrue(
+            app.buttons["资源"].waitForExistence(timeout: 10),
+            "页面左栏应保留资源入口"
+        )
+        XCTAssertTrue(app.buttons["简报"].exists)
+        XCTAssertTrue(app.buttons["阶段"].exists)
+
+        XCTAssertTrue(
+            app.buttons["查看详情"].waitForExistence(timeout: 10),
+            "工作区应显示设计依据摘要卡"
+        )
+        XCTAssertTrue(app.buttons["查看全部字段"].exists)
+        XCTAssertTrue(app.buttons["查看学习记录"].exists)
+
+        let rootNode = app.buttons["mindTree.rootNode"]
+        XCTAssertTrue(
+            rootNode.waitForExistence(timeout: 10),
+            "重设计后仍应显示原有思维树根节点"
+        )
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Workspace UI Redesign"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
