@@ -5,6 +5,7 @@ import SwiftData
 final class MindTreeAnnotation {
     @Attribute(.unique) var id: UUID
     @Attribute(.externalStorage) var drawingData: Data
+    @Attribute(.externalStorage) var textItemsData: Data?
     var contentWidth: Double
     var contentHeight: Double
     var treeFingerprint: String
@@ -20,6 +21,7 @@ final class MindTreeAnnotation {
     init(
         id: UUID = UUID(),
         drawingData: Data = Data(),
+        textItemsData: Data? = nil,
         contentWidth: Double,
         contentHeight: Double,
         treeFingerprint: String,
@@ -34,6 +36,7 @@ final class MindTreeAnnotation {
     ) {
         self.id = id
         self.drawingData = drawingData
+        self.textItemsData = textItemsData
         self.contentWidth = contentWidth
         self.contentHeight = contentHeight
         self.treeFingerprint = treeFingerprint
@@ -45,6 +48,48 @@ final class MindTreeAnnotation {
         self.updatedAt = updatedAt
         self.isArchived = isArchived
         self.project = project
+    }
+}
+
+struct MindTreeTextAnnotationItem: Codable, Identifiable, Equatable {
+    var id: UUID
+    var text: String
+    var x: Double
+    var y: Double
+    var width: Double
+    var height: Double
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        text: String,
+        x: Double,
+        y: Double,
+        width: Double = 260,
+        height: Double = 112,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.text = text
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+enum MindTreeTextAnnotationCodec {
+    static func encode(_ items: [MindTreeTextAnnotationItem]) -> Data {
+        (try? JSONEncoder().encode(items)) ?? Data()
+    }
+
+    static func decode(_ data: Data) -> [MindTreeTextAnnotationItem] {
+        guard !data.isEmpty else { return [] }
+        return (try? JSONDecoder().decode([MindTreeTextAnnotationItem].self, from: data)) ?? []
     }
 }
 

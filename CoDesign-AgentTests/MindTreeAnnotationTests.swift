@@ -60,6 +60,65 @@ struct MindTreeAnnotationTests {
         #expect(decoded.contentWidth == snapshot.contentWidth)
         #expect(decoded.treeFingerprint == snapshot.treeFingerprint)
         #expect(decoded.expandedTransitionOrders == "1,3")
+        #expect(decoded.textItemsData == snapshot.textItemsData)
+    }
+
+    @Test func textAnnotationItemsCanBeSavedAndRestored() {
+        let item = MindTreeTextAnnotationItem(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
+            text: "需要补充用户旅程",
+            x: 420,
+            y: 680,
+            width: 260,
+            height: 112,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_100)
+        )
+
+        let data = MindTreeTextAnnotationCodec.encode([item])
+        let restored = MindTreeTextAnnotationCodec.decode(data)
+
+        #expect(!data.isEmpty)
+        #expect(restored == [item])
+    }
+
+    @Test func textAnnotationDragUsesGraphCoordinatesWithoutScaleAmplification() {
+        let destination = MindTreeTextAnnotationGeometry.translatedCenter(
+            from: CGPoint(x: 420, y: 680),
+            by: CGSize(width: 36, height: -24)
+        )
+
+        #expect(destination == CGPoint(x: 456, y: 656))
+    }
+
+    @Test @MainActor func expansionStateAnnotationLayersCoexist() {
+        let collapsed = MindTreeAnnotation(
+            drawingData: Data([1]),
+            contentWidth: 1680,
+            contentHeight: 2200,
+            treeFingerprint: "collapsed"
+        )
+        let expanded = MindTreeAnnotation(
+            drawingData: Data([2]),
+            contentWidth: 2100,
+            contentHeight: 2600,
+            treeFingerprint: "expanded"
+        )
+
+        let annotations = [collapsed, expanded]
+        let collapsedLayer = MindTreeAnnotationLayerSelector.annotation(
+            matching: "collapsed",
+            in: annotations
+        )
+        let expandedLayer = MindTreeAnnotationLayerSelector.annotation(
+            matching: "expanded",
+            in: annotations
+        )
+
+        #expect(collapsedLayer?.id == collapsed.id)
+        #expect(expandedLayer?.id == expanded.id)
+        #expect(!collapsed.isArchived)
+        #expect(!expanded.isArchived)
     }
 
     @Test @MainActor func schema10PackageStillDecodes() throws {
@@ -79,8 +138,16 @@ struct MindTreeAnnotationTests {
         let container = try ExportTestFixtures.makeInMemoryContainer()
         let context = container.mainContext
         let sourceProject = ExportTestFixtures.makeProject(insertInto: context)
+        let textItemsData = MindTreeTextAnnotationCodec.encode([
+            MindTreeTextAnnotationItem(
+                text: "验证文字批注",
+                x: 300,
+                y: 500
+            )
+        ])
         let annotation = MindTreeAnnotation(
             drawingData: Data([1, 2, 3, 4]),
+            textItemsData: textItemsData,
             contentWidth: 1680,
             contentHeight: 2200,
             treeFingerprint: "fingerprint-1",
@@ -103,6 +170,7 @@ struct MindTreeAnnotationTests {
         #expect(package.mindTreeAnnotations?.count == 1)
         #expect(imported.mindTreeAnnotations.count == 1)
         #expect(imported.mindTreeAnnotations[0].drawingData == Data([1, 2, 3, 4]))
+        #expect(imported.mindTreeAnnotations[0].textItemsData == textItemsData)
         #expect(imported.mindTreeAnnotations[0].treeFingerprint == "fingerprint-1")
         #expect(imported.mindTreeAnnotations[0].id != annotation.id)
     }
@@ -202,9 +270,17 @@ struct MindTreeAnnotationTests {
     }
 
     private func makeAnnotationSnapshot() -> MindTreeAnnotationSnapshot {
-        MindTreeAnnotationSnapshot(
+        let textItemsData = MindTreeTextAnnotationCodec.encode([
+            MindTreeTextAnnotationItem(
+                text: "快照文字",
+                x: 320,
+                y: 640
+            )
+        ])
+        return MindTreeAnnotationSnapshot(
             id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!.uuidString,
             drawingData: Data([0, 1, 2, 3]),
+            textItemsData: textItemsData,
             contentWidth: 1680,
             contentHeight: 2200,
             treeFingerprint: "stable-fingerprint",

@@ -4,6 +4,18 @@ import PencilKit
 import SwiftUI
 import UIKit
 
+private final class MindTreeResizingCanvasView: PKCanvasView {
+    private var lastLaidOutSize: CGSize = .zero
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard bounds.size != lastLaidOutSize else { return }
+        lastLaidOutSize = bounds.size
+        contentSize = bounds.size
+        setNeedsDisplay()
+    }
+}
+
 enum MindTreeAnnotationInputPolicy {
     case anyInput
     case pencilOnly
@@ -94,7 +106,7 @@ struct MindTreeAnnotationCanvas: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> PKCanvasView {
-        let canvasView = PKCanvasView(frame: .zero)
+        let canvasView = MindTreeResizingCanvasView(frame: .zero)
         canvasView.delegate = context.coordinator
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
@@ -210,6 +222,11 @@ struct MindTreeAnnotationCanvas: UIViewRepresentable {
             isLoadingDrawing = false
 
             loadedDrawingIdentity = identity
+            canvasView.setNeedsLayout()
+            canvasView.setNeedsDisplay()
+            DispatchQueue.main.async { [weak canvasView] in
+                canvasView?.setNeedsDisplay()
+            }
             controller.refreshCommandState()
         }
 

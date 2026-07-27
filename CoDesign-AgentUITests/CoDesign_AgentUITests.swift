@@ -51,6 +51,18 @@ final class CoDesign_AgentUITests: XCTestCase {
             "独立思维树页面应显示开始批注按钮"
         )
 
+        let rootNode = app.buttons["mindTree.rootNode"]
+        XCTAssertTrue(
+            rootNode.waitForExistence(timeout: 10),
+            "思维树根节点应当可见"
+        )
+        let viewportMidX = app.windows.firstMatch.frame.midX
+        XCTAssertLessThan(
+            abs(rootNode.frame.midX - viewportMidX),
+            120,
+            "思维树初始视角应以根节点为水平中心"
+        )
+
         let browsingScreenshot = XCTAttachment(screenshot: app.screenshot())
         browsingScreenshot.name = "Mind Tree Annotation Entry"
         browsingScreenshot.lifetime = .keepAlways
@@ -63,6 +75,23 @@ final class CoDesign_AgentUITests: XCTestCase {
             drawingToolsButton.waitForExistence(timeout: 10),
             "进入批注模式后应显示画笔工具按钮"
         )
+
+        let textBoxButton = app.buttons["文本框"]
+        XCTAssertTrue(
+            textBoxButton.waitForExistence(timeout: 10),
+            "进入批注模式后应显示文本框按钮"
+        )
+        textBoxButton.tap()
+
+        XCTAssertTrue(
+            app.navigationBars["新建文本框"].waitForExistence(timeout: 10),
+            "文本框按钮应打开文字编辑器"
+        )
+        XCTAssertTrue(
+            app.textViews.firstMatch.waitForExistence(timeout: 10),
+            "文字编辑器应提供多行文本输入"
+        )
+        app.buttons["取消"].tap()
 
         let annotatingScreenshot = XCTAttachment(screenshot: app.screenshot())
         annotatingScreenshot.name = "Mind Tree Annotating Mode"

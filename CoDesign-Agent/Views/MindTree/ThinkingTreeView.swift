@@ -28,6 +28,14 @@ struct ThinkingTreeView: View {
         let expandedArchivedStageOrders: String
     }
 
+    private struct TextAnnotationEditorTarget: Identifiable {
+        let id: UUID
+        let isNew: Bool
+        let initialText: String
+        let proposedX: Double
+        let proposedY: Double
+    }
+
     let project: Project
     var mode: DisplayMode = .standalone
     var chatViewModel: ChatViewModel?
@@ -47,10 +55,12 @@ struct ThinkingTreeView: View {
     @State private var lastViewportSize: CGSize = .zero
     @State private var interactionMode: InteractionMode = .browsing
     @State private var annotationDrawingData = Data()
+    @State private var annotationTextItems: [MindTreeTextAnnotationItem] = []
     @State private var loadedAnnotationID: UUID?
     @State private var showsClearAnnotationConfirmation = false
     @State private var annotationSession: AnnotationSession?
     @State private var annotationSaveError: String?
+    @State private var textAnnotationEditorTarget: TextAnnotationEditorTarget?
 
     #if os(iOS) && canImport(PencilKit)
     @StateObject private var annotationCanvasController = MindTreeAnnotationCanvasController()
@@ -85,6 +95,7 @@ struct ThinkingTreeView: View {
                         let nodeView = TreeNodeView(node: node) {
                             handleTap(node)
                         }
+                        .accessibilityIdentifier(accessibilityIdentifier(for: node))
                         .position(node.position)
                         .zIndex(zIndex(for: node))
                         .simultaneousGesture(
@@ -121,7 +132,12 @@ struct ThinkingTreeView: View {
                     annotationCanvasLayer(graph: graph)
                         .frame(width: graph.contentSize.width, height: graph.contentSize.height)
                         .zIndex(10_000)
+
+                    annotationTextLayer(graph: graph)
+                        .frame(width: graph.contentSize.width, height: graph.contentSize.height)
+                        .zIndex(10_001)
                 }
+                .coordinateSpace(name: MindTreeAnnotationCoordinateSpace.graph)
                 .frame(width: graph.contentSize.width, height: graph.contentSize.height)
                 .scaleEffect(scale, anchor: .topLeading)
                 .offset(offset)
@@ -202,6 +218,24 @@ struct ThinkingTreeView: View {
             )
                 .presentationDragIndicator(.visible)
         }
+        #if os(iOS) && canImport(PencilKit)
+        .sheet(item: $textAnnotationEditorTarget) { target in
+            MindTreeTextAnnotationEditorSheet(
+                initialText: target.initialText,
+                allowsDelete: !target.isNew,
+                onSave: { text in
+                    saveTextAnnotation(target: target, text: text)
+                },
+                onDelete: {
+                    deleteTextAnnotation(id: target.id)
+                }
+            )
+            #if os(iOS)
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+            #endif
+        }
+        #endif
         .confirmationDialog(
             "清空当前批注？",
             isPresented: $showsClearAnnotationConfirmation,
@@ -212,7 +246,7 @@ struct ThinkingTreeView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("此操作可以立即通过“撤销”恢复。")
+            Text("将清空当前展开状态下的手写笔迹和文本框，此操作不可撤销。")
         }
         .onDisappear {
             flushAnnotationIfNeeded()
@@ -459,6 +493,10 @@ struct ThinkingTreeView: View {
                 annotationCanvasController.showToolPicker()
             }
 
+            toolbarButton("文本框", icon: "textformat") {
+                beginAddingTextAnnotation()
+            }
+
             toolbarButton("撤销", icon: "arrow.uturn.backward") {
                 annotationCanvasController.undo()
             }
@@ -472,7 +510,7 @@ struct ThinkingTreeView: View {
             toolbarButton("清空", icon: "trash") {
                 showsClearAnnotationConfirmation = true
             }
-            .disabled(annotationCanvasController.isEmpty)
+            .disabled(annotationCanvasController.isEmpty && annotationTextItems.isEmpty)
         }
         .padding(7)
         .background(
@@ -608,6 +646,44 @@ struct ThinkingTreeView: View {
     }
 
     @ViewBuilder
+    private func annotationTextLayer(graph: TreeData) -> some View {
+        #if os(iOS) && canImport(PencilKit)
+        ZStack {
+            ForEach(annotationTextItems) { item in
+                MindTreeTextAnnotationBox(
+                    item: item,
+                    isEditable: mode == .standalone && interactionMode == .annotating,
+                    onEdit: {
+                        beginEditingTextAnnotation(item)
+                    },
+                    onMove: { point in
+                        updateTextAnnotationPosition(
+                            id: item.id,
+                            to: point,
+                            in: graph,
+                            persistsChange: false
+                        )
+                    },
+                    onMoveEnded: { point in
+                        updateTextAnnotationPosition(
+                            id: item.id,
+                            to: point,
+                            in: graph,
+                            persistsChange: true
+                        )
+                    }
+                )
+                .position(x: item.x, y: item.y)
+            }
+        }
+        .allowsHitTesting(mode == .standalone && interactionMode == .annotating)
+        .accessibilityElement(children: .contain)
+        #else
+        EmptyView()
+        #endif
+    }
+
+    @ViewBuilder
     private var annotationStatusPanel: some View {
         #if os(iOS) && canImport(PencilKit)
         if let annotationSaveError {
@@ -679,6 +755,15 @@ struct ThinkingTreeView: View {
         }
     }
 
+    private func accessibilityIdentifier(for node: TreeNode) -> String {
+        switch node.kind {
+        case .root:
+            return "mindTree.rootNode"
+        default:
+            return "mindTree.node.\(node.id)"
+        }
+    }
+
     private func refreshAnnotationState(for fingerprint: String) {
         #if os(iOS) && canImport(PencilKit)
         guard interactionMode == .browsing else { return }
@@ -686,11 +771,13 @@ struct ThinkingTreeView: View {
         guard let annotation = annotationLayer(matching: fingerprint) else {
             loadedAnnotationID = nil
             annotationDrawingData = Data()
+            annotationTextItems = []
             return
         }
 
         if loadedAnnotationID != annotation.id {
             annotationDrawingData = annotation.drawingData
+            annotationTextItems = MindTreeTextAnnotationCodec.decode(annotation.textItemsData ?? Data())
             loadedAnnotationID = annotation.id
         }
         #endif
@@ -706,6 +793,15 @@ struct ThinkingTreeView: View {
             finishAnnotating()
         }
         refreshAnnotationState(for: newFingerprint)
+
+        guard hasInitializedViewport,
+              lastViewportSize.width > 0,
+              lastViewportSize.height > 0 else {
+            return
+        }
+        DispatchQueue.main.async {
+            fitTreeToViewport(in: lastViewportSize, preserveScale: false)
+        }
         #endif
     }
 
@@ -730,6 +826,7 @@ struct ThinkingTreeView: View {
 
         loadedAnnotationID = annotation.id
         annotationDrawingData = annotation.drawingData
+        annotationTextItems = MindTreeTextAnnotationCodec.decode(annotation.textItemsData ?? Data())
         annotationSession = AnnotationSession(
             annotationID: annotation.id,
             fingerprint: fingerprint,
@@ -740,6 +837,112 @@ struct ThinkingTreeView: View {
         )
         annotationSaveError = nil
         interactionMode = .annotating
+    }
+
+    private func beginAddingTextAnnotation() {
+        guard interactionMode == .annotating,
+              annotationSession != nil,
+              lastViewportSize.width > 0,
+              lastViewportSize.height > 0 else {
+            return
+        }
+
+        let graph = layoutGraph(for: lastViewportSize)
+        let center = defaultTextAnnotationCenter(in: graph)
+        textAnnotationEditorTarget = TextAnnotationEditorTarget(
+            id: UUID(),
+            isNew: true,
+            initialText: "",
+            proposedX: center.x,
+            proposedY: center.y
+        )
+    }
+
+    private func beginEditingTextAnnotation(_ item: MindTreeTextAnnotationItem) {
+        guard interactionMode == .annotating else { return }
+        textAnnotationEditorTarget = TextAnnotationEditorTarget(
+            id: item.id,
+            isNew: false,
+            initialText: item.text,
+            proposedX: item.x,
+            proposedY: item.y
+        )
+    }
+
+    private func saveTextAnnotation(
+        target: TextAnnotationEditorTarget,
+        text: String
+    ) {
+        let now = Date()
+        if target.isNew {
+            annotationTextItems.append(
+                MindTreeTextAnnotationItem(
+                    id: target.id,
+                    text: text,
+                    x: target.proposedX,
+                    y: target.proposedY,
+                    createdAt: now,
+                    updatedAt: now
+                )
+            )
+        } else if let index = annotationTextItems.firstIndex(where: { $0.id == target.id }) {
+            annotationTextItems[index].text = text
+            annotationTextItems[index].updatedAt = now
+        }
+        persistAnnotationTextItems()
+    }
+
+    private func deleteTextAnnotation(id: UUID) {
+        annotationTextItems.removeAll { $0.id == id }
+        persistAnnotationTextItems()
+    }
+
+    private func updateTextAnnotationPosition(
+        id: UUID,
+        to point: CGPoint,
+        in graph: TreeData,
+        persistsChange: Bool
+    ) {
+        guard let index = annotationTextItems.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let item = annotationTextItems[index]
+        let clampedPoint = clampedTextAnnotationCenter(point, item: item, in: graph)
+        annotationTextItems[index].x = clampedPoint.x
+        annotationTextItems[index].y = clampedPoint.y
+        annotationTextItems[index].updatedAt = Date()
+
+        if persistsChange {
+            persistAnnotationTextItems()
+        }
+    }
+
+    private func defaultTextAnnotationCenter(in graph: TreeData) -> CGPoint {
+        let effectiveScale = max(scale, 0.01)
+        let visibleCenter = CGPoint(
+            x: (lastViewportSize.width / 2 - offset.width) / effectiveScale,
+            y: (lastViewportSize.height / 2 - offset.height) / effectiveScale
+        )
+        let prototype = MindTreeTextAnnotationItem(
+            text: "",
+            x: visibleCenter.x,
+            y: visibleCenter.y
+        )
+        return clampedTextAnnotationCenter(visibleCenter, item: prototype, in: graph)
+    }
+
+    private func clampedTextAnnotationCenter(
+        _ point: CGPoint,
+        item: MindTreeTextAnnotationItem,
+        in graph: TreeData
+    ) -> CGPoint {
+        let halfWidth = CGFloat(item.width) / 2
+        let halfHeight = CGFloat(item.height) / 2
+        return CGPoint(
+            x: min(max(point.x, halfWidth), max(halfWidth, graph.contentSize.width - halfWidth)),
+            y: min(max(point.y, halfHeight), max(halfHeight, graph.contentSize.height - halfHeight))
+        )
     }
 
     private func createAnnotation(
@@ -783,10 +986,31 @@ struct ThinkingTreeView: View {
         saveAnnotationContext()
     }
 
+    private func persistAnnotationTextItems() {
+        guard let session = annotationSession,
+              let annotation = project.mindTreeAnnotations.first(where: { $0.id == session.annotationID })
+        else {
+            return
+        }
+
+        let now = Date()
+        annotation.textItemsData = MindTreeTextAnnotationCodec.encode(annotationTextItems)
+        annotation.contentWidth = session.contentWidth
+        annotation.contentHeight = session.contentHeight
+        annotation.treeFingerprint = session.fingerprint
+        annotation.expandedTransitionOrders = session.expandedTransitionOrders
+        annotation.expandedArchivedStageOrders = session.expandedArchivedStageOrders
+        annotation.updatedAt = now
+        annotation.isArchived = false
+        project.updatedAt = now
+        saveAnnotationContext()
+    }
+
     private func finishAnnotating() {
         guard interactionMode == .annotating else { return }
         annotationCanvasController.flushPendingChanges()
         annotationDrawingData = annotationCanvasController.currentDrawingData
+        persistAnnotationTextItems()
         saveAnnotationContext()
         annotationSession = nil
         interactionMode = .browsing
@@ -801,11 +1025,14 @@ struct ThinkingTreeView: View {
         guard interactionMode == .annotating else { return }
         annotationCanvasController.clear()
         annotationCanvasController.flushPendingChanges()
+        annotationTextItems = []
+        persistAnnotationTextItems()
     }
 
     private func flushAnnotationIfNeeded() {
         guard interactionMode == .annotating, annotationSession != nil else { return }
         annotationCanvasController.flushPendingChanges()
+        persistAnnotationTextItems()
         saveAnnotationContext()
     }
 
@@ -1391,7 +1618,7 @@ struct ThinkingTreeView: View {
     }
 
     private var minimumReadableScale: CGFloat {
-        mode == .embedded ? 0.58 : 0.72
+        mode == .embedded ? 0.50 : 0.60
     }
 
     private func graphBounds(for graph: TreeData) -> CGRect {

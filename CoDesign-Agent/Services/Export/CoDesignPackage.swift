@@ -116,6 +116,7 @@ struct CoDesignPositionHint: Codable {
 struct MindTreeAnnotationSnapshot: Codable, Identifiable {
     var id: String
     var drawingData: Data
+    var textItemsData: Data?
     var contentWidth: Double
     var contentHeight: Double
     var treeFingerprint: String
@@ -130,6 +131,7 @@ struct MindTreeAnnotationSnapshot: Codable, Identifiable {
     init(
         id: String,
         drawingData: Data,
+        textItemsData: Data? = nil,
         contentWidth: Double,
         contentHeight: Double,
         treeFingerprint: String,
@@ -143,6 +145,7 @@ struct MindTreeAnnotationSnapshot: Codable, Identifiable {
     ) {
         self.id = id
         self.drawingData = drawingData
+        self.textItemsData = textItemsData
         self.contentWidth = contentWidth
         self.contentHeight = contentHeight
         self.treeFingerprint = treeFingerprint
@@ -159,6 +162,7 @@ struct MindTreeAnnotationSnapshot: Codable, Identifiable {
         self.init(
             id: annotation.id.uuidString,
             drawingData: annotation.drawingData,
+            textItemsData: annotation.textItemsData,
             contentWidth: annotation.contentWidth,
             contentHeight: annotation.contentHeight,
             treeFingerprint: annotation.treeFingerprint,

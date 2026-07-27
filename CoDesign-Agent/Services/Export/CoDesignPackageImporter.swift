@@ -124,6 +124,7 @@ struct CoDesignPackageImporter {
             let model = MindTreeAnnotation(
                 id: UUID(),
                 drawingData: annotation.drawingData,
+                textItemsData: annotation.textItemsData,
                 contentWidth: annotation.contentWidth,
                 contentHeight: annotation.contentHeight,
                 treeFingerprint: annotation.treeFingerprint,
