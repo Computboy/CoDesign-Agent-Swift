@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 struct CoDesignPackageImporter {
-    static let supportedSchemaVersions: Set<String> = ["1.0"]
+    static let supportedSchemaVersions: Set<String> = ["1.0", "1.1"]
 
     func loadPackage(from url: URL) throws -> CoDesignPackage {
         let shouldStopAccessing = url.startAccessingSecurityScopedResource()
@@ -115,6 +115,26 @@ struct CoDesignPackageImporter {
                 title: trace.title,
                 detail: trace.detail,
                 timestamp: trace.timestamp
+            )
+            context.insert(model)
+            return model
+        }
+
+        project.mindTreeAnnotations = (package.mindTreeAnnotations ?? []).map { annotation in
+            let model = MindTreeAnnotation(
+                id: UUID(),
+                drawingData: annotation.drawingData,
+                contentWidth: annotation.contentWidth,
+                contentHeight: annotation.contentHeight,
+                treeFingerprint: annotation.treeFingerprint,
+                expandedTransitionOrders: annotation.expandedTransitionOrders,
+                expandedArchivedStageOrders: annotation.expandedArchivedStageOrders,
+                authorName: annotation.authorName,
+                authorRole: annotation.authorRole,
+                createdAt: annotation.createdAt,
+                updatedAt: annotation.updatedAt,
+                isArchived: annotation.isArchived,
+                project: project
             )
             context.insert(model)
             return model

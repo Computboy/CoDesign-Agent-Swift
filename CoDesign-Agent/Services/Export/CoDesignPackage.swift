@@ -14,6 +14,7 @@ struct CoDesignPackage: Codable, Identifiable {
     var decisionTrace: [DecisionTraceItem]
     var resources: [ResourceCardSnapshot]
     var learningTraces: [LearningTraceSnapshot]
+    var mindTreeAnnotations: [MindTreeAnnotationSnapshot]?
     var display: CoDesignPackageDisplay
     var exportOptions: ReportExportOptions
 
@@ -21,7 +22,7 @@ struct CoDesignPackage: Codable, Identifiable {
 
     static var empty: CoDesignPackage {
         CoDesignPackage(
-            schemaVersion: "1.0",
+            schemaVersion: "1.1",
             documentType: "codesign.project",
             exportedAt: Date(),
             appVersion: "1.0",
@@ -56,6 +57,7 @@ struct CoDesignPackage: Codable, Identifiable {
             decisionTrace: [],
             resources: [],
             learningTraces: [],
+            mindTreeAnnotations: [],
             display: CoDesignPackageDisplay(),
             exportOptions: .defaults(for: .codesignPackage)
         )
@@ -109,6 +111,66 @@ struct CoDesignArchivedBranch: Codable, Identifiable {
 struct CoDesignPositionHint: Codable {
     var x: Double
     var y: Double
+}
+
+struct MindTreeAnnotationSnapshot: Codable, Identifiable {
+    var id: String
+    var drawingData: Data
+    var contentWidth: Double
+    var contentHeight: Double
+    var treeFingerprint: String
+    var expandedTransitionOrders: String
+    var expandedArchivedStageOrders: String
+    var authorName: String
+    var authorRole: String
+    var createdAt: Date
+    var updatedAt: Date
+    var isArchived: Bool
+
+    init(
+        id: String,
+        drawingData: Data,
+        contentWidth: Double,
+        contentHeight: Double,
+        treeFingerprint: String,
+        expandedTransitionOrders: String,
+        expandedArchivedStageOrders: String,
+        authorName: String,
+        authorRole: String,
+        createdAt: Date,
+        updatedAt: Date,
+        isArchived: Bool
+    ) {
+        self.id = id
+        self.drawingData = drawingData
+        self.contentWidth = contentWidth
+        self.contentHeight = contentHeight
+        self.treeFingerprint = treeFingerprint
+        self.expandedTransitionOrders = expandedTransitionOrders
+        self.expandedArchivedStageOrders = expandedArchivedStageOrders
+        self.authorName = authorName
+        self.authorRole = authorRole
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.isArchived = isArchived
+    }
+
+    init(annotation: MindTreeAnnotation) {
+        self.init(
+            id: annotation.id.uuidString,
+            drawingData: annotation.drawingData,
+            contentWidth: annotation.contentWidth,
+            contentHeight: annotation.contentHeight,
+            treeFingerprint: annotation.treeFingerprint,
+            expandedTransitionOrders: annotation.expandedTransitionOrders,
+            expandedArchivedStageOrders: annotation.expandedArchivedStageOrders,
+            authorName: annotation.authorName,
+            authorRole: annotation.authorRole,
+            createdAt: annotation.createdAt,
+            updatedAt: annotation.updatedAt,
+            isArchived: annotation.isArchived
+        )
+    }
 }
 
 struct CoDesignPackageDisplay: Codable {

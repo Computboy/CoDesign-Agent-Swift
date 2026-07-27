@@ -166,6 +166,12 @@ struct ReportExportSheet: View {
     private func export() {
         var exportOptions = options
         exportOptions.normalizeForFormat()
+        if exportOptions.format == .codesignPackage {
+            NotificationCenter.default.post(
+                name: .mindTreeAnnotationWillExport,
+                object: project.id
+            )
+        }
         let snapshot = ProjectReportSnapshotBuilder().build(project: project, options: exportOptions)
         let filename = ReportFileWriter.defaultFileName(projectName: project.name, format: exportOptions.format)
         let exportContentType = exportOptions.format.contentType
@@ -200,7 +206,13 @@ struct ReportExportSheet: View {
                     )
                 )
             case .codesignPackage:
-                let package = CoDesignPackageBuilder().build(from: snapshot)
+                let annotations = project.mindTreeAnnotations
+                    .sorted { $0.createdAt < $1.createdAt }
+                    .map(MindTreeAnnotationSnapshot.init(annotation:))
+                let package = CoDesignPackageBuilder().build(
+                    from: snapshot,
+                    mindTreeAnnotations: annotations
+                )
                 presentPreparedExport(
                     .file(
                         data: try CoDesignPackageDataCodec.encode(package),

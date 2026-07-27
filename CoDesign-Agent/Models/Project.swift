@@ -24,6 +24,9 @@ final class Project {
     @Relationship(deleteRule: .cascade, inverse: \ThinkingMoment.project)
     var thinkingMoments: [ThinkingMoment]
 
+    @Relationship(deleteRule: .cascade, inverse: \MindTreeAnnotation.project)
+    var mindTreeAnnotations: [MindTreeAnnotation]
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -33,7 +36,8 @@ final class Project {
         messages: [ChatMessage] = [],
         stages: [ProgressStage] = [],
         learningTraces: [LearningTrace] = [],
-        thinkingMoments: [ThinkingMoment] = []
+        thinkingMoments: [ThinkingMoment] = [],
+        mindTreeAnnotations: [MindTreeAnnotation] = []
     ) {
         self.id = id
         self.name = name
@@ -44,6 +48,7 @@ final class Project {
         self.stages = stages
         self.learningTraces = learningTraces
         self.thinkingMoments = thinkingMoments
+        self.mindTreeAnnotations = mindTreeAnnotations
     }
 
     var completionRate: Double {

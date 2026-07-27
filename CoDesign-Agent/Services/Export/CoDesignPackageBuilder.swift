@@ -10,13 +10,21 @@ struct CoDesignPackageBuilder {
     func build(project: Project, exportedAt: Date = Date()) -> CoDesignPackage {
         let options = ReportExportOptions.defaults(for: .codesignPackage)
         let snapshot = snapshotBuilder.build(project: project, options: options, exportedAt: exportedAt)
-        return build(from: snapshot)
+        return build(
+            from: snapshot,
+            mindTreeAnnotations: project.mindTreeAnnotations
+                .sorted { $0.createdAt < $1.createdAt }
+                .map(MindTreeAnnotationSnapshot.init(annotation:))
+        )
     }
 
-    func build(from snapshot: ProjectReportSnapshot) -> CoDesignPackage {
+    func build(
+        from snapshot: ProjectReportSnapshot,
+        mindTreeAnnotations: [MindTreeAnnotationSnapshot] = []
+    ) -> CoDesignPackage {
         let mindTree = buildMindTree(snapshot: snapshot)
         return CoDesignPackage(
-            schemaVersion: "1.0",
+            schemaVersion: "1.1",
             documentType: "codesign.project",
             exportedAt: snapshot.exportedAt,
             appVersion: appVersion,
@@ -29,6 +37,7 @@ struct CoDesignPackageBuilder {
             decisionTrace: snapshot.processEvidence.decisionTrace.filter(\.isActiveBranch),
             resources: snapshot.processEvidence.resources,
             learningTraces: snapshot.processEvidence.learningTraces,
+            mindTreeAnnotations: mindTreeAnnotations,
             display: CoDesignPackageDisplay(
                 defaultView: "mindTree",
                 expandedStages: Array(1...max(snapshot.project.currentStageOrder, 1)),

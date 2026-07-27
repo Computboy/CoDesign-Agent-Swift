@@ -27,6 +27,50 @@ final class CoDesign_AgentUITests: XCTestCase {
     }
 
     @MainActor
+    func testMindTreeAnnotationEntryIsDiscoverable() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let continueProjectButton = app.buttons["继续最近项目"].firstMatch
+        XCTAssertTrue(
+            continueProjectButton.waitForExistence(timeout: 10),
+            "首页应提供进入最近项目的入口"
+        )
+        continueProjectButton.tap()
+
+        let mindTreeButton = app.buttons["思维树"].firstMatch
+        XCTAssertTrue(
+            mindTreeButton.waitForExistence(timeout: 10),
+            "项目工作台应提供思维树入口"
+        )
+        mindTreeButton.tap()
+
+        let annotationButton = app.buttons["mindTree.startAnnotation"]
+        XCTAssertTrue(
+            annotationButton.waitForExistence(timeout: 10),
+            "独立思维树页面应显示开始批注按钮"
+        )
+
+        let browsingScreenshot = XCTAttachment(screenshot: app.screenshot())
+        browsingScreenshot.name = "Mind Tree Annotation Entry"
+        browsingScreenshot.lifetime = .keepAlways
+        add(browsingScreenshot)
+
+        annotationButton.tap()
+
+        let drawingToolsButton = app.buttons["画笔工具"]
+        XCTAssertTrue(
+            drawingToolsButton.waitForExistence(timeout: 10),
+            "进入批注模式后应显示画笔工具按钮"
+        )
+
+        let annotatingScreenshot = XCTAttachment(screenshot: app.screenshot())
+        annotatingScreenshot.name = "Mind Tree Annotating Mode"
+        annotatingScreenshot.lifetime = .keepAlways
+        add(annotatingScreenshot)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {

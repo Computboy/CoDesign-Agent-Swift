@@ -1,6 +1,10 @@
 import SwiftUI
 import SwiftData
 
+#if os(iOS) && canImport(PencilKit)
+import PencilKit
+#endif
+
 /// Design-thinking growth projection.
 /// The workspace remains the primary interaction; this tree visualizes how
 /// questions, answers, decisions, evidence, and revisions accumulate.
@@ -10,11 +14,26 @@ struct ThinkingTreeView: View {
         case standalone
     }
 
+    enum InteractionMode {
+        case browsing
+        case annotating
+    }
+
+    private struct AnnotationSession {
+        let annotationID: UUID
+        let fingerprint: String
+        let contentWidth: Double
+        let contentHeight: Double
+        let expandedTransitionOrders: String
+        let expandedArchivedStageOrders: String
+    }
+
     let project: Project
     var mode: DisplayMode = .standalone
     var chatViewModel: ChatViewModel?
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var expandedTransitionOrders: Set<Int> = []
     @State private var expandedArchivedStageOrders: Set<Int> = []
@@ -26,6 +45,18 @@ struct ThinkingTreeView: View {
     @State private var lastOffset: CGSize = .zero
     @State private var hasInitializedViewport = false
     @State private var lastViewportSize: CGSize = .zero
+    @State private var interactionMode: InteractionMode = .browsing
+    @State private var annotationDrawingData = Data()
+    @State private var loadedAnnotationID: UUID?
+    @State private var staleAnnotationID: UUID?
+    @State private var hidesStaleAnnotationNotice = false
+    @State private var showsClearAnnotationConfirmation = false
+    @State private var annotationSession: AnnotationSession?
+    @State private var annotationSaveError: String?
+
+    #if os(iOS) && canImport(PencilKit)
+    @StateObject private var annotationCanvasController = MindTreeAnnotationCanvasController()
+    #endif
 
     private var minimumScale: CGFloat {
         mode == .embedded ? 0.34 : 0.28
@@ -38,6 +69,7 @@ struct ThinkingTreeView: View {
     var body: some View {
         GeometryReader { geo in
             let graph = layoutGraph(for: geo.size)
+            let fingerprint = treeFingerprint(for: graph)
 
             ZStack {
                 treeBackground
@@ -49,6 +81,7 @@ struct ThinkingTreeView: View {
                     .frame(width: graph.contentSize.width, height: graph.contentSize.height)
 
                     edgeHitAreas(graph: graph, viewport: geo.size)
+                        .allowsHitTesting(interactionMode == .browsing)
 
                     ForEach(graph.nodes) { node in
                         let nodeView = TreeNodeView(node: node) {
@@ -59,11 +92,12 @@ struct ThinkingTreeView: View {
                         .simultaneousGesture(
                             LongPressGesture(minimumDuration: 0.45)
                                 .onEnded { _ in
-                                    if node.isEditable {
+                                    if interactionMode == .browsing && node.isEditable {
                                         editingNode = node
                                     }
                                 }
                         )
+                        .allowsHitTesting(interactionMode == .browsing)
 
                         #if os(iOS)
                         nodeView
@@ -85,16 +119,22 @@ struct ThinkingTreeView: View {
                         }
                         #endif
                     }
+
+                    annotationCanvasLayer(graph: graph)
+                        .frame(width: graph.contentSize.width, height: graph.contentSize.height)
+                        .zIndex(10_000)
                 }
                 .frame(width: graph.contentSize.width, height: graph.contentSize.height)
                 .scaleEffect(scale, anchor: .topLeading)
                 .offset(offset)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
                 .clipped()
                 .contentShape(Rectangle())
                 .simultaneousGesture(panGesture)
                 .simultaneousGesture(magnificationGesture)
             }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .clipped()
             .overlay(alignment: .topLeading) {
                 treeHeader
                     .padding(mode == .embedded ? 12 : AppTheme.spacingLarge)
@@ -106,9 +146,20 @@ struct ThinkingTreeView: View {
             .overlay(alignment: .topLeading) {
                 rootCenteredZoomControl(graph: graph, viewport: geo.size)
                     .position(zoomControlCenter(in: geo.size))
+                    .opacity(interactionMode == .browsing ? 1 : 0.35)
+                    .allowsHitTesting(interactionMode == .browsing)
+            }
+            .overlay(alignment: .bottom) {
+                annotationStatusPanel(graph: graph, fingerprint: fingerprint)
+                    .padding(mode == .embedded ? 12 : AppTheme.spacingLarge)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                standaloneAnnotationControls
+                    .padding(AppTheme.spacingLarge)
             }
             .onAppear {
                 lastViewportSize = geo.size
+                refreshAnnotationState(for: fingerprint)
                 if !hasInitializedViewport {
                     DispatchQueue.main.async {
                         fitTreeToViewport(in: geo.size, preserveScale: false)
@@ -121,6 +172,12 @@ struct ThinkingTreeView: View {
                 DispatchQueue.main.async {
                     fitTreeToViewport(in: newSize, preserveScale: true)
                 }
+            }
+            .onChange(of: fingerprint) { oldFingerprint, newFingerprint in
+                handleAnnotationFingerprintChange(
+                    from: oldFingerprint,
+                    to: newFingerprint
+                )
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: mode == .embedded ? AppTheme.cornerRadiusLarge : 0, style: .continuous))
@@ -146,6 +203,33 @@ struct ThinkingTreeView: View {
                 onQuestionRevisionSaved: continueAfterQuestionRevision
             )
                 .presentationDragIndicator(.visible)
+        }
+        .confirmationDialog(
+            "清空当前批注？",
+            isPresented: $showsClearAnnotationConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("清空批注", role: .destructive) {
+                clearAnnotation()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("此操作可以立即通过“撤销”恢复。")
+        }
+        .onDisappear {
+            flushAnnotationIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background {
+                flushAnnotationIfNeeded()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mindTreeAnnotationWillExport)) { notification in
+            guard let projectID = notification.object as? UUID,
+                  projectID == project.id else {
+                return
+            }
+            flushAnnotationIfNeeded()
         }
     }
 
@@ -309,51 +393,106 @@ struct ThinkingTreeView: View {
 
     @ViewBuilder
     private var treeToolbar: some View {
-        if mode == .embedded {
-            HStack(spacing: 6) {
-                compactToolbarButton("定位当前阶段", icon: "scope") {
-                    locateCurrentStage(in: lastViewportSize, preserveScale: true)
-                }
-
-                compactToolbarButton("重置视图", icon: "arrow.counterclockwise") {
-                    resetViewport(in: lastViewportSize)
-                }
+        if mode == .standalone {
+            #if os(iOS) && canImport(PencilKit)
+            if interactionMode == .annotating {
+                annotationEditingToolbar
+            } else {
+                standaloneBrowsingToolbar
             }
-            .padding(5)
-            .fixedSize()
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.cardBackground.opacity(0.94))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .strokeBorder(Color.primaryAccent.opacity(0.12), lineWidth: 1)
-            )
-        } else {
-            HStack(spacing: 8) {
-                toolbarButton("定位当前阶段", icon: "scope") {
-                    locateCurrentStage(in: lastViewportSize, preserveScale: true)
-                }
-
-                toolbarButton("重置视图", icon: "arrow.counterclockwise") {
-                    resetViewport(in: lastViewportSize)
-                }
-
-                toolbarButton("\(Int(scale * 100))%", icon: "plus.magnifyingglass") {
-                    setScalePreservingViewportCenter(scale + 0.12, viewport: lastViewportSize, animated: true)
-                }
-            }
-            .padding(7)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.cardBackground.opacity(0.94))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .strokeBorder(Color.primaryAccent.opacity(0.12), lineWidth: 1)
-            )
+            #else
+            standaloneBrowsingToolbar
+            #endif
         }
     }
+
+    private var standaloneBrowsingToolbar: some View {
+        HStack(spacing: 8) {
+            toolbarButton("\(Int(scale * 100))%", icon: "plus.magnifyingglass") {
+                setScalePreservingViewportCenter(scale + 0.12, viewport: lastViewportSize, animated: true)
+            }
+        }
+        .padding(7)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.cardBackground.opacity(0.94))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(Color.primaryAccent.opacity(0.12), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private var standaloneAnnotationControls: some View {
+        #if os(iOS) && canImport(PencilKit)
+        if mode == .standalone && interactionMode == .browsing {
+            Button {
+                beginAnnotatingCurrentTree()
+            } label: {
+                Label(
+                    staleAnnotationID == nil ? "开始批注" : "处理旧批注",
+                    systemImage: staleAnnotationID == nil
+                        ? "pencil.tip.crop.circle.fill"
+                        : "exclamationmark.triangle.fill"
+                )
+                .font(AppTheme.Typography.subheadline.weight(.bold))
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 18)
+                .frame(minHeight: 48)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.primaryAccent)
+                )
+                .coDesignShadow(.elevated)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(staleAnnotationID == nil ? "开始思维树批注" : "处理旧版思维树批注")
+            .accessibilityIdentifier("mindTree.startAnnotation")
+        }
+        #else
+        EmptyView()
+        #endif
+    }
+
+    #if os(iOS) && canImport(PencilKit)
+    private var annotationEditingToolbar: some View {
+        HStack(spacing: 8) {
+            toolbarButton("完成", icon: "checkmark") {
+                finishAnnotating()
+            }
+
+            toolbarButton("画笔工具", icon: "pencil.tip") {
+                annotationCanvasController.showToolPicker()
+            }
+
+            toolbarButton("撤销", icon: "arrow.uturn.backward") {
+                annotationCanvasController.undo()
+            }
+            .disabled(!annotationCanvasController.canUndo)
+
+            toolbarButton("重做", icon: "arrow.uturn.forward") {
+                annotationCanvasController.redo()
+            }
+            .disabled(!annotationCanvasController.canRedo)
+
+            toolbarButton("清空", icon: "trash") {
+                showsClearAnnotationConfirmation = true
+            }
+            .disabled(annotationCanvasController.isEmpty)
+        }
+        .padding(7)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.cardBackground.opacity(0.96))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(Color.primaryAccent.opacity(0.18), lineWidth: 1)
+        )
+        .accessibilityIdentifier("mindTree.annotationToolbar")
+    }
+    #endif
 
     private func toolbarButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -368,18 +507,6 @@ struct ThinkingTreeView: View {
             .padding(.horizontal, mode == .embedded ? 8 : 10)
             .padding(.vertical, 7)
             .background(Capsule().fill(Color.primaryAccent.opacity(0.075)))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
-    }
-
-    private func compactToolbarButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Color.primaryAccent)
-                .frame(width: compactToolbarSize, height: compactToolbarSize)
-                .background(Circle().fill(Color.primaryAccent.opacity(0.075)))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
@@ -445,14 +572,6 @@ struct ThinkingTreeView: View {
         )
     }
 
-    private var compactToolbarSize: CGFloat {
-        #if os(iOS)
-        return mode == .embedded ? 40 : 44
-        #else
-        return 28
-        #endif
-    }
-
     private var zoomButtonSize: CGFloat {
         #if os(iOS)
         return 38
@@ -473,6 +592,356 @@ struct ThinkingTreeView: View {
         )
     }
 
+    @ViewBuilder
+    private func annotationCanvasLayer(graph: TreeData) -> some View {
+        #if os(iOS) && canImport(PencilKit)
+        MindTreeAnnotationCanvas(
+            drawingData: annotationDrawingData,
+            drawingIdentity: loadedAnnotationID,
+            isInteractionEnabled: mode == .standalone && interactionMode == .annotating,
+            showsToolPicker: mode == .standalone && interactionMode == .annotating,
+            inputPolicy: .anyInput,
+            controller: annotationCanvasController,
+            onDebouncedDrawingChange: { data in
+                persistAnnotationDrawing(data)
+            }
+        )
+        .background(Color.clear)
+        .allowsHitTesting(mode == .standalone && interactionMode == .annotating)
+        .accessibilityHidden(mode != .standalone)
+        #else
+        EmptyView()
+        #endif
+    }
+
+    @ViewBuilder
+    private func annotationStatusPanel(graph: TreeData, fingerprint: String) -> some View {
+        #if os(iOS) && canImport(PencilKit)
+        if let annotation = staleMindTreeAnnotation,
+           !hidesStaleAnnotationNotice {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("批注基于旧版思维树", systemImage: "exclamationmark.triangle.fill")
+                    .font(AppTheme.Typography.subheadline.weight(.bold))
+                    .foregroundStyle(Color.warning)
+
+                Text("当前节点、展开状态或画布尺寸已变化。为避免笔迹错位，旧批注不会自动叠加。")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(Color.textSecondary)
+
+                if mode == .standalone {
+                    HStack(spacing: 8) {
+                        Button("隐藏旧批注") {
+                            hidesStaleAnnotationNotice = true
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("恢复旧展开状态") {
+                            restoreExpansionState(from: annotation)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("归档并新建批注") {
+                            archiveStaleAnnotationAndStartNew(
+                                graph: graph,
+                                fingerprint: fingerprint
+                            )
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .font(AppTheme.Typography.caption.weight(.semibold))
+                }
+            }
+            .padding(AppTheme.Layout.cardPadding)
+            .frame(maxWidth: 620, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                    .fill(Color.cardBackground.opacity(0.97))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                    .strokeBorder(Color.warning.opacity(0.35), lineWidth: 1)
+            )
+            .coDesignShadow(.elevated)
+        } else if let annotationSaveError {
+            Label(annotationSaveError, systemImage: "exclamationmark.circle.fill")
+                .font(AppTheme.Typography.caption.weight(.semibold))
+                .foregroundStyle(Color.danger)
+                .padding(AppTheme.Layout.cardPadding)
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                        .fill(Color.cardBackground.opacity(0.97))
+                )
+                .coDesignShadow(.card)
+        }
+        #else
+        EmptyView()
+        #endif
+    }
+
+    private var activeMindTreeAnnotation: MindTreeAnnotation? {
+        project.mindTreeAnnotations
+            .filter { !$0.isArchived }
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .first
+    }
+
+    private var staleMindTreeAnnotation: MindTreeAnnotation? {
+        guard let staleAnnotationID else { return nil }
+        return project.mindTreeAnnotations.first { $0.id == staleAnnotationID }
+    }
+
+    private func treeFingerprint(for graph: TreeData) -> String {
+        var parentIDs: [String: String] = [:]
+        for edge in graph.edges.sorted(by: { $0.id < $1.id }) where parentIDs[edge.toID] == nil {
+            parentIDs[edge.toID] = edge.fromID
+        }
+
+        let nodes = graph.nodes.map { node in
+            MindTreeFingerprintNode(
+                id: node.id,
+                parentID: parentIDs[node.id],
+                kind: fingerprintKind(for: node.kind),
+                stageOrder: node.stageOrder,
+                branchVersion: node.branchVersion
+            )
+        }
+
+        return MindTreeAnnotationFingerprint.make(
+            nodes: nodes,
+            expandedTransitionOrders: expandedTransitionOrders,
+            expandedArchivedStageOrders: expandedArchivedStageOrders,
+            contentWidth: Double(graph.contentSize.width),
+            contentHeight: Double(graph.contentSize.height)
+        )
+    }
+
+    private func fingerprintKind(for kind: TreeNodeKind) -> String {
+        switch kind {
+        case .root:
+            return "root"
+        case .stage:
+            return "stage"
+        case .branchStage:
+            return "branchStage"
+        case .question:
+            return "question"
+        case .field:
+            return "field"
+        case .process:
+            return "process"
+        case .evidence:
+            return "evidence"
+        case .revision:
+            return "revision"
+        }
+    }
+
+    private func refreshAnnotationState(for fingerprint: String) {
+        #if os(iOS) && canImport(PencilKit)
+        guard interactionMode == .browsing else { return }
+
+        guard let annotation = activeMindTreeAnnotation else {
+            loadedAnnotationID = nil
+            staleAnnotationID = nil
+            annotationDrawingData = Data()
+            hidesStaleAnnotationNotice = false
+            return
+        }
+
+        guard annotation.treeFingerprint == fingerprint else {
+            loadedAnnotationID = nil
+            staleAnnotationID = annotation.id
+            annotationDrawingData = Data()
+            return
+        }
+
+        staleAnnotationID = nil
+        hidesStaleAnnotationNotice = false
+        if loadedAnnotationID != annotation.id {
+            annotationDrawingData = annotation.drawingData
+            loadedAnnotationID = annotation.id
+        }
+        #endif
+    }
+
+    private func handleAnnotationFingerprintChange(
+        from oldFingerprint: String,
+        to newFingerprint: String
+    ) {
+        #if os(iOS) && canImport(PencilKit)
+        guard oldFingerprint != newFingerprint else { return }
+        if interactionMode == .annotating {
+            finishAnnotating()
+        }
+        refreshAnnotationState(for: newFingerprint)
+        #endif
+    }
+
+    #if os(iOS) && canImport(PencilKit)
+    private func beginAnnotatingCurrentTree() {
+        guard mode == .standalone,
+              lastViewportSize.width > 0,
+              lastViewportSize.height > 0 else {
+            return
+        }
+
+        let graph = layoutGraph(for: lastViewportSize)
+        let fingerprint = treeFingerprint(for: graph)
+        refreshAnnotationState(for: fingerprint)
+
+        if staleAnnotationID != nil {
+            hidesStaleAnnotationNotice = false
+            return
+        }
+
+        let annotation: MindTreeAnnotation
+        if let existing = activeMindTreeAnnotation,
+           existing.treeFingerprint == fingerprint {
+            annotation = existing
+        } else {
+            annotation = createAnnotation(graph: graph, fingerprint: fingerprint)
+        }
+
+        loadedAnnotationID = annotation.id
+        annotationDrawingData = annotation.drawingData
+        annotationSession = AnnotationSession(
+            annotationID: annotation.id,
+            fingerprint: fingerprint,
+            contentWidth: Double(graph.contentSize.width),
+            contentHeight: Double(graph.contentSize.height),
+            expandedTransitionOrders: MindTreeAnnotationExpansionCodec.encode(expandedTransitionOrders),
+            expandedArchivedStageOrders: MindTreeAnnotationExpansionCodec.encode(expandedArchivedStageOrders)
+        )
+        annotationSaveError = nil
+        interactionMode = .annotating
+    }
+
+    private func createAnnotation(
+        graph: TreeData,
+        fingerprint: String
+    ) -> MindTreeAnnotation {
+        let now = Date()
+        let annotation = MindTreeAnnotation(
+            contentWidth: Double(graph.contentSize.width),
+            contentHeight: Double(graph.contentSize.height),
+            treeFingerprint: fingerprint,
+            expandedTransitionOrders: MindTreeAnnotationExpansionCodec.encode(expandedTransitionOrders),
+            expandedArchivedStageOrders: MindTreeAnnotationExpansionCodec.encode(expandedArchivedStageOrders),
+            createdAt: now,
+            updatedAt: now
+        )
+        modelContext.insert(annotation)
+        project.mindTreeAnnotations.append(annotation)
+        saveAnnotationContext()
+        return annotation
+    }
+
+    private func persistAnnotationDrawing(_ data: Data) {
+        guard let session = annotationSession,
+              let annotation = project.mindTreeAnnotations.first(where: { $0.id == session.annotationID })
+        else {
+            return
+        }
+
+        let now = Date()
+        annotation.drawingData = data
+        annotation.contentWidth = session.contentWidth
+        annotation.contentHeight = session.contentHeight
+        annotation.treeFingerprint = session.fingerprint
+        annotation.expandedTransitionOrders = session.expandedTransitionOrders
+        annotation.expandedArchivedStageOrders = session.expandedArchivedStageOrders
+        annotation.updatedAt = now
+        annotation.isArchived = false
+        annotationDrawingData = data
+        project.updatedAt = now
+        saveAnnotationContext()
+    }
+
+    private func finishAnnotating() {
+        guard interactionMode == .annotating else { return }
+        annotationCanvasController.flushPendingChanges()
+        annotationDrawingData = annotationCanvasController.currentDrawingData
+        saveAnnotationContext()
+        annotationSession = nil
+        interactionMode = .browsing
+
+        if lastViewportSize.width > 0, lastViewportSize.height > 0 {
+            let graph = layoutGraph(for: lastViewportSize)
+            refreshAnnotationState(for: treeFingerprint(for: graph))
+        }
+    }
+
+    private func clearAnnotation() {
+        guard interactionMode == .annotating else { return }
+        annotationCanvasController.clear()
+        annotationCanvasController.flushPendingChanges()
+    }
+
+    private func flushAnnotationIfNeeded() {
+        guard interactionMode == .annotating, annotationSession != nil else { return }
+        annotationCanvasController.flushPendingChanges()
+        saveAnnotationContext()
+    }
+
+    private func restoreExpansionState(from annotation: MindTreeAnnotation) {
+        withAnimation(AppTheme.Animation.spring) {
+            expandedTransitionOrders = MindTreeAnnotationExpansionCodec.decode(
+                annotation.expandedTransitionOrders
+            )
+            expandedArchivedStageOrders = MindTreeAnnotationExpansionCodec.decode(
+                annotation.expandedArchivedStageOrders
+            )
+        }
+
+        DispatchQueue.main.async {
+            guard lastViewportSize.width > 0, lastViewportSize.height > 0 else { return }
+            let graph = layoutGraph(for: lastViewportSize)
+            refreshAnnotationState(for: treeFingerprint(for: graph))
+        }
+    }
+
+    private func archiveStaleAnnotationAndStartNew(
+        graph: TreeData,
+        fingerprint: String
+    ) {
+        if let annotation = staleMindTreeAnnotation {
+            annotation.isArchived = true
+            annotation.updatedAt = Date()
+        }
+        saveAnnotationContext()
+
+        loadedAnnotationID = nil
+        staleAnnotationID = nil
+        hidesStaleAnnotationNotice = false
+        annotationDrawingData = Data()
+
+        let annotation = createAnnotation(graph: graph, fingerprint: fingerprint)
+        loadedAnnotationID = annotation.id
+        annotationSession = AnnotationSession(
+            annotationID: annotation.id,
+            fingerprint: fingerprint,
+            contentWidth: Double(graph.contentSize.width),
+            contentHeight: Double(graph.contentSize.height),
+            expandedTransitionOrders: MindTreeAnnotationExpansionCodec.encode(expandedTransitionOrders),
+            expandedArchivedStageOrders: MindTreeAnnotationExpansionCodec.encode(expandedArchivedStageOrders)
+        )
+        interactionMode = .annotating
+    }
+
+    private func saveAnnotationContext() {
+        do {
+            try modelContext.save()
+            annotationSaveError = nil
+        } catch {
+            annotationSaveError = "批注保存失败：\(error.localizedDescription)"
+        }
+    }
+    #else
+    private func flushAnnotationIfNeeded() {}
+
+    private func clearAnnotation() {}
+    #endif
+
     private var currentStageName: String {
         StageDefinition.all.first { $0.order == project.currentStageOrder }?.shortSubtitle ?? "设计澄清"
     }
@@ -487,16 +956,13 @@ struct ThinkingTreeView: View {
     // MARK: - Interaction
 
     private func handleTap(_ node: TreeNode) {
+        guard interactionMode == .browsing else { return }
+
         if node.kind == .branchStage, let order = node.stageOrder {
             toggleArchivedStage(order)
             return
         }
 
-        if node.kind == .stage, let order = node.stageOrder {
-            if mode == .embedded {
-                locateStage(order, in: lastViewportSize, preserveScale: true)
-            }
-        }
         selectedNode = node
     }
 
@@ -512,6 +978,8 @@ struct ThinkingTreeView: View {
     }
 
     private func toggleTransition(_ order: Int, graph: TreeData, viewport: CGSize) {
+        guard interactionMode == .browsing else { return }
+
         guard viewport.width > 0, viewport.height > 0 else {
             toggleTransition(order)
             return
@@ -556,6 +1024,8 @@ struct ThinkingTreeView: View {
     }
 
     private func toggleTransition(_ order: Int) {
+        guard interactionMode == .browsing else { return }
+
         withAnimation(AppTheme.Animation.spring) {
             if expandedTransitionOrders.contains(order) {
                 expandedTransitionOrders.remove(order)
@@ -566,6 +1036,8 @@ struct ThinkingTreeView: View {
     }
 
     private func toggleArchivedStage(_ order: Int) {
+        guard interactionMode == .browsing else { return }
+
         withAnimation(AppTheme.Animation.spring) {
             if expandedArchivedStageOrders.contains(order) {
                 expandedArchivedStageOrders.remove(order)
@@ -960,6 +1432,7 @@ struct ThinkingTreeView: View {
     private var magnificationGesture: some Gesture {
         MagnificationGesture()
             .onChanged { value in
+                guard interactionMode == .browsing else { return }
                 setScalePreservingViewportCenter(
                     lastScale * value,
                     viewport: lastViewportSize,
@@ -968,6 +1441,7 @@ struct ThinkingTreeView: View {
                 )
             }
             .onEnded { _ in
+                guard interactionMode == .browsing else { return }
                 lastScale = scale
                 lastOffset = offset
             }
@@ -976,65 +1450,16 @@ struct ThinkingTreeView: View {
     private var panGesture: some Gesture {
         DragGesture(minimumDistance: 6, coordinateSpace: .local)
             .onChanged { value in
+                guard interactionMode == .browsing else { return }
                 offset = CGSize(
                     width: lastOffset.width + value.translation.width,
                     height: lastOffset.height + value.translation.height
                 )
             }
             .onEnded { _ in
+                guard interactionMode == .browsing else { return }
                 lastOffset = offset
             }
-    }
-
-    private func locateCurrentStage(in viewport: CGSize, preserveScale: Bool) {
-        locateStage(project.currentStageOrder, in: viewport, preserveScale: preserveScale)
-    }
-
-    private func locateStage(_ stageOrder: Int, in viewport: CGSize, preserveScale: Bool) {
-        guard viewport.width > 0, viewport.height > 0 else { return }
-        let graph = layoutGraph(for: viewport)
-        let targetID = TreeBuilder.stageNodeID(stageOrder)
-        guard let node = graph.node(for: targetID) else { return }
-
-        let nextScale = preserveScale ? scale : max(fitScale(for: graph, viewport: viewport), mode == .embedded ? 0.46 : 0.58)
-        let desired = CGPoint(x: viewport.width / 2, y: viewport.height * (mode == .embedded ? 0.48 : 0.50))
-        let nextOffset = offsetToPlace(
-            node.position,
-            at: desired,
-            graph: graph,
-            viewport: viewport,
-            scale: nextScale
-        )
-
-        withAnimation(AppTheme.Animation.standard) {
-            scale = clampedScale(nextScale)
-            lastScale = scale
-            offset = nextOffset
-            lastOffset = nextOffset
-            hasInitializedViewport = true
-        }
-    }
-
-    private func resetViewport(in viewport: CGSize) {
-        guard viewport.width > 0, viewport.height > 0 else { return }
-        let graph = layoutGraph(for: viewport)
-        guard let root = graph.node(for: TreeBuilder.rootID) else { return }
-        let nextScale = resetScale(for: graph, viewport: viewport)
-        let nextOffset = offsetToPlace(
-            root.position,
-            at: centeredRootAnchor(in: viewport),
-            graph: graph,
-            viewport: viewport,
-            scale: nextScale
-        )
-
-        withAnimation(AppTheme.Animation.standard) {
-            scale = nextScale
-            lastScale = nextScale
-            offset = nextOffset
-            lastOffset = nextOffset
-            hasInitializedViewport = true
-        }
     }
 
     private func fitTreeToViewport(in viewport: CGSize, preserveScale: Bool) {
@@ -1084,10 +1509,6 @@ struct ThinkingTreeView: View {
         return clampedScale(max(fittedScale, minimumReadableScale))
     }
 
-    private func resetScale(for graph: TreeData, viewport: CGSize) -> CGFloat {
-        max(fitScale(for: graph, viewport: viewport), minimumReadableScale)
-    }
-
     private var minimumReadableScale: CGFloat {
         mode == .embedded ? 0.58 : 0.72
     }
@@ -1130,10 +1551,6 @@ struct ThinkingTreeView: View {
                 ? viewport.height / 2
                 : viewport.height - 116
         )
-    }
-
-    private func centeredRootAnchor(in viewport: CGSize) -> CGPoint {
-        CGPoint(x: viewport.width / 2, y: viewport.height / 2)
     }
 
     private func offsetToPlace(
