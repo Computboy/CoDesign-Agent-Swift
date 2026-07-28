@@ -61,10 +61,12 @@ struct CoDesignStatusBadge: View {
 
     let status: Status
     let text: String?
+    let tintOverride: Color?
 
-    init(status: Status, text: String? = nil) {
+    init(status: Status, text: String? = nil, tint: Color? = nil) {
         self.status = status
         self.text = text
+        self.tintOverride = tint
     }
 
     var body: some View {
@@ -80,18 +82,22 @@ struct CoDesignStatusBadge: View {
         .frame(height: AppTheme.Layout.badgeHeight)
         .background(
             Capsule(style: .continuous)
-                .fill(status.tint.opacity(backgroundOpacity))
+                .fill(resolvedTint.opacity(backgroundOpacity))
         )
+    }
+
+    private var resolvedTint: Color {
+        tintOverride ?? status.tint
     }
 
     private var foregroundColor: Color {
         switch status {
         case .complete:
-            return status.tint.opacity(AppTheme.Opacity.strong)
+            return resolvedTint.opacity(AppTheme.Opacity.strong)
         case .locked:
-            return status.tint.opacity(AppTheme.Opacity.muted)
+            return resolvedTint.opacity(AppTheme.Opacity.muted)
         default:
-            return status.tint
+            return resolvedTint
         }
     }
 

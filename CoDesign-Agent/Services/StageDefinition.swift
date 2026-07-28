@@ -56,6 +56,26 @@ enum BriefField: String, CaseIterable {
         }
     }
 
+    /// SF Symbol used when a field is shown in compact status lists.
+    var systemImage: String {
+        switch self {
+        case .targetUser: return "person.crop.circle"
+        case .painPoint: return "scope"
+        case .useScenario: return "rectangle.on.rectangle.angled"
+        case .coreValue: return "diamond"
+        case .differentiation: return "square.grid.2x2"
+        case .boundaryItems: return "rectangle.dashed"
+        case .mvpFeatures: return "shippingbox"
+        case .technicalModules: return "square.stack.3d.up"
+        case .interactionFlow: return "point.bottomleft.forward.to.point.topright.scurvepath"
+        case .operationLogic: return "slider.horizontal.3"
+        case .hardConstraints: return "lock.shield"
+        case .successMetrics: return "checklist"
+        case .risks: return "exclamationmark.triangle"
+        case .milestones: return "calendar"
+        }
+    }
+
     /// 判断该字段在 snapshot 中是否已填充
     func isFilled(in snapshot: DesignBriefSnapshot) -> Bool {
         switch self {

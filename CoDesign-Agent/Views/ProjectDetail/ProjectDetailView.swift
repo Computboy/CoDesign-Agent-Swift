@@ -58,6 +58,9 @@ struct ProjectDetailView: View {
                                 },
                                 onExportBrief: {
                                     isShowingExportSheet = true
+                                },
+                                onOpenProjectLibrary: {
+                                    dismiss()
                                 }
                             )
                         case .mindTree:
@@ -66,11 +69,6 @@ struct ProjectDetailView: View {
                             VisualBoardView(project: project)
                         case .portfolio:
                             VisualPortfolioView(project: project)
-                        case .chat:
-                            ChatPanel(
-                                project: project,
-                                chatViewModel: chatVM
-                            )
                         case .progress:
                             ProgressPanel(project: project)
                         case .insights:
@@ -187,13 +185,11 @@ struct ProjectDetailView: View {
 }
 
 private struct WorkspacePageBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         LinearGradient(
-            colors: [
-                Color(red: 0.984, green: 0.986, blue: 1.0),
-                Color(red: 0.965, green: 0.968, blue: 0.995),
-                Color(red: 0.988, green: 0.982, blue: 1.0),
-            ],
+            colors: backgroundColors,
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -211,6 +207,22 @@ private struct WorkspacePageBackground: View {
                 .blur(radius: 120)
                 .offset(x: -170, y: 220)
         }
+    }
+
+    private var backgroundColors: [Color] {
+        if colorScheme == .dark {
+            return [
+                Color(red: 0.075, green: 0.078, blue: 0.12),
+                Color(red: 0.055, green: 0.06, blue: 0.10),
+                Color(red: 0.095, green: 0.075, blue: 0.13),
+            ]
+        }
+
+        return [
+            Color(red: 0.984, green: 0.986, blue: 1.0),
+            Color(red: 0.965, green: 0.968, blue: 0.995),
+            Color(red: 0.988, green: 0.982, blue: 1.0),
+        ]
     }
 }
 

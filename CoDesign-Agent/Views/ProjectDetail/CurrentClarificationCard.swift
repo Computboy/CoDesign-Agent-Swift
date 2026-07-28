@@ -12,8 +12,8 @@ struct CurrentClarificationCard: View {
     var showsResourcePanel: Bool = true
     let onQuickAction: (String) -> Void
     let onSend: (String) -> Void
-    private let contextPanelMinHeight: CGFloat = 76
     @State private var showsExampleAction = false
+    @State private var isContextExpanded = false
 
     // MARK: - State
 
@@ -146,7 +146,22 @@ struct CurrentClarificationCard: View {
     // MARK: - Body
 
     var body: some View {
-        CoDesignCard(style: .normal) {
+        CoDesignCard(
+            style: .imageBackground([
+                CoDesignCardBackgroundLayer(
+                    name: "background_orange",
+                    opacity: 0.18,
+                    alignment: .topTrailing,
+                    scale: 0.72
+                ),
+                CoDesignCardBackgroundLayer(
+                    name: "background_purple",
+                    opacity: 0.18,
+                    alignment: .bottomLeading,
+                    scale: 0.72
+                ),
+            ])
+        ) {
             VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
                 stageHeader
 
@@ -233,7 +248,11 @@ struct CurrentClarificationCard: View {
 
             Spacer()
 
-            CoDesignStatusBadge(status: stateBadgeStatus, text: stateBadgeText)
+            CoDesignStatusBadge(
+                status: stateBadgeStatus,
+                text: stateBadgeText,
+                tint: stateBadgeTint
+            )
         }
     }
 
@@ -253,6 +272,10 @@ struct CurrentClarificationCard: View {
         case .hasResponse: return "已生成"
         case .waitingUser: return "等待回答"
         }
+    }
+
+    private var stateBadgeTint: Color? {
+        cardState == .hasResponse ? .primaryAccent : nil
     }
 
     // MARK: - Content Variants
@@ -342,27 +365,76 @@ struct CurrentClarificationCard: View {
     // MARK: - Context
 
     private var contextSection: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: AppTheme.spacingMedium) {
-                if !whyAsk.isEmpty {
-                    whyAskSection
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(AppTheme.Animation.spring) {
+                    isContextExpanded.toggle()
                 }
+            } label: {
+                HStack(spacing: AppTheme.spacingSmall) {
+                    Image(systemName: "questionmark.circle")
+                        .foregroundStyle(Color.primaryAccent)
 
-                if !relatedFields.isEmpty {
-                    relatedFieldsSection
+                    Text("为什么这样问")
+                        .font(AppTheme.Typography.caption.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
+
+                    Spacer(minLength: AppTheme.spacingMedium)
+
+                    Text(isContextExpanded ? "收起" : "展开")
+                        .font(AppTheme.Typography.tiny.weight(.medium))
+                        .foregroundStyle(Color.textTertiary)
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.primaryAccent)
+                        .rotationEffect(.degrees(isContextExpanded ? 180 : 0))
                 }
+                .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isContextExpanded ? "收起追问说明" : "展开追问说明")
+            .accessibilityIdentifier("clarification.context.toggle")
 
-            VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
-                if !whyAsk.isEmpty {
-                    whyAskSection
-                }
+            if isContextExpanded {
+                Divider()
+                    .padding(.vertical, AppTheme.spacingMedium)
 
-                if !relatedFields.isEmpty {
-                    relatedFieldsSection
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: AppTheme.spacingLarge) {
+                        if !whyAsk.isEmpty {
+                            whyAskSection
+                        }
+
+                        if !relatedFields.isEmpty {
+                            relatedFieldsSection
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+                        if !whyAsk.isEmpty {
+                            whyAskSection
+                        }
+
+                        if !relatedFields.isEmpty {
+                            relatedFieldsSection
+                        }
+                    }
                 }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .padding(AppTheme.spacingMedium)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                .fill(Color.elevatedCardBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
+                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
+        )
     }
 
     private var relatedFieldsSection: some View {
@@ -385,23 +457,14 @@ struct CurrentClarificationCard: View {
                 }
             }
         }
-        .padding(AppTheme.spacingMedium)
-        .frame(maxWidth: .infinity, minHeight: contextPanelMinHeight, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .fill(Color.panelBackground)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
-        )
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     // MARK: - Why Ask
 
     private var whyAskSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-            Label("追问意图", systemImage: "questionmark.circle")
+            Text("追问意图")
                 .font(AppTheme.Typography.caption.weight(.semibold))
                 .foregroundStyle(Color.textSecondary)
 
@@ -410,16 +473,7 @@ struct CurrentClarificationCard: View {
                 .foregroundStyle(Color.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(AppTheme.spacingMedium)
-        .frame(maxWidth: .infinity, minHeight: contextPanelMinHeight, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .fill(Color.panelBackground)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
-        )
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     // MARK: - Quick Actions

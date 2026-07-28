@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - ProcessLogDisclosure
 
 /// A collapsible section that displays the conversation history as a timeline-style process log.
-/// Default state is collapsed to keep the workspace focused on current clarification task.
+/// Default state is expanded so the newest clarification context remains visible.
 /// Shows compact message rows (not chat bubbles) to emphasize audit/process nature.
 /// Features smooth expand/collapse animation with rotation and fade effects.
 struct ProcessLogDisclosure: View {
@@ -12,17 +12,16 @@ struct ProcessLogDisclosure: View {
     let isStreaming: Bool
     let streamingText: String
 
-    @State private var isExpanded: Bool = false
-    @State private var rotationAngle: Double = 0
+    @State private var isExpanded: Bool = true
 
     private var sortedMessages: [ChatMessage] {
-        messages.sorted { $0.timestamp < $1.timestamp }
+        messages.sorted { $0.timestamp > $1.timestamp }
     }
 
     private var sortedMethodMoments: [ThinkingMoment] {
         methodMoments
             .filter { $0.momType == "method" }
-            .sorted { $0.timestamp < $1.timestamp }
+            .sorted { $0.timestamp > $1.timestamp }
     }
 
     private var totalRecordCount: Int {
@@ -32,7 +31,7 @@ struct ProcessLogDisclosure: View {
     private var processEntries: [ProcessLogEntry] {
         let messageEntries = sortedMessages.map { ProcessLogEntry.message($0) }
         let methodEntries = sortedMethodMoments.map { ProcessLogEntry.method($0) }
-        return (messageEntries + methodEntries).sorted { $0.timestamp < $1.timestamp }
+        return (messageEntries + methodEntries).sorted { $0.timestamp > $1.timestamp }
     }
 
     var body: some View {
@@ -42,7 +41,6 @@ struct ProcessLogDisclosure: View {
                 Button {
                     withAnimation(AppTheme.Animation.spring) {
                         isExpanded.toggle()
-                        rotationAngle += 180
                     }
                 } label: {
                     HStack(spacing: AppTheme.spacingSmall) {
@@ -65,7 +63,7 @@ struct ProcessLogDisclosure: View {
                         Image(systemName: "chevron.down")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(Color.textTertiary)
-                            .rotationEffect(.degrees(rotationAngle))
+                            .rotationEffect(.degrees(isExpanded ? 180 : 0))
                     }
                 }
                 .buttonStyle(.plain)
@@ -82,6 +80,17 @@ struct ProcessLogDisclosure: View {
                     } else {
                         ScrollView(.vertical, showsIndicators: false) {
                             LazyVStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+                                // A streaming reply is always the newest record.
+                                if isStreaming && !streamingText.isEmpty {
+                                    ProcessLogMessageRow(
+                                        role: "assistant",
+                                        content: streamingText,
+                                        timestamp: Date(),
+                                        isStreaming: true
+                                    )
+                                    .transition(.opacity.combined(with: .move(edge: .leading)))
+                                }
+
                                 ForEach(processEntries) { entry in
                                     switch entry {
                                     case .message(let message):
@@ -93,16 +102,6 @@ struct ProcessLogDisclosure: View {
                                     }
                                 }
 
-                                // Streaming message
-                                if isStreaming && !streamingText.isEmpty {
-                                    ProcessLogMessageRow(
-                                        role: "assistant",
-                                        content: streamingText,
-                                        timestamp: Date(),
-                                        isStreaming: true
-                                    )
-                                    .transition(.opacity.combined(with: .move(edge: .leading)))
-                                }
                             }
                         }
                         .coDesignHideScrollIndicators()

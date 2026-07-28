@@ -2,20 +2,23 @@ import SwiftUI
 
 // MARK: - ClarificationWorkspaceView
 
-/// The v0.3 main workspace view that replaces ChatPanel as the primary interface.
+/// The v0.3 main workspace view for the structured clarification experience.
 /// Organizes the design clarification process into a structured workspace layout.
 ///
-/// ChatViewModel is injected from ProjectDetailView so that Workspace and Chat tab
-/// share the same instance and message state stays in sync across tab switches.
+/// ChatViewModel is injected from ProjectDetailView so project destinations share
+/// the same instance and message state stays in sync across tab switches.
 struct ClarificationWorkspaceView: View {
     let project: Project
     let chatViewModel: ChatViewModel
     var onReviewBrief: () -> Void = {}
     var onRevisitPreviousStage: () -> Void = {}
     var onExportBrief: () -> Void = {}
+    var onOpenProjectLibrary: () -> Void = {}
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var presentedAccessory: WorkspaceAccessory?
+    @State private var isSideRailVisible = true
+    @State private var isShowingSettings = false
 
     private enum WorkspaceLayoutMode {
         case desktopWide
@@ -32,7 +35,15 @@ struct ClarificationWorkspaceView: View {
         .sheet(item: $presentedAccessory) { accessory in
             accessorySheet(accessory)
                 #if os(iOS)
-                .presentationDetents(accessory.detents)
+                .frame(minHeight: 620)
+                .presentationSizing(.form)
+                .presentationDragIndicator(.visible)
+                #endif
+        }
+        .sheet(isPresented: $isShowingSettings) {
+            APISettingsView()
+                #if os(iOS)
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 #endif
         }
@@ -86,8 +97,12 @@ struct ClarificationWorkspaceView: View {
         treeMinimum: CGFloat,
         treeMaximum: CGFloat
     ) -> some View {
-        let railWidth: CGFloat = 72
-        let availableWidth = max(proxy.size.width - railWidth - 36, 1)
+        let sideRailWidth: CGFloat = 78
+        let sideRailLeadingInset: CGFloat = AppTheme.spacingMedium
+        let treeContentInset = isSideRailVisible
+            ? sideRailWidth + sideRailLeadingInset + AppTheme.spacingSmall
+            : 0
+        let availableWidth = max(proxy.size.width - 36, 1)
         let treeWidth = clamp(
             availableWidth * treeFraction,
             min: treeMinimum,
@@ -105,22 +120,11 @@ struct ClarificationWorkspaceView: View {
             }
         )
 
-        return HStack(spacing: AppTheme.spacingMedium) {
-            WorkspaceSideRail(
-                onShowResources: {
-                    presentedAccessory = .resources
-                },
-                onShowBrief: {
-                    presentedAccessory = .brief
-                },
-                onShowProgress: onRevisitPreviousStage,
-                onExport: onExportBrief
-            )
-            .frame(width: railWidth)
-
+        return ZStack(alignment: .leading) {
             VStack(spacing: AppTheme.spacingMedium) {
                 HStack(alignment: .top, spacing: AppTheme.spacingMedium) {
                     ThinkingTreeView(project: project, mode: .embedded, chatViewModel: chatViewModel)
+                        .padding(.leading, treeContentInset)
                         .frame(width: treeWidth)
                         .frame(maxHeight: .infinity)
 
@@ -148,9 +152,73 @@ struct ClarificationWorkspaceView: View {
                 WorkspaceStageTimeline(stages: project.stages)
                     .frame(height: 76)
             }
+            .padding(.horizontal, AppTheme.spacingMedium)
+            .padding(.vertical, AppTheme.spacingSmall)
+
+            if isSideRailVisible {
+                WorkspaceSideRail(
+                    isVisible: $isSideRailVisible,
+                    onShowProjectLibrary: onOpenProjectLibrary,
+                    onShowResourceLibrary: {
+                        presentedAccessory = .resources
+                    },
+                    onShowSettings: {
+                        isShowingSettings = true
+                    }
+                )
+                .frame(width: sideRailWidth)
+                .padding(.leading, sideRailLeadingInset)
+                .padding(.top, AppTheme.spacingSmall)
+                .padding(.bottom, 96)
+                .transition(.move(edge: .leading).combined(with: .opacity))
+                .zIndex(2)
+            } else {
+                VStack(spacing: 0) {
+                    Button {
+                        withAnimation(AppTheme.Animation.spring) {
+                            isSideRailVisible = true
+                        }
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color.primaryAccent)
+                            .frame(width: 30, height: 52)
+                            .background(
+                                UnevenRoundedRectangle(
+                                    topLeadingRadius: 0,
+                                    bottomLeadingRadius: 0,
+                                    bottomTrailingRadius: 14,
+                                    topTrailingRadius: 14,
+                                    style: .continuous
+                                )
+                                .fill(Color.elevatedCardBackground)
+                            )
+                            .overlay(
+                                UnevenRoundedRectangle(
+                                    topLeadingRadius: 0,
+                                    bottomLeadingRadius: 0,
+                                    bottomTrailingRadius: 14,
+                                    topTrailingRadius: 14,
+                                    style: .continuous
+                                )
+                                .strokeBorder(Color.primaryAccent.opacity(0.12), lineWidth: 1)
+                            )
+                            .coDesignShadow(.elevated)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("展开侧栏")
+                    .accessibilityIdentifier("workspace.sideRail.toggle")
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, AppTheme.spacingSmall)
+                .padding(.bottom, 96)
+                .frame(maxHeight: .infinity)
+                .transition(.move(edge: .leading).combined(with: .opacity))
+                .zIndex(2)
+            }
         }
-        .padding(.horizontal, AppTheme.spacingMedium)
-        .padding(.vertical, AppTheme.spacingSmall)
+        .animation(AppTheme.Animation.spring, value: isSideRailVisible)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
@@ -291,16 +359,6 @@ private enum WorkspaceAccessory: String, Identifiable {
         }
     }
 
-    #if os(iOS)
-    var detents: Set<PresentationDetent> {
-        switch self {
-        case .mindTree:
-            return [.large]
-        case .resources, .brief, .learning:
-            return [.medium, .large]
-        }
-    }
-    #endif
 }
 
 private struct WorkspaceAccessoryBar: View {
@@ -339,58 +397,75 @@ private struct WorkspaceDashboardActions {
 }
 
 private struct WorkspaceSideRail: View {
-    let onShowResources: () -> Void
-    let onShowBrief: () -> Void
-    let onShowProgress: () -> Void
-    let onExport: () -> Void
+    @Binding var isVisible: Bool
+    let onShowProjectLibrary: () -> Void
+    let onShowResourceLibrary: () -> Void
+    let onShowSettings: () -> Void
 
     var body: some View {
-        VStack(spacing: 6) {
-            sideRailItem(
-                title: "澄清",
-                icon: "sparkles",
-                isSelected: true,
-                action: {}
-            )
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(AppTheme.Animation.spring) {
+                    isVisible = false
+                }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Color.textSecondary)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        Circle()
+                            .fill(Color.panelBackground)
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .accessibilityLabel("收起侧栏")
+            .accessibilityIdentifier("workspace.sideRail.toggle")
+            .padding(.bottom, 10)
+
+            VStack(spacing: 14) {
+                sideRailItem(
+                    title: "工作台",
+                    icon: "square.grid.2x2.fill",
+                    isSelected: true,
+                    action: {}
+                )
+
+                sideRailItem(
+                    title: "项目库",
+                    icon: "folder",
+                    action: onShowProjectLibrary
+                )
+
+                sideRailItem(
+                    title: "资源库",
+                    icon: "books.vertical",
+                    action: onShowResourceLibrary
+                )
+            }
+
+            Spacer(minLength: 24)
 
             sideRailItem(
-                title: "资源",
-                icon: "books.vertical",
-                action: onShowResources
-            )
-
-            sideRailItem(
-                title: "简报",
-                icon: "rectangle.stack",
-                action: onShowBrief
-            )
-
-            sideRailItem(
-                title: "阶段",
-                icon: "point.bottomleft.forward.to.point.topright.scurvepath",
-                action: onShowProgress
-            )
-
-            Spacer(minLength: 12)
-
-            sideRailItem(
-                title: "导出",
-                icon: "square.and.arrow.up",
-                action: onExport
+                title: "设置",
+                icon: "gearshape",
+                action: onShowSettings
             )
         }
-        .padding(.horizontal, 7)
+        .padding(.horizontal, 8)
         .padding(.vertical, 10)
         .frame(maxHeight: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.86))
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.elevatedCardBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(Color.primaryAccent.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(Color.primaryAccent.opacity(0.10), lineWidth: 1)
         )
-        .coDesignShadow(.card)
+        .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 6)
     }
 
     private func sideRailItem(
@@ -400,37 +475,24 @@ private struct WorkspaceSideRail: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            VStack(spacing: 5) {
+            VStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 19, weight: .semibold))
+                    .frame(height: 22)
 
                 Text(title)
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            .foregroundStyle(isSelected ? Color.white : Color.textSecondary)
+            .foregroundStyle(isSelected ? Color.primaryAccent : Color.textSecondary)
             .frame(maxWidth: .infinity)
-            .frame(height: 54)
-            .background(
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .fill(
-                        isSelected
-                            ? AnyShapeStyle(
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 0.34, green: 0.28, blue: 0.96),
-                                        Color(red: 0.47, green: 0.38, blue: 0.96),
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            : AnyShapeStyle(Color.clear)
-                    )
-            )
+            .frame(height: 62)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(isSelected)
+        .accessibilityLabel(title)
         .accessibilityIdentifier("workspace.sideRail.\(title)")
     }
 }
@@ -502,7 +564,7 @@ private struct WorkspaceSummaryCards: View {
                 VStack(alignment: .leading, spacing: 5) {
                     ForEach(Array(currentFields.prefix(3)), id: \.rawValue) { field in
                         HStack(spacing: 6) {
-                            Image(systemName: field.isFilled(in: snapshot) ? "checkmark.circle.fill" : "circle")
+                            Image(systemName: field.systemImage)
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(field.isFilled(in: snapshot) ? Color.success : Color.warning)
 
@@ -596,7 +658,7 @@ private struct WorkspaceSummaryCards: View {
         .frame(maxWidth: .infinity, minHeight: 142, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.92))
+                .fill(Color.elevatedCardBackground.opacity(0.92))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -611,7 +673,8 @@ private struct WorkspaceSummaryCards: View {
 private struct WorkspaceStageTimeline: View {
     let stages: [ProgressStage]
     @State private var selectedStage: ProgressStage?
-    @State private var selectedDefinition: StageDefinition?
+    private let bubbleWidth: CGFloat = 360
+    private let bubbleHeight: CGFloat = 320
 
     private var sortedStages: [ProgressStage] {
         stages.sorted { $0.order < $1.order }
@@ -636,22 +699,17 @@ private struct WorkspaceStageTimeline: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.88))
+                .fill(Color.elevatedCardBackground.opacity(0.88))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(Color.primaryAccent.opacity(0.08), lineWidth: 1)
         )
         .coDesignShadow(.card)
-        .overlay {
-            if let selectedStage, let selectedDefinition {
-                StageExplanationPopover(
-                    stage: selectedStage,
-                    definition: selectedDefinition,
-                    onDismiss: dismissExplanation
-                )
-            }
+        .overlay(alignment: .topLeading) {
+            stageExplanationBubble
         }
+        .zIndex(10)
     }
 
     private func stageButton(_ stage: ProgressStage) -> some View {
@@ -660,10 +718,9 @@ private struct WorkspaceStageTimeline: View {
         let isCurrent = stage.status == "active" || stage.status == "needsReview"
 
         return Button {
-            guard let definition else { return }
+            guard definition != nil else { return }
             withAnimation(AppTheme.Animation.spring) {
-                selectedStage = stage
-                selectedDefinition = definition
+                selectedStage = selectedStage?.id == stage.id ? nil : stage
             }
         } label: {
             VStack(spacing: 4) {
@@ -710,11 +767,63 @@ private struct WorkspaceStageTimeline: View {
             : Color.textTertiary.opacity(0.18)
     }
 
-    private func dismissExplanation() {
-        withAnimation(AppTheme.Animation.spring) {
-            selectedStage = nil
-            selectedDefinition = nil
+    @ViewBuilder
+    private var stageExplanationBubble: some View {
+        if
+            let selectedStage,
+            let definition = StageDefinition.all.first(where: { $0.order == selectedStage.order }),
+            let selectedIndex = sortedStages.firstIndex(where: { $0.id == selectedStage.id })
+        {
+            GeometryReader { proxy in
+                let horizontalInset: CGFloat = 18
+                let availableWidth = max(proxy.size.width - horizontalInset * 2, 1)
+                let stageCount = max(sortedStages.count, 1)
+                let targetX = horizontalInset
+                    + availableWidth * (CGFloat(selectedIndex) + 0.5) / CGFloat(stageCount)
+                let bubbleLeading = min(
+                    max(targetX - bubbleWidth / 2, AppTheme.spacingSmall),
+                    max(proxy.size.width - bubbleWidth - AppTheme.spacingSmall, AppTheme.spacingSmall)
+                )
+                let arrowLeading = min(
+                    max(targetX - bubbleLeading - 10, 18),
+                    bubbleWidth - 38
+                )
+
+                VStack(alignment: .leading, spacing: 0) {
+                    StageExplanationBubble(
+                        stage: selectedStage,
+                        definition: definition,
+                        onDismiss: {
+                            withAnimation(AppTheme.Animation.spring) {
+                                self.selectedStage = nil
+                            }
+                        }
+                    )
+                    .frame(width: bubbleWidth, height: bubbleHeight)
+
+                    StageBubbleArrow()
+                        .fill(Color.elevatedCardBackground)
+                        .frame(width: 20, height: 11)
+                        .offset(x: arrowLeading)
+                }
+                .offset(
+                    x: bubbleLeading,
+                    y: -(bubbleHeight - 18)
+                )
+                .transition(.scale(scale: 0.96, anchor: .bottom).combined(with: .opacity))
+            }
         }
+    }
+}
+
+private struct StageBubbleArrow: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 

@@ -23,15 +23,24 @@ struct AnswerComposer: View {
                 .lineLimit(1...5)
                 .focused($isInputFocused)
                 .padding(.horizontal, AppTheme.spacingMedium)
-                .padding(.vertical, AppTheme.spacingSmall)
+                .padding(.vertical, 11)
+                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                        .fill(Color.elevatedCardBackground)
+                        .fill(Color.clear)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall, style: .continuous)
-                        .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
+                        .strokeBorder(
+                            Color.primaryAccent.opacity(
+                                isInputFocused
+                                    ? 0.90
+                                    : 0.62
+                            ),
+                            lineWidth: isInputFocused ? 2 : 1.5
+                        )
                 )
+                .animation(AppTheme.Animation.quick, value: isInputFocused)
                 .disabled(isStreaming)
                 #if os(macOS)
                 .submitLabel(.send)
@@ -53,14 +62,33 @@ struct AnswerComposer: View {
                             .tint(.white)
                     } else {
                         Image(systemName: "arrow.up")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: 18, weight: .bold))
                     }
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(
+                    canSend
+                        ? Color.white
+                        : Color.primaryAccent.opacity(AppTheme.Opacity.muted)
+                )
                 .frame(width: sendButtonSize, height: sendButtonSize)
                 .background(
                     Circle()
-                        .fill(canSend ? Color.primaryAccent : Color.textTertiary.opacity(AppTheme.Opacity.soft))
+                        .fill(
+                            canSend
+                                ? Color.primaryAccent
+                                : Color.primaryAccent.opacity(AppTheme.Opacity.medium)
+                        )
+                )
+                .overlay(
+                    Circle()
+                        .strokeBorder(
+                            Color.primaryAccent.opacity(
+                                canSend
+                                    ? AppTheme.Opacity.noticeable
+                                    : AppTheme.Opacity.medium
+                            ),
+                            lineWidth: AppTheme.Border.thin
+                        )
                 )
             }
             .buttonStyle(.plain)
@@ -101,9 +129,9 @@ struct AnswerComposer: View {
 
     private var sendButtonSize: CGFloat {
         #if os(iOS)
-        return 44
+        return 50
         #else
-        return 32
+        return 36
         #endif
     }
 }

@@ -4,11 +4,13 @@ struct APISettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage("serviceMode") private var serviceMode: String = "mock"
-    @AppStorage("llmAPIKey") private var apiKey: String = ""
     @AppStorage("llmBaseURL") private var baseURL: String = ""
     @AppStorage("llmModel") private var model: String = ""
     @AppStorage("llmThinkingType") private var thinkingType: String = ""
+    @AppStorage(AppAppearance.storageKey) private var appAppearanceRaw = AppAppearance.system.rawValue
 
+    @State private var apiKey: String = APIKeyStore.load()
+    @State private var apiKeyStorageError: String?
     @FocusState private var focusedField: APISettingsField?
     @State private var showClearAlert = false
     @State private var isTestingAPI = false
@@ -22,6 +24,20 @@ struct APISettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("外观") {
+                    Picker("界面主题", selection: $appAppearanceRaw) {
+                        ForEach(AppAppearance.allCases) { appearance in
+                            Label(appearance.title, systemImage: appearance.systemImage)
+                                .tag(appearance.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Text("可跟随系统外观，也可以固定使用浅色或深色主题。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 // Service Mode Section
                 Section("服务模式") {
                     Picker("模式", selection: $serviceMode) {
@@ -106,6 +122,12 @@ struct APISettingsView: View {
                         .font(.caption)
                         .foregroundStyle(apiTestSucceeded ? .green : .red)
                     }
+
+                    if let apiKeyStorageError {
+                        Label(apiKeyStorageError, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                 }
 
                 // Quick Reference Section
@@ -161,7 +183,7 @@ struct APISettingsView: View {
                 }
                 #endif
             }
-            .navigationTitle("API 设置")
+            .navigationTitle("设置")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -180,7 +202,12 @@ struct APISettingsView: View {
             } message: {
                 Text("这将清空所有 API 配置，但不会影响已有项目数据。")
             }
-            .onChange(of: apiKey) { _, _ in resetAPITestResult() }
+            .onChange(of: apiKey) { _, newValue in
+                apiKeyStorageError = APIKeyStore.save(newValue)
+                    ? nil
+                    : "API Key 未能写入系统钥匙串，请稍后重试。"
+                resetAPITestResult()
+            }
             .onChange(of: baseURL) { _, _ in resetAPITestResult() }
             .onChange(of: model) { _, _ in resetAPITestResult() }
             .onChange(of: thinkingType) { _, _ in resetAPITestResult() }
@@ -221,6 +248,7 @@ struct APISettingsView: View {
 
     private func clearConfiguration() {
         apiKey = ""
+        APIKeyStore.delete()
         baseURL = ""
         model = ""
         thinkingType = ""
@@ -294,6 +322,7 @@ struct APISettingsView: View {
 
     private func persistLiveConfiguration(_ config: LLMAPIConfig) {
         apiKey = config.apiKey
+        APIKeyStore.save(config.apiKey)
         baseURL = config.baseURL.absoluteString
         model = config.model
         thinkingType = config.thinkingType ?? ""

@@ -69,7 +69,7 @@ private extension CoDesignHomeView {
             }
             .padding(.horizontal, layout.horizontalPadding)
             .padding(.vertical, 14)
-            .background(.white.opacity(0.94))
+            .background(HomePalette.surface.opacity(0.94))
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(HomePalette.border)
@@ -91,7 +91,7 @@ private extension CoDesignHomeView {
             }
             .padding(.horizontal, 28)
             .frame(height: 72)
-            .background(.white.opacity(0.94))
+            .background(HomePalette.surface.opacity(0.94))
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(HomePalette.border)
@@ -124,7 +124,7 @@ private extension CoDesignHomeView {
             .foregroundStyle(HomePalette.primaryText)
             .padding(.horizontal, 18)
             .frame(height: 44)
-            .background(.white)
+            .background(HomePalette.surface)
             .clipShape(Capsule())
             .overlay(
                 Capsule()
@@ -372,10 +372,10 @@ private struct HeroTreeIllustration: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: illustrationCornerRadius, style: .continuous)
-                .fill(.white.opacity(0.46))
+                .fill(HomePalette.surface.opacity(0.46))
                 .overlay(
                     RoundedRectangle(cornerRadius: illustrationCornerRadius, style: .continuous)
-                        .stroke(.white.opacity(0.84), lineWidth: 1)
+                        .stroke(HomePalette.surface.opacity(0.84), lineWidth: 1)
                 )
                 .shadow(color: HomePalette.accent.opacity(0.10), radius: 32, y: 16)
                 .frame(width: imageWidth + 32, height: imageHeight + 32)
@@ -487,11 +487,11 @@ private struct FloatingMiniCard: View {
         }
         .padding(16)
         .frame(width: 190, alignment: .leading)
-        .background(.white.opacity(0.84))
+        .background(HomePalette.surface.opacity(0.84))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(.white.opacity(0.92), lineWidth: 1)
+                .stroke(HomePalette.surface.opacity(0.92), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.06), radius: 20, y: 10)
     }
@@ -540,18 +540,18 @@ private struct FloatingStageCard: View {
                     }
                     .padding(.horizontal, 10)
                     .frame(height: 34)
-                    .background(.white.opacity(0.66))
+                    .background(HomePalette.surface.opacity(0.66))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
             }
         }
         .padding(16)
         .frame(width: 190)
-        .background(.white.opacity(0.86))
+        .background(HomePalette.surface.opacity(0.86))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(.white.opacity(0.92), lineWidth: 1)
+                .stroke(HomePalette.surface.opacity(0.92), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.06), radius: 22, y: 10)
     }
@@ -593,11 +593,11 @@ private struct FloatingBriefCard: View {
         }
         .padding(16)
         .frame(width: 188)
-        .background(.white.opacity(0.86))
+        .background(HomePalette.surface.opacity(0.86))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(.white.opacity(0.92), lineWidth: 1)
+                .stroke(HomePalette.surface.opacity(0.92), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.06), radius: 22, y: 10)
     }
@@ -636,7 +636,7 @@ private struct HomeFeatureCard: View {
         }
         .padding(22)
         .frame(maxWidth: .infinity, minHeight: 112)
-        .background(.white.opacity(0.92))
+        .background(HomePalette.surface.opacity(0.92))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -713,7 +713,7 @@ private struct HomeRecentProjectCard: View {
         }
         .padding(22)
         .frame(maxWidth: .infinity, minHeight: cardHeight, maxHeight: cardHeight)
-        .background(.white)
+        .background(HomePalette.surface)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -846,7 +846,7 @@ private struct HomeProjectEmptyState: View {
         }
         .padding(22)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white)
+        .background(HomePalette.surface)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -893,7 +893,7 @@ private struct HomeIconButton: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(HomePalette.primaryText)
                 .frame(width: 44, height: 44)
-                .background(.white)
+                .background(HomePalette.surface)
                 .clipShape(Circle())
                 .overlay(
                     Circle()
@@ -948,7 +948,7 @@ private struct HomeActionLabel: View {
                 endPoint: .bottomTrailing
             )
         case .secondary:
-            Color.white.opacity(0.92)
+            HomePalette.surface.opacity(0.92)
         }
     }
 
@@ -1003,9 +1003,9 @@ private struct HeroBackground: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    .white,
-                    Color(homeHex: "#F7FAFF"),
-                    Color(homeHex: "#F3F6FF")
+                    HomePalette.surface,
+                    HomePalette.pageBackground,
+                    HomePalette.softFill
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -1192,12 +1192,13 @@ private struct HomeLayout {
 }
 
 private enum HomePalette {
-    static let pageBackground = Color(homeHex: "#F7F9FD")
-    static let primaryText = Color(homeHex: "#202638")
-    static let secondaryText = Color(homeHex: "#667085")
-    static let tertiaryText = Color(homeHex: "#98A2B3")
-    static let border = Color(homeHex: "#E6EAF2")
-    static let softFill = Color(homeHex: "#F7F8FB")
+    static let pageBackground = Color.appBackground
+    static let surface = Color.elevatedCardBackground
+    static let primaryText = Color.textPrimary
+    static let secondaryText = Color.textSecondary
+    static let tertiaryText = Color.textTertiary
+    static let border = AppTheme.Border.color
+    static let softFill = Color.panelBackground
 
     static let accent = Color(homeHex: "#5B75F0")
     static let accentDeep = Color(homeHex: "#4963DF")

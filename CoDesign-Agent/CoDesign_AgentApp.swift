@@ -48,6 +48,7 @@ extension EnvironmentValues {
 struct CoDesign_AgentApp: App {
     @State private var openedPackage: CoDesignPackage?
     @State private var packageOpenError: String?
+    @AppStorage(AppAppearance.storageKey) private var appAppearanceRaw = AppAppearance.system.rawValue
 
     init() {
         configureScrollIndicators()
@@ -80,6 +81,7 @@ struct CoDesign_AgentApp: App {
         WindowGroup {
             ProjectListView()
                 .coDesignHideScrollIndicators()
+                .preferredColorScheme(appAppearance.colorScheme)
                 .environment(\.llmService, ModeSwitchingLLMService())
                 .environment(\.structuredExtractor, ModeSwitchingStructuredExtractor())
                 .onOpenURL { url in
@@ -112,6 +114,10 @@ struct CoDesign_AgentApp: App {
                 }
         }
         .modelContainer(sharedModelContainer)
+    }
+
+    private var appAppearance: AppAppearance {
+        AppAppearance(rawValue: appAppearanceRaw) ?? .system
     }
 
     private func configureScrollIndicators() {

@@ -149,7 +149,7 @@ struct ProjectLibraryView: View {
 
     var body: some View {
         ZStack {
-            Color.white
+            Color.appBackground
                 .ignoresSafeArea()
 
             if filteredProjects.isEmpty {
@@ -169,7 +169,7 @@ struct ProjectLibraryView: View {
                     .blur(radius: contentIsVisible ? 0 : pageBlurRadius)
             }
         }
-        .background(Color.white)
+        .background(Color.appBackground)
         .animation(.spring(response: 0.52, dampingFraction: 0.86), value: contentIsVisible)
         .navigationTitle("项目库")
         .searchable(text: $searchText, prompt: "搜索项目")
@@ -181,7 +181,7 @@ struct ProjectLibraryView: View {
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Color.textPrimary)
                         .frame(width: 38, height: 38)
-                        .background(.white)
+                        .background(Color.elevatedCardBackground)
                         .clipShape(Circle())
                         .overlay(
                             Circle()
@@ -221,7 +221,7 @@ struct ProjectLibraryView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar(.visible, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarBackground(Color.white, for: .navigationBar)
+        .toolbarBackground(Color.appBackground, for: .navigationBar)
         #endif
         .task {
             isLeaving = false
@@ -280,7 +280,7 @@ struct ProjectLibraryView: View {
             .padding(.vertical, AppTheme.spacingSmall)
             .animation(AppTheme.Animation.standard, value: projects.map(\.id))
         }
-        .background(Color.white)
+        .background(Color.appBackground)
         .coDesignHideScrollIndicators()
     }
 

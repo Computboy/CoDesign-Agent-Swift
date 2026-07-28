@@ -2,6 +2,13 @@ import SwiftUI
 
 // MARK: - CoDesignCard
 
+struct CoDesignCardBackgroundLayer {
+    let name: String
+    let opacity: Double
+    let alignment: Alignment
+    let scale: CGFloat
+}
+
 /// A reusable card container with unified styling (corner radius, background, shadow, padding).
 /// Supports multiple emphasis levels: normal, elevated, highlighted, bordered.
 ///
@@ -27,6 +34,8 @@ struct CoDesignCard<Content: View>: View {
         case elevated
         /// Left accent border + tinted background
         case highlighted(Color)
+        /// Card background with translucent image layers above the base fill
+        case imageBackground([CoDesignCardBackgroundLayer])
         /// Stroke border, no fill, no shadow
         case bordered
         /// No background, no shadow, hairline border — for nested panel content
@@ -62,6 +71,38 @@ struct CoDesignCard<Content: View>: View {
             Color.elevatedCardBackground
         case .highlighted:
             Color.elevatedCardBackground
+        case .imageBackground(let layers):
+            ZStack(alignment: .top) {
+                Color.elevatedCardBackground
+
+                GeometryReader { proxy in
+                    ZStack {
+                        ForEach(layers.indices, id: \.self) { index in
+                            let layer = layers[index]
+                            let layerWidth = proxy.size.width * layer.scale
+                            let layerHeight = proxy.size.height * layer.scale
+
+                            Image(layer.name)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(
+                                    width: layerWidth,
+                                    height: layerHeight,
+                                    alignment: layer.alignment
+                                )
+                                .clipped()
+                                .frame(
+                                    width: proxy.size.width,
+                                    height: proxy.size.height,
+                                    alignment: layer.alignment
+                                )
+                                .opacity(layer.opacity)
+                                .accessibilityHidden(true)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                }
+            }
         case .bordered:
             Color.clear
         case .minimal:
@@ -74,7 +115,7 @@ struct CoDesignCard<Content: View>: View {
     @ViewBuilder
     private var overlayView: some View {
         switch style {
-        case .normal, .elevated:
+        case .normal, .elevated, .imageBackground:
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium, style: .continuous)
                 .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
         case .highlighted(let accentColor):
@@ -102,7 +143,7 @@ struct CoDesignCard<Content: View>: View {
 
     private var shadowModifier: CoDesignCardShadow {
         switch style {
-        case .normal:
+        case .normal, .imageBackground:
             return CoDesignCardShadow(level: .card)
         case .elevated:
             return CoDesignCardShadow(level: .elevated)

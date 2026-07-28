@@ -114,19 +114,21 @@ final class CoDesign_AgentUITests: XCTestCase {
         continueProjectButton.tap()
 
         XCTAssertTrue(
-            app.buttons["澄清模式"].waitForExistence(timeout: 10),
-            "横屏工作台应显示澄清模式入口"
+            app.buttons["工作台"].waitForExistence(timeout: 10),
+            "横屏工作台应显示工作台入口"
         )
         XCTAssertTrue(app.buttons["思维树"].exists)
         XCTAssertTrue(app.buttons["成果看板"].exists)
         XCTAssertTrue(app.buttons["导出报告"].exists)
+        XCTAssertFalse(app.buttons["专注"].exists)
 
         XCTAssertTrue(
-            app.buttons["资源"].waitForExistence(timeout: 10),
-            "页面左栏应保留资源入口"
+            app.buttons["项目库"].waitForExistence(timeout: 10),
+            "页面浮动侧栏应提供项目库入口"
         )
-        XCTAssertTrue(app.buttons["简报"].exists)
-        XCTAssertTrue(app.buttons["阶段"].exists)
+        XCTAssertTrue(app.buttons["资源库"].exists)
+        XCTAssertTrue(app.buttons["设置"].exists)
+        XCTAssertTrue(app.buttons["收起侧栏"].exists)
 
         XCTAssertTrue(
             app.buttons["查看详情"].waitForExistence(timeout: 10),

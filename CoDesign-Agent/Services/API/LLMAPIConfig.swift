@@ -40,7 +40,7 @@ struct LLMAPIConfig {
             ?? normalizedOptional(env["DEEPSEEK_BASE_URL"])
             ?? "https://api.deepseek.com"
         let apiKey =
-            normalizedOptional(defaults.string(forKey: "llmAPIKey"))
+            normalizedOptional(APIKeyStore.load())
             ?? normalizedOptional(env["LLM_API_KEY"])
             ?? normalizedOptional(env["DEEPSEEK_API_KEY"])
             ?? ""

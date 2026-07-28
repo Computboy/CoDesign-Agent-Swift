@@ -32,8 +32,8 @@ struct WorkspaceGlobalBar: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color.white.opacity(0.98),
-                    Color(red: 0.975, green: 0.976, blue: 1.0).opacity(0.96),
+                    Color.appBackground.opacity(0.98),
+                    Color.panelBackground.opacity(0.96),
                 ],
                 startPoint: .leading,
                 endPoint: .trailing
@@ -47,18 +47,18 @@ struct WorkspaceGlobalBar: View {
     }
 
     private var regularLayout: some View {
-        HStack(spacing: 18) {
-            backButton
-            projectIdentity
-                .frame(width: 310, alignment: .leading)
+        ZStack {
+            HStack(spacing: 18) {
+                backButton
+                projectIdentity
+                    .frame(width: 310, alignment: .leading)
 
-            Spacer(minLength: 8)
+                Spacer(minLength: 24)
+
+                trailingActions
+            }
 
             primaryModePicker
-
-            Spacer(minLength: 8)
-
-            trailingActions
         }
     }
 
@@ -94,7 +94,7 @@ struct WorkspaceGlobalBar: View {
                 .frame(width: 48, height: 48)
                 .background(
                     RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .fill(Color.white.opacity(0.92))
+                        .fill(Color.elevatedCardBackground.opacity(0.92))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 15, style: .continuous)
@@ -136,7 +136,7 @@ struct WorkspaceGlobalBar: View {
     private var primaryModePicker: some View {
         HStack(spacing: 3) {
             modeButton(
-                title: "澄清模式",
+                title: "工作台",
                 icon: "sparkles",
                 tab: .workspace
             )
@@ -154,7 +154,7 @@ struct WorkspaceGlobalBar: View {
         .padding(4)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.92))
+                .fill(Color.elevatedCardBackground.opacity(0.92))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -209,20 +209,6 @@ struct WorkspaceGlobalBar: View {
 
     private var trailingActions: some View {
         HStack(spacing: 8) {
-            Button {
-                withAnimation(AppTheme.Animation.standard) {
-                    selectedTab = .chat
-                }
-            } label: {
-                Label("专注", systemImage: "waveform")
-                    .font(AppTheme.Typography.caption.weight(.semibold))
-                    .foregroundStyle(selectedTab == .chat ? Color.primaryAccent : Color.textPrimary)
-                    .padding(.horizontal, 15)
-                    .frame(height: 42)
-                    .background(actionBackground(isSelected: selectedTab == .chat))
-            }
-            .buttonStyle(.plain)
-
             viewModeMenu
             exportButton(compact: false)
         }
@@ -266,10 +252,9 @@ struct WorkspaceGlobalBar: View {
 
     private var compactNavigationMenu: some View {
         Menu {
-            compactDestination("澄清模式", icon: "sparkles", tab: .workspace)
+            compactDestination("工作台", icon: "sparkles", tab: .workspace)
             compactDestination("思维树", icon: ProjectDetailTab.mindTree.systemImage, tab: .mindTree)
             compactDestination("成果看板", icon: ProjectDetailTab.visualBoard.systemImage, tab: .visualBoard)
-            compactDestination("专注", icon: "waveform", tab: .chat)
 
             Divider()
 
@@ -278,7 +263,7 @@ struct WorkspaceGlobalBar: View {
             compactDestination("阶段进度", icon: ProjectDetailTab.progress.systemImage, tab: .progress)
         } label: {
             Label(
-                selectedTab == .workspace ? "澄清" : selectedTab.title,
+                selectedTab == .workspace ? "工作台" : selectedTab.title,
                 systemImage: selectedTab == .workspace ? "sparkles" : selectedTab.systemImage
             )
             .font(AppTheme.Typography.caption.weight(.semibold))
@@ -332,7 +317,7 @@ struct WorkspaceGlobalBar: View {
 
     private func actionBackground(isSelected: Bool) -> some View {
         Capsule(style: .continuous)
-            .fill(isSelected ? Color.primaryAccent.opacity(0.12) : Color.white.opacity(0.92))
+            .fill(isSelected ? Color.primaryAccent.opacity(0.12) : Color.elevatedCardBackground.opacity(0.92))
             .overlay(
                 Capsule(style: .continuous)
                     .strokeBorder(Color.primaryAccent.opacity(0.10), lineWidth: 1)
