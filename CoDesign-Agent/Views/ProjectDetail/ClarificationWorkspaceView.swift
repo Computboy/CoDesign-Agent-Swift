@@ -19,7 +19,7 @@ struct ClarificationWorkspaceView: View {
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var presentedAccessory: WorkspaceAccessory?
-    @State private var isSideRailVisible = true
+    @AppStorage("workspace.sideRail.isVisible") private var isSideRailVisible = true
     @State private var isShowingSettings = false
     @State private var selectedTimelineStage: ProgressStage?
 

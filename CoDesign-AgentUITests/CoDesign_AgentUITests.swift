@@ -130,6 +130,29 @@ final class CoDesign_AgentUITests: XCTestCase {
         XCTAssertTrue(app.buttons["设置"].exists)
         XCTAssertTrue(app.buttons["收起侧栏"].exists)
 
+        app.buttons["收起侧栏"].tap()
+        XCTAssertTrue(
+            app.buttons["展开侧栏"].waitForExistence(timeout: 10),
+            "收起侧栏后应显示恢复入口"
+        )
+
+        app.buttons["思维树"].tap()
+        XCTAssertTrue(
+            app.buttons["mindTree.startAnnotation"].waitForExistence(timeout: 10),
+            "应能从工作台进入全屏思维树"
+        )
+        app.buttons["工作台"].tap()
+
+        XCTAssertTrue(
+            app.buttons["展开侧栏"].waitForExistence(timeout: 10),
+            "从其他界面返回工作台时，应恢复用户上次选择的收起状态"
+        )
+        app.buttons["展开侧栏"].tap()
+        XCTAssertTrue(
+            app.buttons["项目库"].waitForExistence(timeout: 10),
+            "重新展开后应恢复完整侧栏"
+        )
+
         XCTAssertTrue(
             app.buttons["查看详情"].waitForExistence(timeout: 10),
             "工作区应显示设计依据摘要卡"
