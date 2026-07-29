@@ -375,6 +375,34 @@ struct ThinkingTreeProjectionTests {
         }
     }
 
+    @Test func canonicalLayoutDoesNotChangeWithViewportSize() {
+        let nodes = [
+            layoutNode(id: TreeBuilder.rootID, kind: .root, content: "根节点", stageOrder: nil),
+            layoutNode(id: TreeBuilder.stageNodeID(1), kind: .stage, content: "Stage 1", stageOrder: 1),
+            layoutNode(id: "question-1", kind: .question, content: "核心问题", stageOrder: 1),
+            layoutNode(id: "evidence-1", kind: .evidence, content: "设计依据", stageOrder: 1),
+        ]
+        let raw = TreeData(nodes: nodes, edges: [], contentSize: .zero)
+
+        let embedded = MindTreeCanonicalLayout.layout(
+            raw,
+            visibleStageLimit: 9,
+            in: CGSize(width: 480, height: 820)
+        )
+        let fullScreen = MindTreeCanonicalLayout.layout(
+            raw,
+            visibleStageLimit: 9,
+            in: CGSize(width: 1_366, height: 920)
+        )
+
+        #expect(embedded.contentSize == fullScreen.contentSize)
+        #expect(embedded.nodes.map(\.id) == fullScreen.nodes.map(\.id))
+        for embeddedNode in embedded.nodes {
+            let fullScreenNode = fullScreen.node(for: embeddedNode.id)
+            #expect(embeddedNode.position == fullScreenNode?.position)
+        }
+    }
+
     @Test func layoutPlacesExpandedArchivedStageContentInSingleTimelineColumn() {
         let branchStageID = "branch-stage-2-3"
         let base = Date()

@@ -13,6 +13,10 @@ struct ProjectDetailView: View {
     @State private var exportContentType: UTType = .markdownReport
     @State private var exportDefaultFilename = "CoDesign报告.md"
     @State private var exportStatusMessage: ProjectExportStatusMessage?
+    @State private var shouldBeginMindTreeCreation = false
+    @State private var isShowingProjectLibrary = false
+    @State private var tabSlideDirection = 1
+    @State private var mindTreePresentationState = MindTreePresentationState()
     @AppStorage("serviceMode") private var serviceModeRaw: String = "mock"
     @Environment(\.llmService) private var llmService
     @Environment(\.structuredExtractor) private var structuredExtractor
@@ -26,10 +30,8 @@ struct ProjectDetailView: View {
             VStack(spacing: 0) {
                 WorkspaceGlobalBar(
                     project: project,
-                    selectedTab: Binding(
-                        get: { viewModel.selectedTab },
-                        set: { viewModel.selectedTab = $0 }
-                    ),
+                    selectedTab: viewModel.selectedTab,
+                    onSelectTab: selectTab,
                     onBack: {
                         dismiss()
                     },
@@ -39,48 +41,17 @@ struct ProjectDetailView: View {
                 )
 
                 // MARK: - Tab Content
-                Group {
-                    if let chatVM = chatViewModel {
-                        switch viewModel.selectedTab {
-                        case .workspace:
-                            ClarificationWorkspaceView(
-                                project: project,
-                                chatViewModel: chatVM,
-                                onReviewBrief: {
-                                    withAnimation(AppTheme.Animation.standard) {
-                                        viewModel.selectedTab = .insights
-                                    }
-                                },
-                                onRevisitPreviousStage: {
-                                    withAnimation(AppTheme.Animation.standard) {
-                                        viewModel.selectedTab = .progress
-                                    }
-                                },
-                                onExportBrief: {
-                                    isShowingExportSheet = true
-                                },
-                                onOpenProjectLibrary: {
-                                    dismiss()
-                                }
-                            )
-                        case .mindTree:
-                            ThinkingTreeView(project: project, chatViewModel: chatVM)
-                        case .visualBoard:
-                            VisualBoardView(project: project)
-                        case .portfolio:
-                            VisualPortfolioView(project: project)
-                        case .progress:
-                            ProgressPanel(project: project)
-                        case .insights:
-                            InsightsPanel(project: project)
-                        }
-                    } else {
-                        ProgressView("正在准备工作台...")
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
+                ZStack {
+                    selectedTabContent
+                        .id(viewModel.selectedTab)
+                        .transition(tabTransition)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
             }
+        }
+        .navigationDestination(isPresented: $isShowingProjectLibrary) {
+            ProjectLibraryDestinationView()
         }
         .sheet(isPresented: $isShowingExportSheet) {
             ReportExportSheet(project: project, onPreparedExport: presentExport)
@@ -107,6 +78,9 @@ struct ProjectDetailView: View {
         .toolbar(.hidden, for: .navigationBar)
         #endif
         .task {
+            mindTreePresentationState.restorePersistedExpansionIfNeeded(
+                from: project.mindTreeAnnotations
+            )
             // 只在首次加载时初始化一次
             if chatViewModel == nil {
                 chatViewModel = ChatViewModel(
@@ -122,6 +96,76 @@ struct ProjectDetailView: View {
                 llmService: llmService,
                 extractor: structuredExtractor
             )
+        }
+    }
+
+    @ViewBuilder
+    private var selectedTabContent: some View {
+        if let chatVM = chatViewModel {
+            switch viewModel.selectedTab {
+            case .workspace:
+                ClarificationWorkspaceView(
+                    project: project,
+                    chatViewModel: chatVM,
+                    mindTreePresentationState: mindTreePresentationState,
+                    onReviewBrief: {
+                        selectTab(.insights)
+                    },
+                    onRevisitPreviousStage: {
+                        selectTab(.progress)
+                    },
+                    onExportBrief: {
+                        isShowingExportSheet = true
+                    },
+                    onOpenProjectLibrary: {
+                        isShowingProjectLibrary = true
+                    },
+                    onStartMindTreeCreation: {
+                        shouldBeginMindTreeCreation = true
+                        selectTab(.mindTree)
+                    }
+                )
+            case .mindTree:
+                ThinkingTreeView(
+                    project: project,
+                    chatViewModel: chatVM,
+                    presentationState: mindTreePresentationState,
+                    startsInCreationMode: shouldBeginMindTreeCreation,
+                    onCreationStarted: {
+                        shouldBeginMindTreeCreation = false
+                    }
+                )
+            case .visualBoard:
+                VisualBoardView(project: project)
+            case .portfolio:
+                VisualPortfolioView(project: project)
+            case .progress:
+                ProgressPanel(project: project)
+            case .insights:
+                InsightsPanel(project: project)
+            }
+        } else {
+            ProgressView("正在准备工作台...")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var tabTransition: AnyTransition {
+        let insertionEdge: Edge = tabSlideDirection > 0 ? .trailing : .leading
+        let removalEdge: Edge = tabSlideDirection > 0 ? .leading : .trailing
+
+        return .asymmetric(
+            insertion: .move(edge: insertionEdge).combined(with: .opacity),
+            removal: .move(edge: removalEdge).combined(with: .opacity)
+        )
+    }
+
+    private func selectTab(_ tab: ProjectDetailTab) {
+        guard tab != viewModel.selectedTab else { return }
+
+        tabSlideDirection = tab.navigationOrder > viewModel.selectedTab.navigationOrder ? 1 : -1
+        withAnimation(.spring(response: 0.44, dampingFraction: 0.90, blendDuration: 0.08)) {
+            viewModel.selectedTab = tab
         }
     }
 

@@ -13,6 +13,18 @@ enum ProjectDetailTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Stable visual order used to determine the direction of workspace transitions.
+    var navigationOrder: Int {
+        switch self {
+        case .workspace: return 0
+        case .mindTree: return 1
+        case .visualBoard: return 2
+        case .portfolio: return 3
+        case .progress: return 4
+        case .insights: return 5
+        }
+    }
+
     var title: String {
         switch self {
         case .workspace: return "工作台"

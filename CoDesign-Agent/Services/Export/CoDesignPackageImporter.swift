@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 struct CoDesignPackageImporter {
-    static let supportedSchemaVersions: Set<String> = ["1.0", "1.1"]
+    static let supportedSchemaVersions: Set<String> = ["1.0", "1.1", "1.2"]
 
     func loadPackage(from url: URL) throws -> CoDesignPackage {
         let shouldStopAccessing = url.startAccessingSecurityScopedResource()
@@ -120,14 +120,33 @@ struct CoDesignPackageImporter {
             return model
         }
 
+        let momentIDMapping = importedMomentIDs.reduce(into: [UUID: UUID]()) { result, pair in
+            guard let sourceUUID = UUID(uuidString: pair.key) else { return }
+            result[sourceUUID] = pair.value
+        }
         project.mindTreeAnnotations = (package.mindTreeAnnotations ?? []).map { annotation in
             let model = MindTreeAnnotation(
                 id: UUID(),
                 drawingData: annotation.drawingData,
-                textItemsData: annotation.textItemsData,
+                textItemsData: remappedTextItemsData(
+                    annotation.textItemsData,
+                    momentIDMapping: momentIDMapping
+                ),
+                anchoredInkData: remappedInkData(
+                    annotation.anchoredInkData,
+                    momentIDMapping: momentIDMapping
+                ),
+                layoutSnapshotsData: remappedLayoutSnapshotsData(
+                    annotation.layoutSnapshotsData,
+                    momentIDMapping: momentIDMapping
+                ),
                 contentWidth: annotation.contentWidth,
                 contentHeight: annotation.contentHeight,
                 treeFingerprint: annotation.treeFingerprint,
+                annotationDocumentVersion: annotation.annotationDocumentVersion,
+                lastKnownFingerprint: annotation.lastKnownFingerprint,
+                migrationStateRaw: annotation.migrationStateRaw,
+                legacySourceAnnotationID: annotation.legacySourceAnnotationID.flatMap(UUID.init(uuidString:)),
                 expandedTransitionOrders: annotation.expandedTransitionOrders,
                 expandedArchivedStageOrders: annotation.expandedArchivedStageOrders,
                 authorName: annotation.authorName,
@@ -188,5 +207,54 @@ struct CoDesignPackageImporter {
 
     private func strippedMomentID(_ id: String) -> String {
         id.replacingOccurrences(of: "moment-", with: "")
+    }
+
+    private func remappedTextItemsData(
+        _ data: Data?,
+        momentIDMapping: [UUID: UUID]
+    ) -> Data? {
+        guard let data,
+              let items = try? JSONDecoder().decode([MindTreeTextAnnotationItem].self, from: data)
+        else {
+            return data
+        }
+        let remapped = items.map { item in
+            var copy = item
+            copy.anchor = item.anchor?.remappingMomentIDs(momentIDMapping)
+            return copy
+        }
+        guard remapped != items else { return data }
+        return try? JSONEncoder().encode(remapped)
+    }
+
+    private func remappedInkData(
+        _ data: Data?,
+        momentIDMapping: [UUID: UUID]
+    ) -> Data? {
+        guard let data,
+              let groups = try? JSONDecoder().decode([MindTreeAnchoredInkGroup].self, from: data)
+        else {
+            return data
+        }
+        let remapped = groups.map { $0.remappingMomentIDs(momentIDMapping) }
+        guard remapped != groups else { return data }
+        return try? JSONEncoder().encode(remapped)
+    }
+
+    private func remappedLayoutSnapshotsData(
+        _ data: Data?,
+        momentIDMapping: [UUID: UUID]
+    ) -> Data? {
+        guard let data,
+              let snapshots = try? JSONDecoder().decode(
+                [MindTreeAnnotationLayoutSnapshot].self,
+                from: data
+              )
+        else {
+            return data
+        }
+        let remapped = snapshots.map { $0.remappingMomentIDs(momentIDMapping) }
+        guard remapped != snapshots else { return data }
+        return try? JSONEncoder().encode(remapped)
     }
 }

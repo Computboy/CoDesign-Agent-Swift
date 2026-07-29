@@ -84,6 +84,7 @@ struct MindTreeTextAnnotationBox: View {
             )
             .accessibilityLabel("文本批注：\(item.text)")
             .accessibilityHint(isEditable ? "轻点编辑，拖动移动" : "")
+            .accessibilityIdentifier("mindTree.annotation.text")
     }
 }
 

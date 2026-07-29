@@ -8,6 +8,7 @@ import PencilKit
 import UIKit
 #endif
 
+@MainActor
 struct MindTreeAnnotationTests {
     #if os(iOS) && canImport(PencilKit)
     @Test func pencilDrawingDataCanBeSavedAndRestored() throws {
@@ -134,7 +135,7 @@ struct MindTreeAnnotationTests {
         #expect(CoDesignPackageImporter.supportedSchemaVersions.contains("1.0"))
     }
 
-    @Test @MainActor func schema11PackageRestoresAnnotations() throws {
+    @Test @MainActor func schema12PackageRestoresAnnotations() throws {
         let container = try ExportTestFixtures.makeInMemoryContainer()
         let context = container.mainContext
         let sourceProject = ExportTestFixtures.makeProject(insertInto: context)
@@ -166,14 +167,468 @@ struct MindTreeAnnotationTests {
             context: context
         )
 
-        #expect(package.schemaVersion == "1.1")
+        #expect(package.schemaVersion == "1.2")
         #expect(package.mindTreeAnnotations?.count == 1)
         #expect(imported.mindTreeAnnotations.count == 1)
         #expect(imported.mindTreeAnnotations[0].drawingData == Data([1, 2, 3, 4]))
-        #expect(imported.mindTreeAnnotations[0].textItemsData == textItemsData)
+        #expect(
+            MindTreeTextAnnotationCodec.decode(imported.mindTreeAnnotations[0].textItemsData ?? Data())
+                == MindTreeTextAnnotationCodec.decode(textItemsData)
+        )
         #expect(imported.mindTreeAnnotations[0].treeFingerprint == "fingerprint-1")
         #expect(imported.mindTreeAnnotations[0].id != annotation.id)
     }
+
+    @Test func semanticAnchorsRoundTripThroughJSON() throws {
+        let momentID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let anchors: [MindTreeAnnotationAnchor] = [
+            .project,
+            .stage(order: 3),
+            .transition(stageOrder: 4),
+            .moment(id: momentID, branchVersion: 2, stageOrder: 1),
+            .archivedBranch(stageOrder: 2, branchVersion: 5),
+        ]
+
+        let data = try JSONEncoder().encode(anchors)
+        let decoded = try JSONDecoder().decode([MindTreeAnnotationAnchor].self, from: data)
+
+        #expect(decoded == anchors)
+        #expect(Set(decoded.map(\.stableID)).count == anchors.count)
+    }
+
+    @Test func legacyTextItemJSONDecodesWithoutAnchorFields() throws {
+        let legacy = LegacyTextItem(
+            id: UUID(),
+            text: "旧文字批注",
+            x: 120,
+            y: 240,
+            width: 260,
+            height: 112,
+            createdAt: Date(timeIntervalSince1970: 100),
+            updatedAt: Date(timeIntervalSince1970: 200)
+        )
+
+        let decoded = try JSONDecoder().decode(
+            MindTreeTextAnnotationItem.self,
+            from: JSONEncoder().encode(legacy)
+        )
+
+        #expect(decoded.text == legacy.text)
+        #expect(decoded.anchor == nil)
+        #expect(decoded.migrationVersion == nil)
+    }
+
+    @Test @MainActor func modernProjectDocumentWinsOverNewerLegacyLayer() {
+        let modern = MindTreeAnnotation(
+            contentWidth: 100,
+            contentHeight: 100,
+            treeFingerprint: "old-modern-fingerprint",
+            annotationDocumentVersion: MindTreeAnnotationDocument.currentVersion,
+            updatedAt: Date(timeIntervalSince1970: 100)
+        )
+        let newerLegacy = MindTreeAnnotation(
+            contentWidth: 100,
+            contentHeight: 100,
+            treeFingerprint: "current",
+            updatedAt: Date(timeIntervalSince1970: 200)
+        )
+
+        let selection = MindTreeAnnotationLayerSelector.selection(
+            matching: "current",
+            in: [newerLegacy, modern]
+        )
+
+        #expect(selection?.annotation.id == modern.id)
+        #expect(selection?.source == .modernProjectDocument)
+    }
+
+    @Test @MainActor func exactLegacyLayerWinsBeforeLatestLegacyFallback() {
+        let exact = MindTreeAnnotation(
+            contentWidth: 100,
+            contentHeight: 100,
+            treeFingerprint: "current",
+            updatedAt: Date(timeIntervalSince1970: 100)
+        )
+        let newerMismatch = MindTreeAnnotation(
+            contentWidth: 100,
+            contentHeight: 100,
+            treeFingerprint: "other",
+            updatedAt: Date(timeIntervalSince1970: 200)
+        )
+
+        let selection = MindTreeAnnotationLayerSelector.selection(
+            matching: "current",
+            in: [newerMismatch, exact]
+        )
+
+        #expect(selection?.annotation.id == exact.id)
+        #expect(selection?.source == .exactLegacyLayer)
+    }
+
+    @Test @MainActor func latestLegacyLayerIsReturnedInsteadOfBlank() {
+        let latest = MindTreeAnnotation(
+            contentWidth: 100,
+            contentHeight: 100,
+            treeFingerprint: "old",
+            updatedAt: Date(timeIntervalSince1970: 200)
+        )
+
+        let selection = MindTreeAnnotationLayerSelector.selection(
+            matching: "new",
+            in: [latest]
+        )
+
+        #expect(selection?.annotation.id == latest.id)
+        #expect(selection?.source == .legacyLayerNeedsMigration)
+        #expect(selection?.needsMigration == true)
+    }
+
+    @Test func anchoredTextFollowsStageAfterLayoutMoves() {
+        let first = makeLayoutSnapshot(
+            anchors: [anchorFrame(.stage(order: 1), x: 100, y: 200)],
+            width: 1000,
+            height: 1000,
+            fingerprint: "first"
+        )
+        let second = makeLayoutSnapshot(
+            anchors: [anchorFrame(.stage(order: 1), x: 360, y: 520)],
+            width: 1000,
+            height: 1000,
+            fingerprint: "second"
+        )
+        let base = MindTreeTextAnnotationItem(text: "阶段旁", x: 125, y: 180)
+        let anchored = MindTreeAnnotationProjectionService.anchoredTextItem(
+            base,
+            at: CGPoint(x: 125, y: 180),
+            in: first,
+            fingerprint: first.fingerprint
+        )
+        let projected = MindTreeAnnotationProjectionService.projectedTextItem(
+            anchored,
+            in: second,
+            knownAnchors: [.stage(order: 1)]
+        )
+
+        #expect(projected.x == 385)
+        #expect(projected.y == 500)
+        #expect(projected.resolutionState == .resolved)
+    }
+
+    @Test func collapsedAnchorIsHiddenButRetained() {
+        var item = MindTreeTextAnnotationItem(
+            text: "折叠分支批注",
+            x: 200,
+            y: 300,
+            anchor: .moment(id: UUID(), branchVersion: 1, stageOrder: 1),
+            localX: 10,
+            localY: 20,
+            fallbackNormalizedX: 0.2,
+            fallbackNormalizedY: 0.3
+        )
+        let anchor = item.anchor!
+        item = MindTreeAnnotationProjectionService.projectedTextItem(
+            item,
+            in: makeLayoutSnapshot(anchors: [], fingerprint: "collapsed"),
+            knownAnchors: [anchor]
+        )
+
+        #expect(item.resolutionState == .hidden)
+        #expect(item.anchor == anchor)
+    }
+
+    @Test func deletedAnchorUsesNormalizedFallbackAndIsMarkedUnresolved() {
+        let removedAnchor = MindTreeAnnotationAnchor.moment(
+            id: UUID(),
+            branchVersion: 3,
+            stageOrder: 2
+        )
+        let item = MindTreeTextAnnotationItem(
+            text: "待恢复",
+            x: 0,
+            y: 0,
+            anchor: removedAnchor,
+            localX: 0,
+            localY: 0,
+            fallbackNormalizedX: 0.25,
+            fallbackNormalizedY: 0.75
+        )
+        let snapshot = makeLayoutSnapshot(
+            anchors: [],
+            width: 800,
+            height: 1200,
+            fingerprint: "deleted"
+        )
+        let projected = MindTreeAnnotationProjectionService.projectedTextItem(
+            item,
+            in: snapshot,
+            knownAnchors: [.project]
+        )
+
+        #expect(projected.x == 200)
+        #expect(projected.y == 900)
+        #expect(projected.resolutionState == .unresolved)
+    }
+
+    @Test func legacyTextMigrationUsesNormalizedCanvasPosition() {
+        let snapshot = makeLayoutSnapshot(
+            anchors: [anchorFrame(.project, x: 1000, y: 1000)],
+            width: 2000,
+            height: 2000,
+            fingerprint: "expanded"
+        )
+        let legacy = MindTreeTextAnnotationItem(text: "旧位置", x: 500, y: 250)
+
+        let migrated = MindTreeAnnotationProjectionService.migrateLegacyTextItems(
+            [legacy],
+            sourceWidth: 1000,
+            sourceHeight: 500,
+            to: snapshot,
+            fingerprint: snapshot.fingerprint
+        )[0]
+
+        #expect(migrated.x == 1000)
+        #expect(migrated.y == 1000)
+        #expect(migrated.anchor == .project)
+        #expect(migrated.migrationVersion == 1)
+    }
+
+    @Test func draggingTextRebindsItToNearestSemanticAnchor() {
+        let snapshot = makeLayoutSnapshot(
+            anchors: [
+                anchorFrame(.stage(order: 1), x: 100, y: 100),
+                anchorFrame(.stage(order: 2), x: 700, y: 700),
+            ],
+            width: 1000,
+            height: 1000,
+            fingerprint: "drag"
+        )
+        let item = MindTreeTextAnnotationItem(text: "移动", x: 110, y: 110)
+        let rebound = MindTreeAnnotationProjectionService.anchoredTextItem(
+            item,
+            at: CGPoint(x: 680, y: 720),
+            in: snapshot,
+            fingerprint: snapshot.fingerprint
+        )
+
+        #expect(rebound.anchor == .stage(order: 2))
+        #expect(rebound.localX == -20)
+        #expect(rebound.localY == 20)
+    }
+
+    @Test func repeatedSnapshotCaptureIsIdempotentPerFingerprint() {
+        let old = makeLayoutSnapshot(anchors: [], fingerprint: "same")
+        let replacement = makeLayoutSnapshot(
+            anchors: [anchorFrame(.project, x: 20, y: 20)],
+            fingerprint: "same"
+        )
+        let merged = MindTreeAnnotationProjectionService.mergedSnapshots(
+            existing: [old],
+            adding: replacement
+        )
+
+        #expect(merged.count == 1)
+        #expect(merged[0].anchors.count == 1)
+    }
+
+    @Test func anchorMomentIDCanBeRemappedForImportedProject() {
+        let source = UUID()
+        let destination = UUID()
+        let anchor = MindTreeAnnotationAnchor.moment(
+            id: source,
+            branchVersion: 2,
+            stageOrder: 4
+        )
+
+        let remapped = anchor.remappingMomentIDs([source: destination])
+
+        #expect(
+            remapped == .moment(
+                id: destination,
+                branchVersion: 2,
+                stageOrder: 4
+            )
+        )
+    }
+
+    @Test func anchoredInkAndLayoutCodecsRoundTrip() {
+        let group = MindTreeAnchoredInkGroup(
+            anchor: .transition(stageOrder: 2),
+            drawingData: Data([4, 5, 6]),
+            sourceAnchorX: 200,
+            sourceAnchorY: 300,
+            sourceAnchorWidth: 40,
+            sourceAnchorHeight: 80,
+            fallbackNormalizedX: 0.2,
+            fallbackNormalizedY: 0.3,
+            createdAgainstFingerprint: "ink"
+        )
+        let layout = makeLayoutSnapshot(
+            anchors: [anchorFrame(.transition(stageOrder: 2), x: 200, y: 300)],
+            fingerprint: "ink"
+        )
+
+        #expect(MindTreeAnchoredInkCodec.decode(MindTreeAnchoredInkCodec.encode([group])) == [group])
+        #expect(MindTreeAnnotationLayoutCodec.decode(MindTreeAnnotationLayoutCodec.encode([layout])) == [layout])
+    }
+
+    @Test func projectionSummaryCountsHiddenAndUnresolvedItems() {
+        var hiddenText = MindTreeTextAnnotationItem(text: "hidden", x: 0, y: 0)
+        hiddenText.resolutionState = .hidden
+        var unresolvedInk = MindTreeAnchoredInkGroup(
+            anchor: .project,
+            drawingData: Data(),
+            sourceAnchorX: 0,
+            sourceAnchorY: 0,
+            sourceAnchorWidth: 1,
+            sourceAnchorHeight: 1,
+            fallbackNormalizedX: 0.5,
+            fallbackNormalizedY: 0.5,
+            createdAgainstFingerprint: "summary"
+        )
+        unresolvedInk.resolutionState = .unresolved
+
+        let summary = MindTreeAnnotationProjectionService.summary(
+            textItems: [hiddenText],
+            inkGroups: [unresolvedInk]
+        )
+
+        #expect(summary.hiddenCount == 1)
+        #expect(summary.unresolvedCount == 1)
+        #expect(summary.hasExceptions)
+    }
+
+    @Test @MainActor func schema11PackageStillDecodesWithLegacyAnnotationFields() throws {
+        let container = try ExportTestFixtures.makeInMemoryContainer()
+        let project = ExportTestFixtures.makeProject(insertInto: container.mainContext)
+        let annotation = MindTreeAnnotation(
+            drawingData: Data([7, 8]),
+            contentWidth: 800,
+            contentHeight: 1200,
+            treeFingerprint: "legacy-11"
+        )
+        container.mainContext.insert(annotation)
+        project.mindTreeAnnotations.append(annotation)
+        let package = CoDesignPackageBuilder().build(project: project)
+        let data = try makeLegacy11Data(from: package)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let decoded = try decoder.decode(CoDesignPackage.self, from: data)
+
+        #expect(decoded.schemaVersion == "1.1")
+        #expect(decoded.mindTreeAnnotations?.first?.drawingData == Data([7, 8]))
+        #expect(decoded.mindTreeAnnotations?.first?.annotationDocumentVersion == nil)
+    }
+
+    @Test @MainActor func schema12ImportRemapsMomentAnchors() throws {
+        let container = try ExportTestFixtures.makeInMemoryContainer()
+        let context = container.mainContext
+        let sourceProject = ExportTestFixtures.makeProject(insertInto: context)
+        let sourceMoment = try #require(sourceProject.thinkingMoments.first)
+        let anchoredText = MindTreeTextAnnotationItem(
+            text: "跟随问题",
+            x: 100,
+            y: 100,
+            anchor: .moment(
+                id: sourceMoment.id,
+                branchVersion: sourceMoment.branchVersion,
+                stageOrder: sourceMoment.stageOrder
+            ),
+            localX: 12,
+            localY: 18,
+            fallbackNormalizedX: 0.1,
+            fallbackNormalizedY: 0.1
+        )
+        let annotation = MindTreeAnnotation(
+            textItemsData: MindTreeTextAnnotationCodec.encode([anchoredText]),
+            contentWidth: 1000,
+            contentHeight: 1000,
+            treeFingerprint: "export",
+            annotationDocumentVersion: MindTreeAnnotationDocument.currentVersion
+        )
+        context.insert(annotation)
+        sourceProject.mindTreeAnnotations.append(annotation)
+        let package = CoDesignPackageBuilder().build(project: sourceProject)
+
+        let imported = try CoDesignPackageImporter().importAsNewProject(
+            package: package,
+            context: context
+        )
+        let importedMoment = try #require(
+            imported.thinkingMoments.first { $0.content == sourceMoment.content }
+        )
+        let importedAnnotation = try #require(imported.mindTreeAnnotations.first)
+        let importedTextData = try #require(importedAnnotation.textItemsData)
+        let importedItem = try #require(
+            MindTreeTextAnnotationCodec.decode(importedTextData).first
+        )
+
+        #expect(importedMoment.id != sourceMoment.id)
+        #expect(
+            importedItem.anchor == .moment(
+                id: importedMoment.id,
+                branchVersion: sourceMoment.branchVersion,
+                stageOrder: sourceMoment.stageOrder
+            )
+        )
+    }
+
+    #if os(iOS) && canImport(PencilKit)
+    @Test func inkStrokeFollowsItsAnchorAfterLayoutMoves() throws {
+        let drawing = PKDrawing(strokes: [makeStroke(from: CGPoint(x: 90, y: 95), to: CGPoint(x: 110, y: 105))])
+        let first = makeLayoutSnapshot(
+            anchors: [anchorFrame(.stage(order: 1), x: 100, y: 100)],
+            width: 1000,
+            height: 1000,
+            fingerprint: "first"
+        )
+        let second = makeLayoutSnapshot(
+            anchors: [anchorFrame(.stage(order: 1), x: 400, y: 300)],
+            width: 1000,
+            height: 1000,
+            fingerprint: "second"
+        )
+        let groups = MindTreeAnnotationInkService.groups(
+            from: drawing.dataRepresentation(),
+            in: first,
+            fingerprint: first.fingerprint
+        )
+        let projected = MindTreeAnnotationInkService.project(
+            groups,
+            into: second,
+            knownAnchors: [.stage(order: 1)]
+        )
+        let restored = try PKDrawing(data: projected.drawingData)
+
+        #expect(abs(restored.bounds.midX - 400) < 1)
+        #expect(abs(restored.bounds.midY - 300) < 1)
+        #expect(projected.groups.first?.resolutionState == .resolved)
+    }
+
+    @Test func collapsedInkIsNotRenderedButItsGroupSurvives() throws {
+        let drawing = PKDrawing(strokes: [makeStroke(from: CGPoint(x: 90, y: 95), to: CGPoint(x: 110, y: 105))])
+        let expanded = makeLayoutSnapshot(
+            anchors: [anchorFrame(.transition(stageOrder: 1), x: 100, y: 100)],
+            fingerprint: "expanded"
+        )
+        let groups = MindTreeAnnotationInkService.groups(
+            from: drawing.dataRepresentation(),
+            in: expanded,
+            fingerprint: expanded.fingerprint
+        )
+        let collapsed = makeLayoutSnapshot(anchors: [], fingerprint: "collapsed")
+        let projected = MindTreeAnnotationInkService.project(
+            groups,
+            into: collapsed,
+            knownAnchors: [.transition(stageOrder: 1)]
+        )
+        let restored = try PKDrawing(data: projected.drawingData)
+
+        #expect(restored.strokes.isEmpty)
+        #expect(projected.groups.count == 1)
+        #expect(projected.groups[0].resolutionState == .hidden)
+    }
+    #endif
 
     @Test @MainActor func deletingProjectCascadesToAnnotations() throws {
         let container = try ExportTestFixtures.makeInMemoryContainer()
@@ -313,6 +768,78 @@ struct MindTreeAnnotationTests {
         ]
     }
 
+    private struct LegacyTextItem: Codable {
+        var id: UUID
+        var text: String
+        var x: Double
+        var y: Double
+        var width: Double
+        var height: Double
+        var createdAt: Date
+        var updatedAt: Date
+    }
+
+    private func makeLayoutSnapshot(
+        anchors: [MindTreeAnnotationAnchorFrame],
+        width: Double = 1000,
+        height: Double = 1000,
+        fingerprint: String
+    ) -> MindTreeAnnotationLayoutSnapshot {
+        MindTreeAnnotationLayoutSnapshot(
+            anchors: anchors,
+            contentWidth: width,
+            contentHeight: height,
+            expandedTransitionOrders: "",
+            expandedArchivedStageOrders: "",
+            fingerprint: fingerprint,
+            capturedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+    }
+
+    private func anchorFrame(
+        _ anchor: MindTreeAnnotationAnchor,
+        x: Double,
+        y: Double
+    ) -> MindTreeAnnotationAnchorFrame {
+        MindTreeAnnotationAnchorFrame(
+            anchor: anchor,
+            nodeID: anchor.stableID,
+            x: x,
+            y: y,
+            width: 100,
+            height: 80
+        )
+    }
+
+    #if os(iOS) && canImport(PencilKit)
+    private func makeStroke(from start: CGPoint, to end: CGPoint) -> PKStroke {
+        let points = [
+            PKStrokePoint(
+                location: start,
+                timeOffset: 0,
+                size: CGSize(width: 4, height: 4),
+                opacity: 1,
+                force: 0.5,
+                azimuth: 0,
+                altitude: .pi / 2
+            ),
+            PKStrokePoint(
+                location: end,
+                timeOffset: 0.1,
+                size: CGSize(width: 4, height: 4),
+                opacity: 1,
+                force: 0.5,
+                azimuth: 0,
+                altitude: .pi / 2
+            ),
+        ]
+        return PKStroke(
+            ink: PKInk(.pen, color: .systemBlue),
+            path: PKStrokePath(controlPoints: points, creationDate: Date())
+        )
+    }
+    #endif
+
     @MainActor
     private func makeLegacy10Data(from package: CoDesignPackage) throws -> Data {
         let encoder = JSONEncoder()
@@ -323,6 +850,34 @@ struct MindTreeAnnotationTests {
         }
         object["schemaVersion"] = "1.0"
         object.removeValue(forKey: "mindTreeAnnotations")
+        return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+    }
+
+    @MainActor
+    private func makeLegacy11Data(from package: CoDesignPackage) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(package)
+        guard var object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw CocoaError(.propertyListReadCorrupt)
+        }
+        object["schemaVersion"] = "1.1"
+        if var annotations = object["mindTreeAnnotations"] as? [[String: Any]] {
+            let modernKeys = [
+                "anchoredInkData",
+                "layoutSnapshotsData",
+                "annotationDocumentVersion",
+                "lastKnownFingerprint",
+                "migrationStateRaw",
+                "legacySourceAnnotationID",
+            ]
+            annotations = annotations.map { annotation in
+                var legacy = annotation
+                modernKeys.forEach { legacy.removeValue(forKey: $0) }
+                return legacy
+            }
+            object["mindTreeAnnotations"] = annotations
+        }
         return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
     }
 }

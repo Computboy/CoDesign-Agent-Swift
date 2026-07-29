@@ -87,6 +87,8 @@ private struct StageExplanationContent: View {
                             .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("关闭阶段说明")
+                    .accessibilityIdentifier("workspace.stageExplanation.close")
                 }
             }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import Observation
 
 // MARK: - Node Kind
 
@@ -101,9 +102,53 @@ struct TreeData {
     let nodes: [TreeNode]
     let edges: [TreeEdge]
     let contentSize: CGSize
+    private let nodesByID: [String: TreeNode]
+
+    init(nodes: [TreeNode], edges: [TreeEdge], contentSize: CGSize) {
+        self.nodes = nodes
+        self.edges = edges
+        self.contentSize = contentSize
+        self.nodesByID = Dictionary(
+            nodes.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
 
     func node(for id: String) -> TreeNode? {
-        nodes.first { $0.id == id }
+        nodesByID[id]
+    }
+}
+
+// MARK: - Shared Tree Presentation State
+
+/// Project-detail-owned state shared by embedded and full-screen tree surfaces.
+/// Keeping expansion state here ensures both surfaces build the same graph.
+@MainActor
+@Observable
+final class MindTreePresentationState {
+    var expandedTransitionOrders: Set<Int> = []
+    var expandedArchivedStageOrders: Set<Int> = []
+    private(set) var hasRestoredPersistedExpansion = false
+
+    func restorePersistedExpansionIfNeeded(from annotations: [MindTreeAnnotation]) {
+        guard !hasRestoredPersistedExpansion else { return }
+        hasRestoredPersistedExpansion = true
+
+        let annotation = annotations
+            .filter {
+                !$0.isArchived
+                    && ($0.annotationDocumentVersion ?? 0)
+                        >= MindTreeAnnotationDocument.currentVersion
+            }
+            .max(by: { $0.updatedAt < $1.updatedAt })
+        guard let annotation else { return }
+
+        expandedTransitionOrders = MindTreeAnnotationExpansionCodec.decode(
+            annotation.expandedTransitionOrders
+        )
+        expandedArchivedStageOrders = MindTreeAnnotationExpansionCodec.decode(
+            annotation.expandedArchivedStageOrders
+        )
     }
 }
 
@@ -578,6 +623,10 @@ struct TreeBuilder {
         for order in branchOrders {
             let id = Self.branchStageNodeID(sourceOrder: sourceOrder, order: order)
             let definition = StageDefinition.all.first { $0.order == order }
+            let branchVersion = project.thinkingMoments
+                .filter { !$0.isActiveBranch && $0.stageOrder == order }
+                .map(\.branchVersion)
+                .max() ?? 1
             nodes.append(
                 TreeNode(
                     id: id,
@@ -590,7 +639,7 @@ struct TreeBuilder {
                     position: .zero,
                     nodeColor: archivedBranchColor,
                     isActiveBranch: false,
-                    branchVersion: 1,
+                    branchVersion: branchVersion,
                     richness: 0.34,
                     isGhost: false,
                     processLabel: "旧阶段",

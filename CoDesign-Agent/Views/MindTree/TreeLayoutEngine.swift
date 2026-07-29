@@ -1,5 +1,38 @@
 import SwiftUI
 
+/// One graph-space definition shared by the embedded and full-screen tree.
+/// Display surfaces may choose different viewport scales and offsets, but they
+/// must never relayout nodes with different spacing because annotations are
+/// stored in this graph coordinate space.
+enum MindTreeCanonicalLayout {
+    static let visibleStageLimit = 9
+    static let evidenceLimit = 3
+
+    static let engine = TreeLayoutEngine(
+        stageSpacing: 164,
+        sideBranchSpacing: 430,
+        sideNodeVerticalSpacing: 56,
+        topPadding: 126,
+        bottomPadding: 170,
+        contentWidth: 1_800
+    )
+
+    static func layout(
+        _ data: TreeData,
+        visibleStageLimit: Int,
+        in viewport: CGSize
+    ) -> TreeData {
+        // The viewport is intentionally not used to derive graph geometry.
+        // It is accepted so tests can enforce that compact and full surfaces
+        // receive identical graph coordinates.
+        _ = viewport
+        return engine.layout(
+            data,
+            in: engine.minimumContentSize(maxStage: visibleStageLimit)
+        )
+    }
+}
+
 /// Stable upward-growing layout for the design-thinking projection.
 struct TreeLayoutEngine {
     let stageSpacing: CGFloat
@@ -381,12 +414,13 @@ struct TreeLayoutEngine {
                 return false
             }
         }
+        let staticIndexSet = Set(staticIndices)
         for index in staticIndices {
             occupied.append(collisionRect(for: resolved[index], at: resolved[index].position))
         }
 
         let movableIndices = resolved.indices
-            .filter { !staticIndices.contains($0) }
+            .filter { !staticIndexSet.contains($0) }
             .sorted { lhs, rhs in
                 collisionSortKey(resolved[lhs]) < collisionSortKey(resolved[rhs])
             }

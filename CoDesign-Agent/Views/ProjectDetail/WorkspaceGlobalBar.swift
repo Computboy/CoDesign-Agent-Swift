@@ -6,7 +6,8 @@ import SwiftUI
 /// All actions route to existing destinations; this view owns presentation only.
 struct WorkspaceGlobalBar: View {
     let project: Project
-    @Binding var selectedTab: ProjectDetailTab
+    let selectedTab: ProjectDetailTab
+    let onSelectTab: (ProjectDetailTab) -> Void
     let onBack: () -> Void
     let onExportBrief: () -> Void
 
@@ -170,9 +171,7 @@ struct WorkspaceGlobalBar: View {
     ) -> some View {
         let isSelected = selectedTab == tab
         return Button {
-            withAnimation(AppTheme.Animation.standard) {
-                selectedTab = tab
-            }
+            onSelectTab(tab)
         } label: {
             Label(title, systemImage: icon)
                 .font(AppTheme.Typography.caption.weight(.semibold))
@@ -217,19 +216,19 @@ struct WorkspaceGlobalBar: View {
     private var viewModeMenu: some View {
         Menu {
             Button {
-                selectedTab = .portfolio
+                onSelectTab(.portfolio)
             } label: {
                 Label("作品档案", systemImage: ProjectDetailTab.portfolio.systemImage)
             }
 
             Button {
-                selectedTab = .insights
+                onSelectTab(.insights)
             } label: {
                 Label("设计洞察", systemImage: ProjectDetailTab.insights.systemImage)
             }
 
             Button {
-                selectedTab = .progress
+                onSelectTab(.progress)
             } label: {
                 Label("阶段进度", systemImage: ProjectDetailTab.progress.systemImage)
             }
@@ -283,7 +282,7 @@ struct WorkspaceGlobalBar: View {
         tab: ProjectDetailTab
     ) -> some View {
         Button {
-            selectedTab = tab
+            onSelectTab(tab)
         } label: {
             Label(title, systemImage: icon)
         }
@@ -328,7 +327,8 @@ struct WorkspaceGlobalBar: View {
 #Preview {
     WorkspaceGlobalBar(
         project: Project(name: "校园导航助手", briefDescription: "帮助新生找到教室"),
-        selectedTab: .constant(.workspace),
+        selectedTab: .workspace,
+        onSelectTab: { _ in },
         onBack: {},
         onExportBrief: {}
     )

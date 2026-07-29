@@ -7,7 +7,7 @@ struct CoDesignPackageEncodingTests {
         let project = ExportTestFixtures.makeProject()
         let package = CoDesignPackageBuilder().build(project: project)
 
-        #expect(package.schemaVersion == "1.1")
+        #expect(package.schemaVersion == "1.2")
         #expect(package.documentType == "codesign.project")
         #expect(package.project.name == "校园导航助手")
         #expect(!package.mindTree.nodes.isEmpty)

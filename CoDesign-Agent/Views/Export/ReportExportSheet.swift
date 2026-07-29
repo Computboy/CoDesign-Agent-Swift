@@ -208,7 +208,7 @@ struct ReportExportSheet: View {
             case .codesignPackage:
                 let annotations = project.mindTreeAnnotations
                     .sorted { $0.createdAt < $1.createdAt }
-                    .map(MindTreeAnnotationSnapshot.init(annotation:))
+                    .map { MindTreeAnnotationSnapshot(annotation: $0) }
                 let package = CoDesignPackageBuilder().build(
                     from: snapshot,
                     mindTreeAnnotations: annotations

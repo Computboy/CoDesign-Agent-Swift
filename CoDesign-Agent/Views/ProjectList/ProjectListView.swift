@@ -102,6 +102,97 @@ struct ProjectListView: View {
     }
 }
 
+// MARK: - Project Library Destination
+
+/// A self-contained route to the same all-project repository used by the home page.
+/// It keeps project detail inside the navigation stack instead of dismissing to home.
+struct ProjectLibraryDestinationView: View {
+    @Environment(\.modelContext) private var modelContext
+
+    @State private var searchText = ""
+    @State private var isShowingNewProject = false
+    @State private var isShowingSettings = false
+    @State private var isImportingCodesign = false
+    @State private var previewPackage: CoDesignPackage?
+    @State private var importErrorMessage: String?
+
+    var body: some View {
+        ProjectLibraryView(
+            searchText: $searchText,
+            onCreateProject: {
+                isShowingNewProject = true
+            },
+            onImportPackage: {
+                isImportingCodesign = true
+            },
+            onShowSettings: {
+                isShowingSettings = true
+            },
+            onDeleteProject: deleteProject
+        )
+        .sheet(isPresented: $isShowingNewProject) {
+            NewProjectView()
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $isShowingSettings) {
+            APISettingsView()
+                #if os(iOS)
+                .presentationDetents([.large])
+                #endif
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $previewPackage) { package in
+            CoDesignPackagePreviewView(package: package)
+                #if os(iOS)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                #endif
+        }
+        .fileImporter(
+            isPresented: $isImportingCodesign,
+            allowedContentTypes: [.codesignProject],
+            onCompletion: handleCodesignImport
+        )
+        .alert(
+            "导入失败",
+            isPresented: Binding(
+                get: { importErrorMessage != nil },
+                set: { if !$0 { importErrorMessage = nil } }
+            )
+        ) {
+            Button("好", role: .cancel) {
+                importErrorMessage = nil
+            }
+        } message: {
+            Text(importErrorMessage ?? "")
+        }
+    }
+
+    private func deleteProject(_ project: Project) {
+        withAnimation(AppTheme.Animation.standard) {
+            modelContext.delete(project)
+            try? modelContext.save()
+        }
+    }
+
+    private func handleCodesignImport(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            do {
+                previewPackage = try CoDesignPackageImporter().loadPackage(from: url)
+            } catch {
+                importErrorMessage = error.localizedDescription
+            }
+        case .failure(let error):
+            let nsError = error as NSError
+            if nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError {
+                return
+            }
+            importErrorMessage = error.localizedDescription
+        }
+    }
+}
+
 // MARK: - Project Library
 
 struct ProjectLibraryView: View {

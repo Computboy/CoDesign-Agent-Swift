@@ -22,7 +22,7 @@ struct CoDesignPackage: Codable, Identifiable {
 
     static var empty: CoDesignPackage {
         CoDesignPackage(
-            schemaVersion: "1.1",
+            schemaVersion: "1.2",
             documentType: "codesign.project",
             exportedAt: Date(),
             appVersion: "1.0",
@@ -117,9 +117,15 @@ struct MindTreeAnnotationSnapshot: Codable, Identifiable {
     var id: String
     var drawingData: Data
     var textItemsData: Data?
+    var anchoredInkData: Data?
+    var layoutSnapshotsData: Data?
     var contentWidth: Double
     var contentHeight: Double
     var treeFingerprint: String
+    var annotationDocumentVersion: Int?
+    var lastKnownFingerprint: String?
+    var migrationStateRaw: String?
+    var legacySourceAnnotationID: String?
     var expandedTransitionOrders: String
     var expandedArchivedStageOrders: String
     var authorName: String
@@ -132,9 +138,15 @@ struct MindTreeAnnotationSnapshot: Codable, Identifiable {
         id: String,
         drawingData: Data,
         textItemsData: Data? = nil,
+        anchoredInkData: Data? = nil,
+        layoutSnapshotsData: Data? = nil,
         contentWidth: Double,
         contentHeight: Double,
         treeFingerprint: String,
+        annotationDocumentVersion: Int? = nil,
+        lastKnownFingerprint: String? = nil,
+        migrationStateRaw: String? = nil,
+        legacySourceAnnotationID: String? = nil,
         expandedTransitionOrders: String,
         expandedArchivedStageOrders: String,
         authorName: String,
@@ -146,9 +158,15 @@ struct MindTreeAnnotationSnapshot: Codable, Identifiable {
         self.id = id
         self.drawingData = drawingData
         self.textItemsData = textItemsData
+        self.anchoredInkData = anchoredInkData
+        self.layoutSnapshotsData = layoutSnapshotsData
         self.contentWidth = contentWidth
         self.contentHeight = contentHeight
         self.treeFingerprint = treeFingerprint
+        self.annotationDocumentVersion = annotationDocumentVersion
+        self.lastKnownFingerprint = lastKnownFingerprint
+        self.migrationStateRaw = migrationStateRaw
+        self.legacySourceAnnotationID = legacySourceAnnotationID
         self.expandedTransitionOrders = expandedTransitionOrders
         self.expandedArchivedStageOrders = expandedArchivedStageOrders
         self.authorName = authorName
@@ -163,9 +181,15 @@ struct MindTreeAnnotationSnapshot: Codable, Identifiable {
             id: annotation.id.uuidString,
             drawingData: annotation.drawingData,
             textItemsData: annotation.textItemsData,
+            anchoredInkData: annotation.anchoredInkData,
+            layoutSnapshotsData: annotation.layoutSnapshotsData,
             contentWidth: annotation.contentWidth,
             contentHeight: annotation.contentHeight,
             treeFingerprint: annotation.treeFingerprint,
+            annotationDocumentVersion: annotation.annotationDocumentVersion,
+            lastKnownFingerprint: annotation.lastKnownFingerprint,
+            migrationStateRaw: annotation.migrationStateRaw,
+            legacySourceAnnotationID: annotation.legacySourceAnnotationID?.uuidString,
             expandedTransitionOrders: annotation.expandedTransitionOrders,
             expandedArchivedStageOrders: annotation.expandedArchivedStageOrders,
             authorName: annotation.authorName,

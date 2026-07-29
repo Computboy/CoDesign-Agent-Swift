@@ -10,15 +10,18 @@ import SwiftUI
 struct ClarificationWorkspaceView: View {
     let project: Project
     let chatViewModel: ChatViewModel
+    var mindTreePresentationState: MindTreePresentationState? = nil
     var onReviewBrief: () -> Void = {}
     var onRevisitPreviousStage: () -> Void = {}
     var onExportBrief: () -> Void = {}
     var onOpenProjectLibrary: () -> Void = {}
+    var onStartMindTreeCreation: () -> Void = {}
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var presentedAccessory: WorkspaceAccessory?
     @State private var isSideRailVisible = true
     @State private var isShowingSettings = false
+    @State private var selectedTimelineStage: ProgressStage?
 
     private enum WorkspaceLayoutMode {
         case desktopWide
@@ -97,7 +100,7 @@ struct ClarificationWorkspaceView: View {
         treeMinimum: CGFloat,
         treeMaximum: CGFloat
     ) -> some View {
-        let sideRailWidth: CGFloat = 78
+        let sideRailWidth: CGFloat = 88
         let sideRailLeadingInset: CGFloat = AppTheme.spacingMedium
         let treeContentInset = isSideRailVisible
             ? sideRailWidth + sideRailLeadingInset + AppTheme.spacingSmall
@@ -123,7 +126,13 @@ struct ClarificationWorkspaceView: View {
         return ZStack(alignment: .leading) {
             VStack(spacing: AppTheme.spacingMedium) {
                 HStack(alignment: .top, spacing: AppTheme.spacingMedium) {
-                    ThinkingTreeView(project: project, mode: .embedded, chatViewModel: chatViewModel)
+                    ThinkingTreeView(
+                        project: project,
+                        mode: .embedded,
+                        chatViewModel: chatViewModel,
+                        presentationState: mindTreePresentationState,
+                        onStartCreating: onStartMindTreeCreation
+                    )
                         .padding(.leading, treeContentInset)
                         .frame(width: treeWidth)
                         .frame(maxHeight: .infinity)
@@ -149,7 +158,10 @@ struct ClarificationWorkspaceView: View {
                 }
                 .frame(maxHeight: .infinity)
 
-                WorkspaceStageTimeline(stages: project.stages)
+                WorkspaceStageTimeline(
+                    stages: project.stages,
+                    selectedStage: $selectedTimelineStage
+                )
                     .frame(height: 76)
             }
             .padding(.horizontal, AppTheme.spacingMedium)
@@ -217,9 +229,105 @@ struct ClarificationWorkspaceView: View {
                 .transition(.move(edge: .leading).combined(with: .opacity))
                 .zIndex(2)
             }
+
+            stageTimelineBubble(in: proxy.size)
+                .zIndex(20)
         }
         .animation(AppTheme.Animation.spring, value: isSideRailVisible)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    @ViewBuilder
+    private func stageTimelineBubble(in workspaceSize: CGSize) -> some View {
+        let sortedStages = project.stages.sorted { $0.order < $1.order }
+
+        if
+            let selectedTimelineStage,
+            let definition = StageDefinition.all.first(where: {
+                $0.order == selectedTimelineStage.order
+            }),
+            let selectedIndex = sortedStages.firstIndex(where: {
+                $0.id == selectedTimelineStage.id
+            })
+        {
+            let bubbleWidth: CGFloat = 360
+            let bubbleHeight: CGFloat = 320
+            let arrowHeight: CGFloat = 11
+            let outerHorizontalInset = AppTheme.spacingMedium
+            let timelineHorizontalInset: CGFloat = 18
+            let availableWidth = max(
+                workspaceSize.width
+                    - outerHorizontalInset * 2
+                    - timelineHorizontalInset * 2,
+                1
+            )
+            let stageCount = max(sortedStages.count, 1)
+            let targetX = outerHorizontalInset
+                + timelineHorizontalInset
+                + availableWidth
+                    * (CGFloat(selectedIndex) + 0.5)
+                    / CGFloat(stageCount)
+            let bubbleLeading = min(
+                max(
+                    targetX - bubbleWidth / 2,
+                    AppTheme.spacingSmall
+                ),
+                max(
+                    workspaceSize.width
+                        - bubbleWidth
+                        - AppTheme.spacingSmall,
+                    AppTheme.spacingSmall
+                )
+            )
+            let arrowLeading = min(
+                max(targetX - bubbleLeading - 10, 18),
+                bubbleWidth - 38
+            )
+            let timelineTop = workspaceSize.height
+                - AppTheme.spacingSmall
+                - 76
+            let bubbleTop = max(
+                timelineTop - (bubbleHeight - 18),
+                AppTheme.spacingSmall
+            )
+
+            VStack(alignment: .leading, spacing: 0) {
+                StageExplanationBubble(
+                    stage: selectedTimelineStage,
+                    definition: definition,
+                    onDismiss: {
+                        withAnimation(AppTheme.Animation.spring) {
+                            self.selectedTimelineStage = nil
+                        }
+                    }
+                )
+                .frame(width: bubbleWidth, height: bubbleHeight)
+
+                StageBubbleArrow()
+                    .fill(Color.elevatedCardBackground)
+                    .frame(width: 20, height: arrowHeight)
+                    .offset(x: arrowLeading)
+            }
+            .frame(
+                width: bubbleWidth,
+                height: bubbleHeight + arrowHeight,
+                alignment: .topLeading
+            )
+            .offset(
+                x: bubbleLeading,
+                y: bubbleTop
+            )
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity,
+                alignment: .topLeading
+            )
+            .transition(
+                .scale(scale: 0.96, anchor: .bottom)
+                    .combined(with: .opacity)
+            )
+            .accessibilityIdentifier("workspace.stageExplanation")
+        }
     }
 
     // MARK: - iPad Stacked Layout
@@ -294,7 +402,12 @@ struct ClarificationWorkspaceView: View {
             Group {
                 switch accessory {
                 case .mindTree:
-                    ThinkingTreeView(project: project, mode: .standalone, chatViewModel: chatViewModel)
+                    ThinkingTreeView(
+                        project: project,
+                        mode: .standalone,
+                        chatViewModel: chatViewModel,
+                        presentationState: mindTreePresentationState
+                    )
                 case .resources:
                     ScrollView(.vertical, showsIndicators: false) {
                         ResourceCardPanel(
@@ -425,7 +538,7 @@ private struct WorkspaceSideRail: View {
             .accessibilityIdentifier("workspace.sideRail.toggle")
             .padding(.bottom, 10)
 
-            VStack(spacing: 14) {
+            VStack(spacing: 18) {
                 sideRailItem(
                     title: "工作台",
                     icon: "square.grid.2x2.fill",
@@ -475,10 +588,28 @@ private struct WorkspaceSideRail: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 19, weight: .semibold))
-                    .frame(height: 22)
+            VStack(spacing: 7) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(
+                            isSelected
+                                ? Color.primaryAccent.opacity(0.20)
+                                : Color.textSecondary.opacity(0.075)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(
+                                    isSelected
+                                        ? Color.primaryAccent.opacity(0.24)
+                                        : Color.textSecondary.opacity(0.08),
+                                    lineWidth: 1
+                                )
+                        )
+
+                    Image(systemName: icon)
+                        .font(.system(size: 22, weight: .semibold))
+                }
+                .frame(width: 42, height: 42)
 
                 Text(title)
                     .font(.system(size: 10.5, weight: .semibold, design: .rounded))
@@ -487,7 +618,7 @@ private struct WorkspaceSideRail: View {
             }
             .foregroundStyle(isSelected ? Color.primaryAccent : Color.textSecondary)
             .frame(maxWidth: .infinity)
-            .frame(height: 62)
+            .frame(height: 74)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -672,9 +803,7 @@ private struct WorkspaceSummaryCards: View {
 
 private struct WorkspaceStageTimeline: View {
     let stages: [ProgressStage]
-    @State private var selectedStage: ProgressStage?
-    private let bubbleWidth: CGFloat = 360
-    private let bubbleHeight: CGFloat = 320
+    @Binding var selectedStage: ProgressStage?
 
     private var sortedStages: [ProgressStage] {
         stages.sorted { $0.order < $1.order }
@@ -706,10 +835,6 @@ private struct WorkspaceStageTimeline: View {
                 .strokeBorder(Color.primaryAccent.opacity(0.08), lineWidth: 1)
         )
         .coDesignShadow(.card)
-        .overlay(alignment: .topLeading) {
-            stageExplanationBubble
-        }
-        .zIndex(10)
     }
 
     private func stageButton(_ stage: ProgressStage) -> some View {
@@ -750,6 +875,7 @@ private struct WorkspaceStageTimeline: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("阶段 \(stage.order)，\(stage.name)")
+        .accessibilityIdentifier("workspace.stage.\(stage.order)")
     }
 
     private func stageTint(_ stage: ProgressStage) -> Color {
@@ -767,53 +893,6 @@ private struct WorkspaceStageTimeline: View {
             : Color.textTertiary.opacity(0.18)
     }
 
-    @ViewBuilder
-    private var stageExplanationBubble: some View {
-        if
-            let selectedStage,
-            let definition = StageDefinition.all.first(where: { $0.order == selectedStage.order }),
-            let selectedIndex = sortedStages.firstIndex(where: { $0.id == selectedStage.id })
-        {
-            GeometryReader { proxy in
-                let horizontalInset: CGFloat = 18
-                let availableWidth = max(proxy.size.width - horizontalInset * 2, 1)
-                let stageCount = max(sortedStages.count, 1)
-                let targetX = horizontalInset
-                    + availableWidth * (CGFloat(selectedIndex) + 0.5) / CGFloat(stageCount)
-                let bubbleLeading = min(
-                    max(targetX - bubbleWidth / 2, AppTheme.spacingSmall),
-                    max(proxy.size.width - bubbleWidth - AppTheme.spacingSmall, AppTheme.spacingSmall)
-                )
-                let arrowLeading = min(
-                    max(targetX - bubbleLeading - 10, 18),
-                    bubbleWidth - 38
-                )
-
-                VStack(alignment: .leading, spacing: 0) {
-                    StageExplanationBubble(
-                        stage: selectedStage,
-                        definition: definition,
-                        onDismiss: {
-                            withAnimation(AppTheme.Animation.spring) {
-                                self.selectedStage = nil
-                            }
-                        }
-                    )
-                    .frame(width: bubbleWidth, height: bubbleHeight)
-
-                    StageBubbleArrow()
-                        .fill(Color.elevatedCardBackground)
-                        .frame(width: 20, height: 11)
-                        .offset(x: arrowLeading)
-                }
-                .offset(
-                    x: bubbleLeading,
-                    y: -(bubbleHeight - 18)
-                )
-                .transition(.scale(scale: 0.96, anchor: .bottom).combined(with: .opacity))
-            }
-        }
-    }
 }
 
 private struct StageBubbleArrow: Shape {

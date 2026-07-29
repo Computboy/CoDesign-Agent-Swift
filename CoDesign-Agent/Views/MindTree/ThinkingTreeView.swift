@@ -21,11 +21,7 @@ struct ThinkingTreeView: View {
 
     private struct AnnotationSession {
         let annotationID: UUID
-        let fingerprint: String
-        let contentWidth: Double
-        let contentHeight: Double
-        let expandedTransitionOrders: String
-        let expandedArchivedStageOrders: String
+        var layoutSnapshot: MindTreeAnnotationLayoutSnapshot
     }
 
     private struct TextAnnotationEditorTarget: Identifiable {
@@ -39,12 +35,15 @@ struct ThinkingTreeView: View {
     let project: Project
     var mode: DisplayMode = .standalone
     var chatViewModel: ChatViewModel?
+    var presentationState: MindTreePresentationState? = nil
+    var onStartCreating: () -> Void = {}
+    var startsInCreationMode = false
+    var onCreationStarted: () -> Void = {}
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var expandedTransitionOrders: Set<Int> = []
-    @State private var expandedArchivedStageOrders: Set<Int> = []
+    @State private var localPresentationState = MindTreePresentationState()
     @State private var selectedNode: TreeNode?
     @State private var editingNode: TreeNode?
     @State private var scale: CGFloat = 1
@@ -56,22 +55,38 @@ struct ThinkingTreeView: View {
     @State private var interactionMode: InteractionMode = .browsing
     @State private var annotationDrawingData = Data()
     @State private var annotationTextItems: [MindTreeTextAnnotationItem] = []
+    @State private var annotationInkGroups: [MindTreeAnchoredInkGroup] = []
+    @State private var annotationProjectionSummary = MindTreeAnnotationProjectionSummary()
     @State private var loadedAnnotationID: UUID?
+    @State private var annotationDrawingIdentity = UUID()
     @State private var showsClearAnnotationConfirmation = false
     @State private var annotationSession: AnnotationSession?
     @State private var annotationSaveError: String?
     @State private var textAnnotationEditorTarget: TextAnnotationEditorTarget?
+    @State private var isHandlingCreationRequest = false
 
     #if os(iOS) && canImport(PencilKit)
     @StateObject private var annotationCanvasController = MindTreeAnnotationCanvasController()
     #endif
 
     private var minimumScale: CGFloat {
-        mode == .embedded ? 0.34 : 0.28
+        mode == .embedded ? 0.20 : 0.28
     }
 
     private var maximumScale: CGFloat {
         mode == .embedded ? 1.8 : 2.2
+    }
+
+    private var resolvedPresentationState: MindTreePresentationState {
+        presentationState ?? localPresentationState
+    }
+
+    private var expandedTransitionOrders: Set<Int> {
+        resolvedPresentationState.expandedTransitionOrders
+    }
+
+    private var expandedArchivedStageOrders: Set<Int> {
+        resolvedPresentationState.expandedArchivedStageOrders
     }
 
     var body: some View {
@@ -158,10 +173,20 @@ struct ThinkingTreeView: View {
                     .padding(mode == .embedded ? 10 : AppTheme.spacingLarge)
             }
             .overlay(alignment: .topLeading) {
-                rootCenteredZoomControl(graph: graph, viewport: geo.size)
-                    .position(zoomControlCenter(in: geo.size))
-                    .opacity(interactionMode == .browsing ? 1 : 0.35)
-                    .allowsHitTesting(interactionMode == .browsing)
+                if mode == .standalone {
+                    rootCenteredZoomControl(graph: graph, viewport: geo.size)
+                        .position(zoomControlCenter(in: geo.size))
+                        .opacity(interactionMode == .browsing ? 1 : 0.35)
+                        .allowsHitTesting(interactionMode == .browsing)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if mode == .embedded {
+                    rootCenteredZoomControl(graph: graph, viewport: geo.size)
+                        .padding(12)
+                        .opacity(interactionMode == .browsing ? 1 : 0.35)
+                        .allowsHitTesting(interactionMode == .browsing)
+                }
             }
             .overlay(alignment: .bottom) {
                 annotationStatusPanel
@@ -173,24 +198,32 @@ struct ThinkingTreeView: View {
             }
             .onAppear {
                 lastViewportSize = geo.size
-                refreshAnnotationState(for: fingerprint)
+                refreshAnnotationState(for: fingerprint, graph: graph)
                 if !hasInitializedViewport {
                     DispatchQueue.main.async {
                         fitTreeToViewport(in: geo.size, preserveScale: false)
                     }
                 }
+                requestCreationModeIfNeeded()
             }
             .onChange(of: geo.size) { _, newSize in
                 lastViewportSize = newSize
+                requestCreationModeIfNeeded()
                 guard hasInitializedViewport else { return }
                 DispatchQueue.main.async {
                     fitTreeToViewport(in: newSize, preserveScale: true)
                 }
             }
+            .onChange(of: startsInCreationMode) { _, shouldStart in
+                if shouldStart {
+                    requestCreationModeIfNeeded()
+                }
+            }
             .onChange(of: fingerprint) { oldFingerprint, newFingerprint in
                 handleAnnotationFingerprintChange(
                     from: oldFingerprint,
-                    to: newFingerprint
+                    to: newFingerprint,
+                    graph: graph
                 )
             }
         }
@@ -310,8 +343,11 @@ struct ThinkingTreeView: View {
             evidenceResourcesByStage: evidence,
             visibleStageLimit: visibleStageLimit
         )
-        let engine = layoutEngine(for: viewport)
-        return engine.layout(raw, in: engine.minimumContentSize(maxStage: visibleStageLimit))
+        return MindTreeCanonicalLayout.layout(
+            raw,
+            visibleStageLimit: visibleStageLimit,
+            in: viewport
+        )
     }
 
     private var visibleStageLimit: Int {
@@ -319,48 +355,17 @@ struct ThinkingTreeView: View {
             return min(max(project.currentStageOrder, 1), 9)
         }
 
-        guard mode == .embedded else { return 9 }
-        let expandedMaxOrder = expandedTransitionOrders.max() ?? project.currentStageOrder
-        return min(max(project.currentStageOrder, expandedMaxOrder), 9)
-    }
-
-    private func layoutEngine(for viewport: CGSize) -> TreeLayoutEngine {
-        switch mode {
-        case .embedded:
-            let stageSpacing = clamp(
-                (viewport.height - 170) / CGFloat(max(visibleStageLimit, 1)),
-                min: 96,
-                max: 132
-            )
-            return TreeLayoutEngine(
-                stageSpacing: stageSpacing,
-                sideBranchSpacing: 320,
-                sideNodeVerticalSpacing: 52,
-                topPadding: 82,
-                bottomPadding: 132,
-                contentWidth: max(viewport.width * 2.55, 1_420)
-            )
-        case .standalone:
-            return TreeLayoutEngine(
-                stageSpacing: 164,
-                sideBranchSpacing: 430,
-                sideNodeVerticalSpacing: 56,
-                topPadding: 126,
-                bottomPadding: 170,
-                contentWidth: max(viewport.width * 2.05, 1_680)
-            )
-        }
+        return MindTreeCanonicalLayout.visibleStageLimit
     }
 
     private func evidenceResourcesByStage(expandedTransitions: Set<Int>) -> [Int: [ResourceCard]] {
-        let visibleStages = mode == .embedded
-            ? expandedTransitions.union([project.currentStageOrder])
-            : expandedTransitions.union([project.currentStageOrder])
         var result: [Int: [ResourceCard]] = [:]
-        let limit = mode == .embedded ? 2 : 3
+        let limit = MindTreeCanonicalLayout.evidenceLimit
         let service = ResourceRecommendationService()
 
-        for order in visibleStages where (1...9).contains(order) {
+        // Collapsed transitions never render evidence nodes, so rank resources
+        // only after the corresponding problem chain is expanded.
+        for order in expandedTransitions where (1...9).contains(order) {
             result[order] = service.recommend(
                 currentStageOrder: order,
                 brief: project.brief,
@@ -425,7 +430,9 @@ struct ThinkingTreeView: View {
 
     @ViewBuilder
     private var treeToolbar: some View {
-        if mode == .standalone {
+        if mode == .embedded {
+            embeddedCreationButton
+        } else {
             #if os(iOS) && canImport(PencilKit)
             if interactionMode == .annotating {
                 annotationEditingToolbar
@@ -436,6 +443,24 @@ struct ThinkingTreeView: View {
             standaloneBrowsingToolbar
             #endif
         }
+    }
+
+    private var embeddedCreationButton: some View {
+        Button(action: onStartCreating) {
+            Label("开始创作", systemImage: "pencil.tip.crop.circle.fill")
+                .font(AppTheme.Typography.caption.weight(.bold))
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 40)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.primaryAccent)
+                )
+                .coDesignShadow(.elevated)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("进入思维树并开始创作")
+        .accessibilityIdentifier("mindTree.startCreating")
     }
 
     private var standaloneBrowsingToolbar: some View {
@@ -462,7 +487,7 @@ struct ThinkingTreeView: View {
             Button {
                 beginAnnotatingCurrentTree()
             } label: {
-                Label("开始批注", systemImage: "pencil.tip.crop.circle.fill")
+                Label("开始创作", systemImage: "pencil.tip.crop.circle.fill")
                 .font(AppTheme.Typography.subheadline.weight(.bold))
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, 18)
@@ -628,9 +653,11 @@ struct ThinkingTreeView: View {
         #if os(iOS) && canImport(PencilKit)
         MindTreeAnnotationCanvas(
             drawingData: annotationDrawingData,
-            drawingIdentity: loadedAnnotationID,
+            drawingIdentity: annotationDrawingIdentity,
             isInteractionEnabled: mode == .standalone && interactionMode == .annotating,
-            showsToolPicker: mode == .standalone && interactionMode == .annotating,
+            showsToolPicker: mode == .standalone &&
+                interactionMode == .annotating &&
+                textAnnotationEditorTarget == nil,
             inputPolicy: .anyInput,
             controller: annotationCanvasController,
             onDebouncedDrawingChange: { data in
@@ -649,7 +676,7 @@ struct ThinkingTreeView: View {
     private func annotationTextLayer(graph: TreeData) -> some View {
         #if os(iOS) && canImport(PencilKit)
         ZStack {
-            ForEach(annotationTextItems) { item in
+            ForEach(annotationTextItems.filter { $0.resolutionState != .hidden }) { item in
                 MindTreeTextAnnotationBox(
                     item: item,
                     isEditable: mode == .standalone && interactionMode == .annotating,
@@ -686,10 +713,30 @@ struct ThinkingTreeView: View {
     @ViewBuilder
     private var annotationStatusPanel: some View {
         #if os(iOS) && canImport(PencilKit)
-        if let annotationSaveError {
-            Label(annotationSaveError, systemImage: "exclamationmark.circle.fill")
+        if annotationSaveError != nil || annotationProjectionSummary.hasExceptions {
+            HStack(spacing: 12) {
+                if let annotationSaveError {
+                    Label(annotationSaveError, systemImage: "exclamationmark.circle.fill")
+                        .foregroundStyle(Color.danger)
+                }
+                if annotationProjectionSummary.hiddenCount > 0 {
+                    Label(
+                        "\(annotationProjectionSummary.hiddenCount) 项批注随折叠内容隐藏",
+                        systemImage: "eye.slash"
+                    )
+                    .foregroundStyle(Color.textSecondary)
+                    .accessibilityIdentifier("mindTree.annotation.hiddenCount")
+                }
+                if annotationProjectionSummary.unresolvedCount > 0 {
+                    Label(
+                        "\(annotationProjectionSummary.unresolvedCount) 项使用备用位置",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .foregroundStyle(Color.warning)
+                    .accessibilityIdentifier("mindTree.annotation.unresolvedCount")
+                }
+            }
                 .font(AppTheme.Typography.caption.weight(.semibold))
-                .foregroundStyle(Color.danger)
                 .padding(AppTheme.Layout.cardPadding)
                 .background(
                     RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
@@ -702,8 +749,8 @@ struct ThinkingTreeView: View {
         #endif
     }
 
-    private func annotationLayer(matching fingerprint: String) -> MindTreeAnnotation? {
-        MindTreeAnnotationLayerSelector.annotation(
+    private func annotationSelection(matching fingerprint: String) -> MindTreeAnnotationSelection? {
+        MindTreeAnnotationLayerSelector.selection(
             matching: fingerprint,
             in: project.mindTreeAnnotations
         )
@@ -764,35 +811,48 @@ struct ThinkingTreeView: View {
         }
     }
 
-    private func refreshAnnotationState(for fingerprint: String) {
+    private func refreshAnnotationState(
+        for fingerprint: String,
+        graph: TreeData
+    ) {
         #if os(iOS) && canImport(PencilKit)
         guard interactionMode == .browsing else { return }
 
-        guard let annotation = annotationLayer(matching: fingerprint) else {
+        let snapshot = annotationLayoutSnapshot(graph: graph, fingerprint: fingerprint)
+        guard let selection = annotationSelection(matching: fingerprint) else {
             loadedAnnotationID = nil
             annotationDrawingData = Data()
             annotationTextItems = []
+            annotationInkGroups = []
+            annotationProjectionSummary = MindTreeAnnotationProjectionSummary()
+            annotationDrawingIdentity = UUID()
             return
         }
 
-        if loadedAnnotationID != annotation.id {
-            annotationDrawingData = annotation.drawingData
-            annotationTextItems = MindTreeTextAnnotationCodec.decode(annotation.textItemsData ?? Data())
-            loadedAnnotationID = annotation.id
-        }
+        loadAnnotationSelection(
+            selection,
+            into: snapshot,
+            fingerprint: fingerprint
+        )
         #endif
     }
 
     private func handleAnnotationFingerprintChange(
         from oldFingerprint: String,
-        to newFingerprint: String
+        to newFingerprint: String,
+        graph: TreeData
     ) {
         #if os(iOS) && canImport(PencilKit)
         guard oldFingerprint != newFingerprint else { return }
         if interactionMode == .annotating {
-            finishAnnotating()
+            annotationCanvasController.flushPendingChanges()
+            persistAnnotationTextItems()
+            updateActiveAnnotationLayout(
+                annotationLayoutSnapshot(graph: graph, fingerprint: newFingerprint)
+            )
+        } else {
+            refreshAnnotationState(for: newFingerprint, graph: graph)
         }
-        refreshAnnotationState(for: newFingerprint)
 
         guard hasInitializedViewport,
               lastViewportSize.width > 0,
@@ -801,6 +861,37 @@ struct ThinkingTreeView: View {
         }
         DispatchQueue.main.async {
             fitTreeToViewport(in: lastViewportSize, preserveScale: false)
+        }
+        #endif
+    }
+
+    private func annotationLayoutSnapshot(
+        graph: TreeData,
+        fingerprint: String
+    ) -> MindTreeAnnotationLayoutSnapshot {
+        MindTreeAnnotationProjectionService.layoutSnapshot(
+            graph: graph,
+            fingerprint: fingerprint,
+            expandedTransitionOrders: expandedTransitionOrders,
+            expandedArchivedStageOrders: expandedArchivedStageOrders
+        )
+    }
+
+    private func requestCreationModeIfNeeded() {
+        #if os(iOS) && canImport(PencilKit)
+        guard mode == .standalone,
+              startsInCreationMode,
+              !isHandlingCreationRequest else {
+            return
+        }
+
+        isHandlingCreationRequest = true
+        DispatchQueue.main.async {
+            beginAnnotatingCurrentTree()
+            if interactionMode == .annotating {
+                onCreationStarted()
+            }
+            isHandlingCreationRequest = false
         }
         #endif
     }
@@ -815,25 +906,26 @@ struct ThinkingTreeView: View {
 
         let graph = layoutGraph(for: lastViewportSize)
         let fingerprint = treeFingerprint(for: graph)
-        refreshAnnotationState(for: fingerprint)
+        let snapshot = annotationLayoutSnapshot(graph: graph, fingerprint: fingerprint)
+        refreshAnnotationState(for: fingerprint, graph: graph)
 
         let annotation: MindTreeAnnotation
-        if let existing = annotationLayer(matching: fingerprint) {
-            annotation = existing
+        if let selection = annotationSelection(matching: fingerprint),
+           selection.source == .modernProjectDocument {
+            annotation = selection.annotation
+        } else if let legacySelection = annotationSelection(matching: fingerprint) {
+            annotation = createModernAnnotation(
+                snapshot: snapshot,
+                migrating: legacySelection
+            )
         } else {
-            annotation = createAnnotation(graph: graph, fingerprint: fingerprint)
+            annotation = createModernAnnotation(snapshot: snapshot)
         }
 
-        loadedAnnotationID = annotation.id
-        annotationDrawingData = annotation.drawingData
-        annotationTextItems = MindTreeTextAnnotationCodec.decode(annotation.textItemsData ?? Data())
+        loadModernAnnotation(annotation, into: snapshot)
         annotationSession = AnnotationSession(
             annotationID: annotation.id,
-            fingerprint: fingerprint,
-            contentWidth: Double(graph.contentSize.width),
-            contentHeight: Double(graph.contentSize.height),
-            expandedTransitionOrders: MindTreeAnnotationExpansionCodec.encode(expandedTransitionOrders),
-            expandedArchivedStageOrders: MindTreeAnnotationExpansionCodec.encode(expandedArchivedStageOrders)
+            layoutSnapshot: snapshot
         )
         annotationSaveError = nil
         interactionMode = .annotating
@@ -875,8 +967,7 @@ struct ThinkingTreeView: View {
     ) {
         let now = Date()
         if target.isNew {
-            annotationTextItems.append(
-                MindTreeTextAnnotationItem(
+            let item = MindTreeTextAnnotationItem(
                     id: target.id,
                     text: text,
                     x: target.proposedX,
@@ -884,7 +975,18 @@ struct ThinkingTreeView: View {
                     createdAt: now,
                     updatedAt: now
                 )
-            )
+            if let snapshot = annotationSession?.layoutSnapshot {
+                annotationTextItems.append(
+                    MindTreeAnnotationProjectionService.anchoredTextItem(
+                        item,
+                        at: CGPoint(x: target.proposedX, y: target.proposedY),
+                        in: snapshot,
+                        fingerprint: snapshot.fingerprint
+                    )
+                )
+            } else {
+                annotationTextItems.append(item)
+            }
         } else if let index = annotationTextItems.firstIndex(where: { $0.id == target.id }) {
             annotationTextItems[index].text = text
             annotationTextItems[index].updatedAt = now
@@ -914,6 +1016,14 @@ struct ThinkingTreeView: View {
         annotationTextItems[index].updatedAt = Date()
 
         if persistsChange {
+            if let snapshot = annotationSession?.layoutSnapshot {
+                annotationTextItems[index] = MindTreeAnnotationProjectionService.anchoredTextItem(
+                    annotationTextItems[index],
+                    at: clampedPoint,
+                    in: snapshot,
+                    fingerprint: snapshot.fingerprint
+                )
+            }
             persistAnnotationTextItems()
         }
     }
@@ -945,17 +1055,217 @@ struct ThinkingTreeView: View {
         )
     }
 
-    private func createAnnotation(
-        graph: TreeData,
+    private func loadAnnotationSelection(
+        _ selection: MindTreeAnnotationSelection,
+        into snapshot: MindTreeAnnotationLayoutSnapshot,
         fingerprint: String
+    ) {
+        switch selection.source {
+        case .modernProjectDocument:
+            loadModernAnnotation(selection.annotation, into: snapshot)
+        case .exactLegacyLayer, .legacyLayerNeedsMigration:
+            loadLegacyAnnotation(
+                selection.annotation,
+                into: snapshot,
+                fingerprint: fingerprint
+            )
+        }
+    }
+
+    private func loadModernAnnotation(
+        _ annotation: MindTreeAnnotation,
+        into snapshot: MindTreeAnnotationLayoutSnapshot
+    ) {
+        var items = MindTreeTextAnnotationCodec.decode(annotation.textItemsData ?? Data())
+        if items.contains(where: { $0.anchor == nil }) {
+            items = MindTreeAnnotationProjectionService.migrateLegacyTextItems(
+                items,
+                sourceWidth: annotation.contentWidth,
+                sourceHeight: annotation.contentHeight,
+                to: snapshot,
+                fingerprint: annotation.lastKnownFingerprint ?? snapshot.fingerprint
+            )
+        }
+
+        var groups = MindTreeAnchoredInkCodec.decode(annotation.anchoredInkData)
+        if groups.isEmpty, !annotation.drawingData.isEmpty {
+            groups = MindTreeAnnotationInkService.migrateLegacyDrawing(
+                annotation.drawingData,
+                sourceWidth: annotation.contentWidth,
+                sourceHeight: annotation.contentHeight,
+                to: snapshot,
+                fingerprint: annotation.lastKnownFingerprint ?? snapshot.fingerprint
+            )
+        }
+
+        applyProjection(
+            annotationID: annotation.id,
+            textItems: items,
+            inkGroups: groups,
+            snapshot: snapshot
+        )
+        annotation.textItemsData = MindTreeTextAnnotationCodec.encode(annotationTextItems)
+        annotation.anchoredInkData = MindTreeAnchoredInkCodec.encode(annotationInkGroups)
+        storeLayoutSnapshot(snapshot, on: annotation)
+        saveAnnotationContext()
+    }
+
+    private func loadLegacyAnnotation(
+        _ annotation: MindTreeAnnotation,
+        into snapshot: MindTreeAnnotationLayoutSnapshot,
+        fingerprint: String
+    ) {
+        let textItems = MindTreeAnnotationProjectionService.migrateLegacyTextItems(
+            MindTreeTextAnnotationCodec.decode(annotation.textItemsData ?? Data()),
+            sourceWidth: annotation.contentWidth,
+            sourceHeight: annotation.contentHeight,
+            to: snapshot,
+            fingerprint: fingerprint
+        )
+        let groups = MindTreeAnnotationInkService.migrateLegacyDrawing(
+            annotation.drawingData,
+            sourceWidth: annotation.contentWidth,
+            sourceHeight: annotation.contentHeight,
+            to: snapshot,
+            fingerprint: fingerprint
+        )
+        applyProjection(
+            annotationID: annotation.id,
+            textItems: textItems,
+            inkGroups: groups,
+            snapshot: snapshot
+        )
+    }
+
+    private func applyProjection(
+        annotationID: UUID,
+        textItems: [MindTreeTextAnnotationItem],
+        inkGroups: [MindTreeAnchoredInkGroup],
+        snapshot: MindTreeAnnotationLayoutSnapshot
+    ) {
+        let knownAnchors = MindTreeAnnotationProjectionService.knownAnchors(in: project)
+        let projectedText = MindTreeAnnotationProjectionService.projectedTextItems(
+            textItems,
+            in: snapshot,
+            knownAnchors: knownAnchors
+        )
+        let projectedInk = MindTreeAnnotationInkService.project(
+            inkGroups,
+            into: snapshot,
+            knownAnchors: knownAnchors
+        )
+
+        loadedAnnotationID = annotationID
+        annotationTextItems = projectedText
+        annotationInkGroups = projectedInk.groups
+        annotationDrawingData = projectedInk.drawingData
+        annotationProjectionSummary = MindTreeAnnotationProjectionService.summary(
+            textItems: projectedText,
+            inkGroups: projectedInk.groups
+        )
+        annotationDrawingIdentity = UUID()
+    }
+
+    private func updateActiveAnnotationLayout(
+        _ snapshot: MindTreeAnnotationLayoutSnapshot
+    ) {
+        guard var session = annotationSession,
+              let annotation = project.mindTreeAnnotations.first(where: { $0.id == session.annotationID })
+        else {
+            return
+        }
+
+        session.layoutSnapshot = snapshot
+        annotationSession = session
+        applyProjection(
+            annotationID: annotation.id,
+            textItems: annotationTextItems,
+            inkGroups: annotationInkGroups,
+            snapshot: snapshot
+        )
+        storeLayoutSnapshot(snapshot, on: annotation)
+        updateAnnotationMetadata(annotation, snapshot: snapshot, at: Date())
+        saveAnnotationContext()
+    }
+
+    private func storeLayoutSnapshot(
+        _ snapshot: MindTreeAnnotationLayoutSnapshot,
+        on annotation: MindTreeAnnotation
+    ) {
+        let snapshots = MindTreeAnnotationLayoutCodec.decode(annotation.layoutSnapshotsData)
+        annotation.layoutSnapshotsData = MindTreeAnnotationLayoutCodec.encode(
+            MindTreeAnnotationProjectionService.mergedSnapshots(
+                existing: snapshots,
+                adding: snapshot
+            )
+        )
+        annotation.lastKnownFingerprint = snapshot.fingerprint
+    }
+
+    private func updateAnnotationMetadata(
+        _ annotation: MindTreeAnnotation,
+        snapshot: MindTreeAnnotationLayoutSnapshot,
+        at date: Date
+    ) {
+        annotation.annotationDocumentVersion = MindTreeAnnotationDocument.currentVersion
+        annotation.contentWidth = snapshot.contentWidth
+        annotation.contentHeight = snapshot.contentHeight
+        annotation.treeFingerprint = snapshot.fingerprint
+        annotation.lastKnownFingerprint = snapshot.fingerprint
+        annotation.expandedTransitionOrders = snapshot.expandedTransitionOrders
+        annotation.expandedArchivedStageOrders = snapshot.expandedArchivedStageOrders
+        annotation.updatedAt = date
+        annotation.isArchived = false
+    }
+
+    private func createModernAnnotation(
+        snapshot: MindTreeAnnotationLayoutSnapshot,
+        migrating legacySelection: MindTreeAnnotationSelection? = nil
     ) -> MindTreeAnnotation {
         let now = Date()
+        let legacy = legacySelection?.annotation
+        let migratedText = legacy.map {
+            MindTreeAnnotationProjectionService.migrateLegacyTextItems(
+                MindTreeTextAnnotationCodec.decode($0.textItemsData ?? Data()),
+                sourceWidth: $0.contentWidth,
+                sourceHeight: $0.contentHeight,
+                to: snapshot,
+                fingerprint: snapshot.fingerprint
+            )
+        } ?? []
+        let migratedInk = legacy.map {
+            MindTreeAnnotationInkService.migrateLegacyDrawing(
+                $0.drawingData,
+                sourceWidth: $0.contentWidth,
+                sourceHeight: $0.contentHeight,
+                to: snapshot,
+                fingerprint: snapshot.fingerprint,
+                now: now
+            )
+        } ?? []
+        let projectedInk = MindTreeAnnotationInkService.project(
+            migratedInk,
+            into: snapshot,
+            knownAnchors: MindTreeAnnotationProjectionService.knownAnchors(in: project)
+        )
         let annotation = MindTreeAnnotation(
-            contentWidth: Double(graph.contentSize.width),
-            contentHeight: Double(graph.contentSize.height),
-            treeFingerprint: fingerprint,
-            expandedTransitionOrders: MindTreeAnnotationExpansionCodec.encode(expandedTransitionOrders),
-            expandedArchivedStageOrders: MindTreeAnnotationExpansionCodec.encode(expandedArchivedStageOrders),
+            drawingData: projectedInk.drawingData,
+            textItemsData: MindTreeTextAnnotationCodec.encode(migratedText),
+            anchoredInkData: MindTreeAnchoredInkCodec.encode(projectedInk.groups),
+            layoutSnapshotsData: MindTreeAnnotationLayoutCodec.encode([snapshot]),
+            contentWidth: snapshot.contentWidth,
+            contentHeight: snapshot.contentHeight,
+            treeFingerprint: snapshot.fingerprint,
+            annotationDocumentVersion: MindTreeAnnotationDocument.currentVersion,
+            lastKnownFingerprint: snapshot.fingerprint,
+            migrationStateRaw: legacy == nil
+                ? MindTreeAnnotationMigrationState.native.rawValue
+                : MindTreeAnnotationMigrationState.migrated.rawValue,
+            legacySourceAnnotationID: legacy?.id,
+            expandedTransitionOrders: snapshot.expandedTransitionOrders,
+            expandedArchivedStageOrders: snapshot.expandedArchivedStageOrders,
+            authorName: legacy?.authorName ?? "本机用户",
+            authorRole: legacy?.authorRole ?? "设计者",
             createdAt: now,
             updatedAt: now
         )
@@ -973,15 +1283,24 @@ struct ThinkingTreeView: View {
         }
 
         let now = Date()
+        let hiddenGroups = annotationInkGroups.filter { $0.resolutionState == .hidden }
+        let visibleGroups = annotationInkGroups.filter { $0.resolutionState != .hidden }
+        let updatedVisibleGroups = MindTreeAnnotationInkService.groups(
+            from: data,
+            in: session.layoutSnapshot,
+            fingerprint: session.layoutSnapshot.fingerprint,
+            preservingIDsFrom: visibleGroups,
+            now: now
+        )
+        annotationInkGroups = updatedVisibleGroups + hiddenGroups
+        annotation.anchoredInkData = MindTreeAnchoredInkCodec.encode(annotationInkGroups)
         annotation.drawingData = data
-        annotation.contentWidth = session.contentWidth
-        annotation.contentHeight = session.contentHeight
-        annotation.treeFingerprint = session.fingerprint
-        annotation.expandedTransitionOrders = session.expandedTransitionOrders
-        annotation.expandedArchivedStageOrders = session.expandedArchivedStageOrders
-        annotation.updatedAt = now
-        annotation.isArchived = false
+        updateAnnotationMetadata(annotation, snapshot: session.layoutSnapshot, at: now)
         annotationDrawingData = data
+        annotationProjectionSummary = MindTreeAnnotationProjectionService.summary(
+            textItems: annotationTextItems,
+            inkGroups: annotationInkGroups
+        )
         project.updatedAt = now
         saveAnnotationContext()
     }
@@ -995,13 +1314,11 @@ struct ThinkingTreeView: View {
 
         let now = Date()
         annotation.textItemsData = MindTreeTextAnnotationCodec.encode(annotationTextItems)
-        annotation.contentWidth = session.contentWidth
-        annotation.contentHeight = session.contentHeight
-        annotation.treeFingerprint = session.fingerprint
-        annotation.expandedTransitionOrders = session.expandedTransitionOrders
-        annotation.expandedArchivedStageOrders = session.expandedArchivedStageOrders
-        annotation.updatedAt = now
-        annotation.isArchived = false
+        updateAnnotationMetadata(annotation, snapshot: session.layoutSnapshot, at: now)
+        annotationProjectionSummary = MindTreeAnnotationProjectionService.summary(
+            textItems: annotationTextItems,
+            inkGroups: annotationInkGroups
+        )
         project.updatedAt = now
         saveAnnotationContext()
     }
@@ -1017,12 +1334,16 @@ struct ThinkingTreeView: View {
 
         if lastViewportSize.width > 0, lastViewportSize.height > 0 {
             let graph = layoutGraph(for: lastViewportSize)
-            refreshAnnotationState(for: treeFingerprint(for: graph))
+            refreshAnnotationState(
+                for: treeFingerprint(for: graph),
+                graph: graph
+            )
         }
     }
 
     private func clearAnnotation() {
         guard interactionMode == .annotating else { return }
+        annotationInkGroups = []
         annotationCanvasController.clear()
         annotationCanvasController.flushPendingChanges()
         annotationTextItems = []
@@ -1102,7 +1423,7 @@ struct ThinkingTreeView: View {
 
         guard let oldAnchor = transitionAnchorPosition(order: order, in: graph) else {
             withAnimation(AppTheme.Animation.spring) {
-                expandedTransitionOrders = nextExpanded
+                resolvedPresentationState.expandedTransitionOrders = nextExpanded
             }
             return
         }
@@ -1111,7 +1432,7 @@ struct ThinkingTreeView: View {
         let nextGraph = layoutGraph(for: viewport, expandedTransitions: nextExpanded)
         guard let nextAnchor = transitionAnchorPosition(order: order, in: nextGraph) else {
             withAnimation(AppTheme.Animation.spring) {
-                expandedTransitionOrders = nextExpanded
+                resolvedPresentationState.expandedTransitionOrders = nextExpanded
             }
             return
         }
@@ -1125,7 +1446,7 @@ struct ThinkingTreeView: View {
         )
 
         withAnimation(AppTheme.Animation.spring) {
-            expandedTransitionOrders = nextExpanded
+            resolvedPresentationState.expandedTransitionOrders = nextExpanded
             offset = nextOffset
             lastOffset = nextOffset
         }
@@ -1135,11 +1456,13 @@ struct ThinkingTreeView: View {
         guard interactionMode == .browsing else { return }
 
         withAnimation(AppTheme.Animation.spring) {
-            if expandedTransitionOrders.contains(order) {
-                expandedTransitionOrders.remove(order)
+            var nextExpanded = expandedTransitionOrders
+            if nextExpanded.contains(order) {
+                nextExpanded.remove(order)
             } else {
-                expandedTransitionOrders.insert(order)
+                nextExpanded.insert(order)
             }
+            resolvedPresentationState.expandedTransitionOrders = nextExpanded
         }
     }
 
@@ -1147,11 +1470,13 @@ struct ThinkingTreeView: View {
         guard interactionMode == .browsing else { return }
 
         withAnimation(AppTheme.Animation.spring) {
-            if expandedArchivedStageOrders.contains(order) {
-                expandedArchivedStageOrders.remove(order)
+            var nextExpanded = expandedArchivedStageOrders
+            if nextExpanded.contains(order) {
+                nextExpanded.remove(order)
             } else {
-                expandedArchivedStageOrders.insert(order)
+                nextExpanded.insert(order)
             }
+            resolvedPresentationState.expandedArchivedStageOrders = nextExpanded
         }
     }
 
@@ -1207,7 +1532,9 @@ struct ThinkingTreeView: View {
         modelContext.insert(moment)
         project.thinkingMoments.append(moment)
         project.updatedAt = Date()
-        expandedTransitionOrders.insert(stageOrder)
+        var nextExpanded = expandedTransitionOrders
+        nextExpanded.insert(stageOrder)
+        resolvedPresentationState.expandedTransitionOrders = nextExpanded
         try? modelContext.save()
         selectedNode = nil
     }
@@ -1248,6 +1575,15 @@ struct ThinkingTreeView: View {
                 .onTapGesture {
                     toggleTransition(transitionOrder, graph: graph, viewport: viewport)
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    isTransitionExpanded(transitionOrder)
+                        ? "收起 Stage \(transitionOrder) 问题链"
+                        : "展开 Stage \(transitionOrder) 问题链"
+                )
+                .accessibilityHint("批注会跟随对应节点重新定位")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("mindTree.transition.\(transitionOrder)")
                 .zIndex(1)
             }
         }
@@ -1724,8 +2060,16 @@ struct ThinkingTreeView: View {
         animated: Bool,
         commit: Bool = true
     ) {
+        let nextScale = clampedScale(value)
+        guard abs(nextScale - scale) > 0.0001 else {
+            if commit {
+                lastScale = scale
+                lastOffset = offset
+            }
+            return
+        }
+
         guard viewport.width > 0, viewport.height > 0 else {
-            let nextScale = clampedScale(value)
             scale = nextScale
             if commit {
                 lastScale = nextScale
@@ -1734,7 +2078,7 @@ struct ThinkingTreeView: View {
         }
         let graph = layoutGraph(for: viewport)
         setScalePreservingViewportCenter(
-            value,
+            nextScale,
             graph: graph,
             viewport: viewport,
             animated: animated,
@@ -1750,6 +2094,14 @@ struct ThinkingTreeView: View {
         commit: Bool = true
     ) {
         let nextScale = clampedScale(value)
+        guard abs(nextScale - scale) > 0.0001 else {
+            if commit {
+                lastScale = scale
+                lastOffset = offset
+            }
+            return
+        }
+
         let nextOffset = offsetPreservingViewportPoint(
             CGPoint(x: viewport.width / 2, y: viewport.height / 2),
             graph: graph,

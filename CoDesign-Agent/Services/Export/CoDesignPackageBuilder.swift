@@ -7,6 +7,7 @@ struct CoDesignPackageBuilder {
         self.snapshotBuilder = snapshotBuilder
     }
 
+    @MainActor
     func build(project: Project, exportedAt: Date = Date()) -> CoDesignPackage {
         let options = ReportExportOptions.defaults(for: .codesignPackage)
         let snapshot = snapshotBuilder.build(project: project, options: options, exportedAt: exportedAt)
@@ -14,7 +15,7 @@ struct CoDesignPackageBuilder {
             from: snapshot,
             mindTreeAnnotations: project.mindTreeAnnotations
                 .sorted { $0.createdAt < $1.createdAt }
-                .map(MindTreeAnnotationSnapshot.init(annotation:))
+                .map { MindTreeAnnotationSnapshot(annotation: $0) }
         )
     }
 
@@ -24,7 +25,7 @@ struct CoDesignPackageBuilder {
     ) -> CoDesignPackage {
         let mindTree = buildMindTree(snapshot: snapshot)
         return CoDesignPackage(
-            schemaVersion: "1.1",
+            schemaVersion: "1.2",
             documentType: "codesign.project",
             exportedAt: snapshot.exportedAt,
             appVersion: appVersion,
