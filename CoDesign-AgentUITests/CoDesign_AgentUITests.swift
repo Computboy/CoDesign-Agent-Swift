@@ -273,11 +273,49 @@ final class CoDesign_AgentUITests: XCTestCase {
             transition.waitForExistence(timeout: 10),
             "阶段连线应提供可访问的展开按钮"
         )
+        if transition.label.hasPrefix("收起") {
+            transition.tap()
+            let expandedLabel = NSPredicate(format: "label BEGINSWITH %@", "展开")
+            expectation(for: expandedLabel, evaluatedWith: transition)
+            waitForExpectations(timeout: 10)
+        }
+
+        let zoomSlider = app.sliders["缩放范围"]
+        XCTAssertTrue(
+            zoomSlider.waitForExistence(timeout: 10),
+            "思维树应提供缩放控制"
+        )
+        zoomSlider.adjust(toNormalizedSliderPosition: 0.72)
+        let scaleBeforeExpansion = zoomSlider.value as? String
+
+        let transitionFrameBeforeExpansion = transition.frame
+
         transition.tap()
 
         XCTAssertTrue(
             annotation.waitForExistence(timeout: 10),
             "思维树展开并改变指纹后，文字批注仍应存在"
+        )
+        let collapsedLabel = NSPredicate(format: "label BEGINSWITH %@", "收起")
+        expectation(for: collapsedLabel, evaluatedWith: transition)
+        waitForExpectations(timeout: 10)
+
+        XCTAssertEqual(
+            zoomSlider.value as? String,
+            scaleBeforeExpansion,
+            "展开问题链后不应重置用户当前缩放比例"
+        )
+        XCTAssertEqual(
+            transition.frame.midX,
+            transitionFrameBeforeExpansion.midX,
+            accuracy: 10,
+            "展开问题链后应保持用户点击位置的水平锚点"
+        )
+        XCTAssertEqual(
+            transition.frame.midY,
+            transitionFrameBeforeExpansion.midY,
+            accuracy: 10,
+            "展开问题链后应保持用户点击位置的垂直锚点"
         )
     }
 

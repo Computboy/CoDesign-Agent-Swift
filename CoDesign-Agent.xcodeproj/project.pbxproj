@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		7A5D00012FC9000100C0DE01 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 7A5D00022FC9000100C0DE01 /* Markdown */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		044305F92FC8292200A0BB98 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -65,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7A5D00012FC9000100C0DE01 /* Markdown in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +130,7 @@
 			);
 			name = "CoDesign-Agent";
 			packageProductDependencies = (
+				7A5D00022FC9000100C0DE01 /* Markdown */,
 			);
 			productName = "CoDesign-Agent";
 			productReference = 044305E92FC8292100A0BB98 /* CoDesign-Agent.app */;
@@ -208,6 +214,9 @@
 			);
 			mainGroup = 044305E02FC8292100A0BB98;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7A5D00032FC9000100C0DE01 /* XCLocalSwiftPackageReference "Vendor/swift-markdown" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 044305EA2FC8292100A0BB98 /* Products */;
 			projectDirPath = "";
@@ -642,6 +651,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		7A5D00032FC9000100C0DE01 /* XCLocalSwiftPackageReference "Vendor/swift-markdown" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "Vendor/swift-markdown";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7A5D00022FC9000100C0DE01 /* Markdown */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A5D00032FC9000100C0DE01 /* XCLocalSwiftPackageReference "Vendor/swift-markdown" */;
+			productName = Markdown;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 044305E12FC8292100A0BB98 /* Project object */;
 }

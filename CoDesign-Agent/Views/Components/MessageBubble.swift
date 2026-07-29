@@ -33,8 +33,7 @@ struct MessageBubble: View {
         if message.role == "assistant" {
             AssistantResponseTextView(
                 text: message.content,
-                font: AppTheme.Typography.body,
-                foregroundColor: .textPrimary
+                baseFontSize: 17
             )
         } else {
             Text(message.content)

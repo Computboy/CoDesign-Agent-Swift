@@ -1037,6 +1037,7 @@ private struct CurrentWorkspaceColumn: View {
                     project: project,
                     isStreaming: chatViewModel.isStreaming,
                     streamingText: chatViewModel.currentStreamingText,
+                    streamingSnapshot: chatViewModel.streamingMarkdownSnapshot,
                     activityText: chatViewModel.assistantActivityText,
                     showsResourcePanel: showsResourcePanel,
                     onQuickAction: send,
@@ -1070,7 +1071,8 @@ private struct CurrentWorkspaceColumn: View {
                 messages: project.messages,
                 methodMoments: project.thinkingMoments,
                 isStreaming: chatViewModel.isStreaming,
-                streamingText: chatViewModel.currentStreamingText
+                streamingText: chatViewModel.streamingMarkdownSnapshot?.compactDisplayMarkdown
+                    ?? chatViewModel.currentStreamingText
             )
         }
     }

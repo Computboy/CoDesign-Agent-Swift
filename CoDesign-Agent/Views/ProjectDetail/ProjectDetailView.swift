@@ -136,7 +136,12 @@ struct ProjectDetailView: View {
                     }
                 )
             case .visualBoard:
-                VisualBoardView(project: project)
+                VisualBoardView(
+                    project: project,
+                    onStartRiskDiscovery: {
+                        selectTab(.workspace)
+                    }
+                )
             case .portfolio:
                 VisualPortfolioView(project: project)
             case .progress:

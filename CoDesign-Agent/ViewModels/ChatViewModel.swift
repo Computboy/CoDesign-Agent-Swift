@@ -11,8 +11,11 @@ final class ChatViewModel {
     private let analyzer = ProgressAnalyzer()
     @ObservationIgnored private nonisolated(unsafe) var fallbackObserver: NSObjectProtocol?
     @ObservationIgnored private nonisolated(unsafe) var configurationObserver: NSObjectProtocol?
+    @ObservationIgnored private let streamingMarkdownBuffer = StreamingMarkdownBuffer()
+    @ObservationIgnored private var activeStreamingGenerationID: UUID?
 
     var currentStreamingText: String = ""
+    var streamingMarkdownSnapshot: StreamingMarkdownSnapshot?
     var isStreaming: Bool = false
     var assistantActivityText: String = ""
     var errorMessage: String?
@@ -116,27 +119,21 @@ final class ChatViewModel {
 
         assistantActivityText = "正在生成下一轮澄清问题……"
 
-        do {
-            let stream = llmService.streamChat(
-                messages: payloadMessages,
-                briefSnapshot: updatedBriefSnapshot,
-                currentStage: stageSnapshot,
-                mode: .normal,
-                resourceCards: selectedResourceCards
-            )
-            for try await token in stream {
-                if currentStreamingText.isEmpty {
-                    assistantActivityText = "正在生成回复……"
-                }
-                currentStreamingText += token
-            }
-        } catch {
-            errorMessage = "回溯后的追问生成失败，请重试"
-            endAssistantActivity()
+        let stream = llmService.streamChat(
+            messages: payloadMessages,
+            briefSnapshot: updatedBriefSnapshot,
+            currentStage: stageSnapshot,
+            mode: .normal,
+            resourceCards: selectedResourceCards
+        )
+        guard let assistantText = await collectAssistantResponse(
+            from: stream,
+            failureMessage: "回溯后的追问生成失败，请重试"
+        ) else {
             return
         }
 
-        let assistantMsg = ChatMessage(role: "assistant", content: currentStreamingText)
+        let assistantMsg = ChatMessage(role: "assistant", content: assistantText)
         context.insert(assistantMsg)
         project.messages.append(assistantMsg)
         if let selectedMethodCard {
@@ -249,29 +246,22 @@ final class ChatViewModel {
 
         assistantActivityText = "正在生成下一轮澄清问题……"
 
-        do {
-            let stream = llmService.streamChat(
-                messages: payloadMessages,
-                briefSnapshot: updatedBriefSnapshot,
-                currentStage: stageSnapshot,
-                mode: clarificationMode,
-                resourceCards: selectedResourceCards
-            )
-            for try await token in stream {
-                if currentStreamingText.isEmpty {
-                    assistantActivityText = "正在生成回复……"
-                }
-                currentStreamingText += token
-            }
-        } catch {
-            // v0.1: 简单错误提示
-            errorMessage = "回复生成失败，请重试"
-            endAssistantActivity()
+        let stream = llmService.streamChat(
+            messages: payloadMessages,
+            briefSnapshot: updatedBriefSnapshot,
+            currentStage: stageSnapshot,
+            mode: clarificationMode,
+            resourceCards: selectedResourceCards
+        )
+        guard let assistantText = await collectAssistantResponse(
+            from: stream,
+            failureMessage: "回复生成失败，请重试"
+        ) else {
             return
         }
 
         // ⑥ 保存 AI 回复
-        let assistantMsg = ChatMessage(role: "assistant", content: currentStreamingText)
+        let assistantMsg = ChatMessage(role: "assistant", content: assistantText)
         context.insert(assistantMsg)
         project.messages.append(assistantMsg)
         if let selectedMethodCard {
@@ -306,16 +296,89 @@ final class ChatViewModel {
     }
 
     private func beginAssistantActivity(_ text: String) {
+        activeStreamingGenerationID = nil
         isStreaming = true
         currentStreamingText = ""
+        streamingMarkdownSnapshot = nil
         assistantActivityText = text
         errorMessage = nil
     }
 
     private func endAssistantActivity() {
+        activeStreamingGenerationID = nil
         currentStreamingText = ""
+        streamingMarkdownSnapshot = nil
         assistantActivityText = ""
         isStreaming = false
+    }
+
+    func cancelStreamingResponse() async {
+        guard let generationID = activeStreamingGenerationID else { return }
+        _ = await streamingMarkdownBuffer.cancel(generationID: generationID)
+        activeStreamingGenerationID = nil
+        assistantActivityText = ""
+        isStreaming = false
+    }
+
+    private func collectAssistantResponse(
+        from stream: AsyncThrowingStream<String, Error>,
+        failureMessage: String
+    ) async -> String? {
+        let generationID = UUID()
+        activeStreamingGenerationID = generationID
+
+        await streamingMarkdownBuffer.start(generationID: generationID) { [weak self] snapshot in
+            guard let self,
+                  self.activeStreamingGenerationID == snapshot.generationID else {
+                return
+            }
+            self.streamingMarkdownSnapshot = snapshot
+            self.currentStreamingText = snapshot.markdown
+            if snapshot.hasVisibleContent {
+                self.assistantActivityText = "正在生成回复……"
+            }
+        }
+
+        do {
+            var sequence = 0
+            for try await token in stream {
+                guard activeStreamingGenerationID == generationID else {
+                    return nil
+                }
+                await streamingMarkdownBuffer.append(
+                    token,
+                    generationID: generationID,
+                    sequence: sequence
+                )
+                sequence += 1
+            }
+        } catch is CancellationError {
+            _ = await streamingMarkdownBuffer.cancel(generationID: generationID)
+            activeStreamingGenerationID = nil
+            assistantActivityText = ""
+            isStreaming = false
+            return nil
+        } catch {
+            _ = await streamingMarkdownBuffer.fail(generationID: generationID)
+            errorMessage = failureMessage
+            activeStreamingGenerationID = nil
+            assistantActivityText = ""
+            isStreaming = false
+            return nil
+        }
+
+        guard let completed = await streamingMarkdownBuffer.finish(generationID: generationID),
+              activeStreamingGenerationID == generationID else {
+            return nil
+        }
+        guard completed.hasVisibleContent else {
+            errorMessage = "没有收到有效回复，请重试"
+            activeStreamingGenerationID = nil
+            assistantActivityText = ""
+            isStreaming = false
+            return nil
+        }
+        return completed.markdown
     }
 
     private func observeServiceFallbacks() {

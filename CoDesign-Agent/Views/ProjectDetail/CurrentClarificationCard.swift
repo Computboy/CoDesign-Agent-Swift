@@ -5,9 +5,12 @@ import SwiftUI
 /// The core visual component of v0.3 workspace.
 /// Displays the current AI question, stage context, related fields, and explanation.
 struct CurrentClarificationCard: View {
+    private static let assistantResponseBaseFontSize: CGFloat = 18
+
     let project: Project
     let isStreaming: Bool
     let streamingText: String
+    var streamingSnapshot: StreamingMarkdownSnapshot?
     var activityText: String = "正在分析回答……"
     var showsResourcePanel: Bool = true
     let onQuickAction: (String) -> Void
@@ -21,11 +24,17 @@ struct CurrentClarificationCard: View {
         case welcome      // No messages yet
         case streaming    // AI is generating
         case hasResponse  // Latest assistant message available
+        case interrupted  // Partial output was preserved after failure/cancellation
         case waitingUser  // Latest message is from user (waiting for next AI turn)
     }
 
     private var cardState: CardState {
         if isStreaming { return .streaming }
+        if let streamingSnapshot,
+           streamingSnapshot.hasVisibleContent,
+           streamingSnapshot.phase == .failed || streamingSnapshot.phase == .cancelled {
+            return .interrupted
+        }
         let sorted = project.messages.sorted { $0.timestamp < $1.timestamp }
         if sorted.isEmpty { return .welcome }
         if sorted.last?.role == "assistant" { return .hasResponse }
@@ -33,7 +42,9 @@ struct CurrentClarificationCard: View {
     }
 
     private var latestAssistantText: String {
-        if isStreaming { return streamingText }
+        if isStreaming || cardState == .interrupted {
+            return streamingSnapshot?.markdown ?? streamingText
+        }
         let sorted = project.messages.sorted { $0.timestamp < $1.timestamp }
         return sorted.last(where: { $0.role == "assistant" })?.content ?? ""
     }
@@ -87,10 +98,6 @@ struct CurrentClarificationCard: View {
 
     private var currentDefinition: StageDefinition? {
         StageDefinition.all.first(where: { $0.order == stageOrder })
-    }
-
-    private var questionFont: Font {
-        Font.system(.title3, design: .default)
     }
 
     private var relatedFields: [BriefField] {
@@ -192,6 +199,8 @@ struct CurrentClarificationCard: View {
                     streamingContent
                 case .hasResponse:
                     responseContent
+                case .interrupted:
+                    interruptedContent
                 case .waitingUser:
                     waitingContent
                 }
@@ -261,6 +270,7 @@ struct CurrentClarificationCard: View {
         case .welcome:     return .info
         case .streaming:   return .active
         case .hasResponse: return .complete
+        case .interrupted: return .partial
         case .waitingUser: return .partial
         }
     }
@@ -270,6 +280,7 @@ struct CurrentClarificationCard: View {
         case .welcome:     return "准备开始"
         case .streaming:   return "AI 思考中"
         case .hasResponse: return "已生成"
+        case .interrupted: return "已保留草稿"
         case .waitingUser: return "等待回答"
         }
     }
@@ -317,7 +328,8 @@ struct CurrentClarificationCard: View {
             } else {
                 AssistantResponseBlock(
                     text: streamingText,
-                    font: questionFont
+                    streamingSnapshot: streamingSnapshot,
+                    baseFontSize: Self.assistantResponseBaseFontSize
                 )
 
                 HStack(spacing: 4) {
@@ -346,9 +358,24 @@ struct CurrentClarificationCard: View {
             } else {
                 AssistantResponseBlock(
                     text: latestAssistantText,
-                    font: questionFont
+                    baseFontSize: Self.assistantResponseBaseFontSize
                 )
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var interruptedContent: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+            AssistantResponseBlock(
+                text: latestAssistantText,
+                streamingSnapshot: streamingSnapshot,
+                baseFontSize: Self.assistantResponseBaseFontSize
+            )
+
+            Label("生成已中断，已保留当前内容", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+                .font(AppTheme.Typography.caption)
+                .foregroundStyle(Color.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -527,14 +554,14 @@ private struct ClarificationQuickAction: Identifiable {
 
 private struct AssistantResponseBlock: View {
     let text: String
-    let font: Font
+    var streamingSnapshot: StreamingMarkdownSnapshot?
+    var baseFontSize: CGFloat
 
     var body: some View {
         AssistantResponseTextView(
             text: text,
-            font: font,
-            foregroundColor: .textPrimary,
-            lineSpacing: 3
+            streamingSnapshot: streamingSnapshot,
+            baseFontSize: baseFontSize
         )
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }

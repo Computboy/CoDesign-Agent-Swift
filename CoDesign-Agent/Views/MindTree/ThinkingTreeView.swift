@@ -853,15 +853,6 @@ struct ThinkingTreeView: View {
         } else {
             refreshAnnotationState(for: newFingerprint, graph: graph)
         }
-
-        guard hasInitializedViewport,
-              lastViewportSize.width > 0,
-              lastViewportSize.height > 0 else {
-            return
-        }
-        DispatchQueue.main.async {
-            fitTreeToViewport(in: lastViewportSize, preserveScale: false)
-        }
         #endif
     }
 
