@@ -5,6 +5,9 @@ import SwiftData
 enum ExtractionAuditDecision: String, Codable {
     case autoCommitted
     case needsReview
+    case deferredUntilStage
+    case awaitingConfirmation
+    case superseded
     case rejected
     case userAccepted
     case userEdited

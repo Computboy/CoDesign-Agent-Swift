@@ -167,6 +167,106 @@ struct ExtractionReliabilityTests {
         #expect(brief.boundaryItems.count == 2)
     }
 
+    @Test @MainActor func futureStageCandidateIsDeferredUntilThatStage() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let brief = DesignBrief()
+        context.insert(brief)
+
+        let outcome = ExtractionOutcome(
+            source: .live,
+            status: .succeeded,
+            envelope: ExtractionEnvelope(
+                mvpFeatures: ExtractedFieldCandidate(
+                    value: "状态总览与异常提醒",
+                    confidence: 0.92,
+                    level: .confirmed,
+                    evidence: [
+                        EvidenceSpan(
+                            role: "user",
+                            quote: "状态总览与异常提醒",
+                            turnIndex: 0
+                        )
+                    ],
+                    shouldAutoCommit: true
+                )
+            )
+        )
+
+        brief.applyValidatedExtraction(
+            outcome: outcome,
+            context: context,
+            currentStageOrder: 1
+        )
+
+        #expect(brief.mvpFeatures == nil)
+        #expect(
+            brief.deferredExtractionLogs(forStageOrder: 4)
+                .first?.candidateValue == "状态总览与异常提醒"
+        )
+        #expect(
+            brief.extractionAuditLogs.first?.decisionValue
+                == .deferredUntilStage
+        )
+
+        // Re-reading the same historical conversation after Stage 4 becomes
+        // active must not bypass the explicit confirmation gate.
+        brief.applyValidatedExtraction(
+            outcome: outcome,
+            context: context,
+            currentStageOrder: 4
+        )
+        #expect(brief.mvpFeatures == nil)
+        #expect(
+            brief.deferredExtractionLogs(forStageOrder: 4).count == 1
+        )
+    }
+
+    @Test func progressAnalyzerUnlocksOnlyTheNextStage() throws {
+        let brief = DesignBriefSnapshot(
+            targetUser: "独居老人",
+            painPoint: "突发异常无法及时被家人发现",
+            useScenario: "夜间独自在家时",
+            coreValue: "更快发现异常",
+            differentiation: "只关注家庭内异常状态",
+            mvpFeatures: "状态总览与异常提醒",
+            technicalModules: "传感器、规则引擎、通知模块",
+            interactionFlow: "查看状态—发现异常—通知家人"
+        )
+        let stages = StageDefinition.all.map { definition in
+            ProgressStageSnapshot(
+                order: definition.order,
+                name: definition.name,
+                status: definition.order == 1
+                    ? .active
+                    : (definition.order == 4 ? .completed : .notStarted),
+                completionRatio: definition.order == 4 ? 1 : 0
+            )
+        }
+
+        let updated = ProgressAnalyzer().analyze(
+            brief: brief,
+            stages: stages
+        )
+
+        #expect(updated.first { $0.order == 1 }?.status == .completed)
+        #expect(updated.first { $0.order == 2 }?.status == .active)
+        #expect(updated.first { $0.order == 2 }?.completionRatio == 0)
+        #expect(updated.first { $0.order == 4 }?.status == .notStarted)
+        #expect(updated.first { $0.order == 4 }?.completionRatio == 0)
+    }
+
+    @Test func deferredConfirmationRecognizesConfirmationsAndCorrections() {
+        let confirmation = DeferredStageConfirmation()
+
+        #expect(confirmation.resolve("对，确认无误") == .confirmed)
+        #expect(
+            confirmation.resolve("不对，技术模块应该改为本地规则引擎")
+                == .revisedOrRejected
+        )
+        #expect(confirmation.resolve("为什么需要再次确认？") == .unresolved)
+    }
+
     @Test func stageThreeRequiresIncludeAndExcludeBoundaryItems() throws {
         let stage = try #require(StageDefinition.all.first { $0.order == 3 })
 

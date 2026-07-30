@@ -20,6 +20,12 @@ final class ChatViewModel {
     var assistantActivityText: String = ""
     var errorMessage: String?
 
+    private enum ConfirmationExtractionPolicy: Equatable {
+        case fullConversation
+        case latestExchange
+        case skip
+    }
+
     init(project: Project,
          llmService: any LLMServiceProtocol,
          extractor: any StructuredExtractorProtocol) {
@@ -64,6 +70,8 @@ final class ChatViewModel {
         guard !trimmedAnswer.isEmpty else { return }
 
         let previousBrief = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
+        let extractionStageOrder = currentActiveStage()?.order
+            ?? project.currentStageOrder
         let revisionMessage = revisionContinuationMessage(
             question: question,
             revisedAnswer: trimmedAnswer,
@@ -81,6 +89,7 @@ final class ChatViewModel {
         await applyStructuredExtraction(
             messages: messagesWithTrustedImportContext([.user(revisionMessage)], existing: previousBrief),
             existing: previousBrief,
+            currentStageOrder: extractionStageOrder,
             context: context
         )
 
@@ -101,6 +110,14 @@ final class ChatViewModel {
             context: context
         )
         try? context.save()
+
+        if presentDeferredStageConfirmationIfNeeded(
+            stage: nextActiveStage,
+            context: context
+        ) {
+            try? context.save()
+            return
+        }
 
         let payloadMessages = revisionPayloadMessages(
             revisionMessage: revisionMessage,
@@ -197,23 +214,48 @@ final class ChatViewModel {
         try? context.save()
         beginAssistantActivity("正在分析回答……")
 
-        // ④ 先抽取并更新状态，再生成下一问。
-        // 这样 Agent 问出的不是“更多细节”，而是当前 DesignBrief 中最值得推进的设计判断。
-        let rawExtractionMessages = project.messages
-            .sorted { $0.timestamp < $1.timestamp }
-            .map { $0.toPayload() }
-        let extractionMessages = messagesWithTrustedImportContext(
-            rawExtractionMessages,
-            existing: previousBrief
-        )
-
-        await applyStructuredExtraction(
-            messages: extractionMessages,
-            existing: previousBrief,
+        let extractionPolicy = resolveAwaitingStageConfirmation(
+            response: text,
+            stageOrder: activeStageOrder,
             context: context
         )
+        let shouldRunExtraction = extractionPolicy != .skip
+
+        // ④ 先抽取并更新状态，再生成下一问。
+        // 这样 Agent 问出的不是“更多细节”，而是当前 DesignBrief 中最值得推进的设计判断。
+        if shouldRunExtraction {
+            let conversationMessages = project.messages
+                .sorted { $0.timestamp < $1.timestamp }
+                .map { $0.toPayload() }
+            let rawExtractionMessages: [ChatPayloadMessage]
+            switch extractionPolicy {
+            case .fullConversation:
+                rawExtractionMessages = conversationMessages
+            case .latestExchange:
+                rawExtractionMessages = Array(conversationMessages.suffix(2))
+            case .skip:
+                rawExtractionMessages = []
+            }
+            let extractionMessages = messagesWithTrustedImportContext(
+                rawExtractionMessages,
+                existing: previousBrief
+            )
+
+            await applyStructuredExtraction(
+                messages: extractionMessages,
+                existing: previousBrief,
+                currentStageOrder: activeStageOrder,
+                context: context
+            )
+        }
 
         let updatedBriefSnapshot = project.brief?.toSnapshot() ?? DesignBriefSnapshot()
+        if shouldRunExtraction {
+            project.brief?.supersedeConfirmedAwaitingLogs(
+                forStageOrder: activeStageOrder,
+                snapshot: updatedBriefSnapshot
+            )
+        }
         recordBriefDecisionMoments(
             previous: previousBrief,
             current: updatedBriefSnapshot,
@@ -229,6 +271,14 @@ final class ChatViewModel {
             context: context
         )
         try? context.save()
+
+        if presentDeferredStageConfirmationIfNeeded(
+            stage: nextActiveStage,
+            context: context
+        ) {
+            try? context.save()
+            return
+        }
 
         // ⑤ 基于更新后的状态流式调用 LLM
         let payloadMessages = project.messages
@@ -504,6 +554,7 @@ final class ChatViewModel {
     private func applyStructuredExtraction(
         messages: [ChatPayloadMessage],
         existing: DesignBriefSnapshot,
+        currentStageOrder: Int,
         context: ModelContext
     ) async {
         do {
@@ -512,7 +563,11 @@ final class ChatViewModel {
                 existing: existing
             )
             if let brief = project.brief {
-                brief.applyValidatedExtraction(outcome: outcome, context: context)
+                brief.applyValidatedExtraction(
+                    outcome: outcome,
+                    context: context,
+                    currentStageOrder: currentStageOrder
+                )
             }
         } catch {
             if let brief = project.brief {
@@ -521,9 +576,96 @@ final class ChatViewModel {
                     message: "Structured extraction threw an error: \(error)",
                     attemptCount: 1
                 )
-                brief.applyValidatedExtraction(outcome: outcome, context: context)
+                brief.applyValidatedExtraction(
+                    outcome: outcome,
+                    context: context,
+                    currentStageOrder: currentStageOrder
+                )
             }
         }
+    }
+
+    private func resolveAwaitingStageConfirmation(
+        response: String,
+        stageOrder: Int,
+        context: ModelContext
+    ) -> ConfirmationExtractionPolicy {
+        guard let brief = project.brief else { return .fullConversation }
+        let awaitingLogs = brief.awaitingConfirmationLogs(
+            forStageOrder: stageOrder
+        )
+        guard !awaitingLogs.isEmpty else { return .fullConversation }
+
+        switch DeferredStageConfirmation().resolve(response) {
+        case .confirmed:
+            for log in awaitingLogs {
+                brief.acceptPendingExtraction(log, context: context)
+            }
+            return .skip
+        case .revisedOrRejected:
+            brief.supersedeConfirmationLogs(awaitingLogs)
+            return .latestExchange
+        case .unresolved:
+            return .skip
+        }
+    }
+
+    @discardableResult
+    private func presentDeferredStageConfirmationIfNeeded(
+        stage: ProgressStage?,
+        context: ModelContext
+    ) -> Bool {
+        guard let stage, let brief = project.brief else { return false }
+
+        let awaitingLogs = brief.awaitingConfirmationLogs(
+            forStageOrder: stage.order
+        )
+        let logs: [ExtractionAuditLog]
+        if awaitingLogs.isEmpty {
+            logs = Array(
+                brief.deferredExtractionLogs(forStageOrder: stage.order)
+                    .prefix(1)
+            )
+            brief.beginConfirmation(for: logs)
+        } else {
+            logs = awaitingLogs
+        }
+
+        let candidates = logs.compactMap { log
+            -> (field: BriefField, value: String)? in
+            guard let field = BriefField(rawValue: log.fieldName),
+                  let value = log.candidateValue?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !value.isEmpty
+            else {
+                return nil
+            }
+            return (field, value)
+        }
+        guard !candidates.isEmpty else { return false }
+
+        let question = DeferredStageConfirmation().question(
+            stageOrder: stage.order,
+            stageName: stage.name,
+            candidates: candidates
+        )
+        let assistantMessage = ChatMessage(
+            role: "assistant",
+            content: question
+        )
+        context.insert(assistantMessage)
+        project.messages.append(assistantMessage)
+        project.updatedAt = Date()
+        recordThinkingMoment(
+            momType: "question",
+            content: question,
+            stageOrder: stage.order,
+            relatedField: nil,
+            parentMomentID: nil,
+            context: context
+        )
+        endAssistantActivity()
+        return true
     }
 
     private func messagesWithTrustedImportContext(
@@ -653,9 +795,7 @@ final class ChatViewModel {
 
     private func currentActiveStage() -> ProgressStage? {
         let sortedStages = project.stages.sorted { $0.order < $1.order }
-        return sortedStages.first { $0.stageStatusValue == .needsReview }
-            ?? sortedStages.first { $0.stageStatusValue == .active }
-            ?? sortedStages.first { $0.stageStatusValue == .notStarted }
+        return sortedStages.first { $0.stageStatusValue != .completed }
     }
 
     private func shouldRecordFormalAnswer(text: String, mode: ClarificationMode) -> Bool {

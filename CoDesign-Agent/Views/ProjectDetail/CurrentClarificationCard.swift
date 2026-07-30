@@ -134,12 +134,6 @@ struct CurrentClarificationCard: View {
                 prompt: "换个角度问：请换一个角度重新追问我这个问题，不要重复刚才的表达，也不要给 A/B/C 选项。"
             ),
             ClarificationQuickAction(
-                title: "生成边界草稿",
-                icon: "rectangle.dashed",
-                tint: .secondaryAccent,
-                prompt: "请基于我已有回答，先帮我草拟一个 MVP 范围，包括“现在做什么”和“暂时不做什么”，但不要替我最终决定。"
-            ),
-            ClarificationQuickAction(
                 title: "跳过",
                 icon: "forward",
                 tint: .textSecondary,

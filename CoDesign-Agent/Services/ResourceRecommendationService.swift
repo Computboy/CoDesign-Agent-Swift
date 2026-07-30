@@ -637,14 +637,10 @@ struct ResourceRecommendationService {
 extension Project {
     var currentStageOrder: Int {
         let sorted = stages.sorted { $0.order < $1.order }
-        if let review = sorted.first(where: { $0.stageStatusValue == .needsReview }) {
-            return review.order
-        }
-        if let active = sorted.first(where: { $0.stageStatusValue == .active }) {
-            return active.order
-        }
-        if let next = sorted.first(where: { $0.stageStatusValue == .notStarted }) {
-            return next.order
+        if let current = sorted.first(where: {
+            $0.stageStatusValue != .completed
+        }) {
+            return current.order
         }
         return sorted.last?.order ?? 1
     }

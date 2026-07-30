@@ -194,10 +194,6 @@ enum SocraticPromptTemplates {
             lines.append("")
             lines.append("## 本轮模式：reframe")
             lines.append("请换一个角度重问，但仍然只问 1 个开放问题，不输出 A/B/C 选项。")
-        case .boundaryDraft:
-            lines.append("")
-            lines.append("## 本轮模式：boundaryDraft")
-            lines.append("可以轻量提出 MVP 边界草稿，但必须保留为可修改假设，不要替用户做最终决定。")
         case .skip:
             lines.append("")
             lines.append("## 本轮模式：skip")

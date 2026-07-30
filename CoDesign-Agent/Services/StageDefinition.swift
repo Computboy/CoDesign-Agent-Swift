@@ -76,6 +76,29 @@ enum BriefField: String, CaseIterable {
         }
     }
 
+    var stageOrder: Int {
+        switch self {
+        case .targetUser, .painPoint, .useScenario:
+            return 1
+        case .coreValue, .differentiation:
+            return 2
+        case .boundaryItems:
+            return 3
+        case .mvpFeatures, .technicalModules, .interactionFlow:
+            return 4
+        case .operationLogic:
+            return 5
+        case .hardConstraints:
+            return 6
+        case .successMetrics:
+            return 7
+        case .risks:
+            return 8
+        case .milestones:
+            return 9
+        }
+    }
+
     /// 判断该字段在 snapshot 中是否已填充
     func isFilled(in snapshot: DesignBriefSnapshot) -> Bool {
         switch self {

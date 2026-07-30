@@ -5,7 +5,6 @@ enum ClarificationMode: String, Hashable {
     case stuckScaffold
     case exampleRequested
     case reframe
-    case boundaryDraft
     case skip
 
     static func detect(from text: String) -> ClarificationMode {
@@ -47,15 +46,6 @@ enum ClarificationMode: String, Hashable {
             "换个问法"
         ]) {
             return .reframe
-        }
-
-        if containsAny(normalized, [
-            "边界草稿",
-            "mvp 范围",
-            "mvp范围",
-            "做什么不做什么"
-        ]) {
-            return .boundaryDraft
         }
 
         if containsAny(normalized, [

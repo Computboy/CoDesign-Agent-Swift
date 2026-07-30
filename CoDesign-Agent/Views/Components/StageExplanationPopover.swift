@@ -44,7 +44,8 @@ struct StageExplanationBubble: View {
                 definition: definition,
                 onDismiss: onDismiss
             )
-            .padding(AppTheme.spacingLarge)
+            .padding(.horizontal, 24)
+            .padding(.vertical, AppTheme.spacingLarge)
         }
         .frame(width: 360)
         .background(
@@ -68,54 +69,80 @@ private struct StageExplanationContent: View {
     let onDismiss: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
-            HStack {
-                Text("阶段 \(stage.order)")
-                    .font(AppTheme.Typography.captionMono)
-                    .foregroundStyle(Color.primaryAccent)
+        VStack(alignment: .leading, spacing: AppTheme.spacingLarge) {
+            HStack(spacing: AppTheme.spacingMedium) {
+                ZStack {
+                    Circle()
+                        .fill(Color.primaryAccent.opacity(AppTheme.Opacity.medium))
 
-                Text(stage.name)
-                    .font(AppTheme.Typography.headline)
-                    .foregroundStyle(Color.textPrimary)
+                    Image(systemName: definition.iconName)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.primaryAccent)
+                }
+                .frame(width: 36, height: 36)
+                .accessibilityHidden(true)
 
-                Spacer()
+                VStack(alignment: .leading, spacing: AppTheme.spacingXXS) {
+                    Text("阶段 \(stage.order)")
+                        .font(AppTheme.Typography.captionMono)
+                        .foregroundStyle(Color.primaryAccent)
+
+                    Text(stage.name)
+                        .font(AppTheme.Typography.headline)
+                        .foregroundStyle(Color.textPrimary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: AppTheme.spacingSmall)
 
                 if let onDismiss {
                     Button(action: onDismiss) {
                         Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 19, weight: .medium))
                             .foregroundStyle(Color.textTertiary)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 44, height: 44, alignment: .trailing)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("关闭阶段说明")
                     .accessibilityIdentifier("workspace.stageExplanation.close")
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-                Text("阶段目标")
-                    .font(AppTheme.Typography.caption.weight(.semibold))
-                    .foregroundStyle(Color.textTertiary)
+            VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+                StageExplanationSectionHeader(
+                    title: "阶段目标",
+                    systemImage: "scope"
+                )
 
                 Text(definition.description)
                     .font(AppTheme.Typography.body)
                     .foregroundStyle(Color.textSecondary)
+                    .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if !definition.briefFields.isEmpty {
-                VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-                    Text("影响字段")
-                        .font(AppTheme.Typography.caption.weight(.semibold))
-                        .foregroundStyle(Color.textTertiary)
+                VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
+                    StageExplanationSectionHeader(
+                        title: "影响字段",
+                        systemImage: "square.stack.3d.up"
+                    )
 
-                    CoDesignFlowLayout(spacing: AppTheme.spacingXS) {
+                    CoDesignFlowLayout(spacing: AppTheme.spacingSmall) {
                         ForEach(definition.briefFields, id: \.rawValue) { field in
-                            Text(field.displayName)
+                            HStack(spacing: AppTheme.spacingXS) {
+                                Image(systemName: field.systemImage)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .accessibilityHidden(true)
+
+                                Text(field.displayName)
+                            }
                                 .font(AppTheme.Typography.caption.weight(.medium))
                                 .foregroundStyle(Color.primaryAccent)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 5)
                                 .background(
                                     Capsule()
                                         .fill(Color.primaryAccent.opacity(0.1))
@@ -125,24 +152,68 @@ private struct StageExplanationContent: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: AppTheme.spacingXS) {
-                Text("思考问题")
-                    .font(AppTheme.Typography.caption.weight(.semibold))
-                    .foregroundStyle(Color.textTertiary)
+            VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
+                StageExplanationSectionHeader(
+                    title: "思考问题",
+                    systemImage: "questionmark.bubble"
+                )
 
-                ForEach(Array(definition.thinkingQuestions.enumerated()), id: \.offset) { _, question in
-                    HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
-                        Text("•")
-                            .font(AppTheme.Typography.body)
-                            .foregroundStyle(Color.textSecondary)
-                        Text(question)
-                            .font(AppTheme.Typography.body)
-                            .foregroundStyle(Color.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                ForEach(
+                    Array(definition.thinkingQuestions.enumerated()),
+                    id: \.element
+                ) { index, question in
+                    StageExplanationQuestionRow(
+                        number: index + 1,
+                        question: question
+                    )
                 }
             }
         }
+    }
+}
+
+private struct StageExplanationSectionHeader: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: AppTheme.spacingSM) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.primaryAccent)
+                .frame(width: 18)
+                .accessibilityHidden(true)
+
+            Text(title)
+                .font(AppTheme.Typography.caption.weight(.semibold))
+                .foregroundStyle(Color.textTertiary)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct StageExplanationQuestionRow: View {
+    let number: Int
+    let question: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppTheme.spacingSmall) {
+            Text("\(number)")
+                .font(AppTheme.Typography.tinySemibold.monospacedDigit())
+                .foregroundStyle(Color.primaryAccent)
+                .frame(width: 22, height: 22)
+                .background(
+                    Circle()
+                        .fill(Color.primaryAccent.opacity(AppTheme.Opacity.light))
+                )
+
+            Text(question)
+                .font(AppTheme.Typography.body)
+                .foregroundStyle(Color.textSecondary)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

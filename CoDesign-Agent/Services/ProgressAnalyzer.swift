@@ -9,32 +9,72 @@ struct ProgressAnalyzer {
         brief: DesignBriefSnapshot,
         stages: [ProgressStageSnapshot]
     ) -> [ProgressStageSnapshot] {
-        stages.map { stage in
+        let sortedStages = stages.sorted { $0.order < $1.order }
+        guard let currentStage = sortedStages.first(where: {
+            $0.status != .completed
+        }) else {
+            return stages
+        }
+
+        let currentRatio = StageDefinition.all
+            .first(where: { $0.order == currentStage.order })?
+            .completionRatio(from: brief) ?? currentStage.completionRatio
+        let completesCurrentStage = currentStage.status == .active
+            && currentRatio >= 1
+        let nextStageOrder = sortedStages
+            .first(where: { $0.order > currentStage.order })?
+            .order
+
+        let updatedByOrder = Dictionary(uniqueKeysWithValues: sortedStages.map { stage in
             guard let def = StageDefinition.all.first(where: { $0.order == stage.order })
-            else { return stage }
+            else { return (stage.order, stage) }
 
             let ratio = def.completionRatio(from: brief)
-            var newStatus = stage.status
 
-            switch ratio {
-            case 0:
-                // 全空：如果原状态是 notStarted 则保持，否则降回 active
-                newStatus = (stage.status == .notStarted) ? .notStarted : .active
-            case 1.0:
-                // 全满：除非是 needsReview，否则标记 completed
-                if stage.status != .needsReview { newStatus = .completed }
-            default:
-                // 部分填充：active
-                newStatus = .active
+            if stage.order < currentStage.order {
+                return (
+                    stage.order,
+                    ProgressStageSnapshot(
+                        order: stage.order,
+                        name: stage.name,
+                        status: .completed,
+                        completionRatio: 1
+                    )
+                )
             }
 
-            return ProgressStageSnapshot(
-                order: stage.order,
-                name: stage.name,
-                status: newStatus,
-                completionRatio: ratio
+            if stage.order == currentStage.order {
+                let status: StageStatus
+                if stage.status == .needsReview {
+                    status = .needsReview
+                } else {
+                    status = completesCurrentStage ? .completed : .active
+                }
+                return (
+                    stage.order,
+                    ProgressStageSnapshot(
+                        order: stage.order,
+                        name: stage.name,
+                        status: status,
+                        completionRatio: ratio
+                    )
+                )
+            }
+
+            let unlocksNextStage = completesCurrentStage
+                && stage.order == nextStageOrder
+            return (
+                stage.order,
+                ProgressStageSnapshot(
+                    order: stage.order,
+                    name: stage.name,
+                    status: unlocksNextStage ? .active : .notStarted,
+                    completionRatio: 0
+                )
             )
-        }
+        })
+
+        return stages.map { updatedByOrder[$0.order] ?? $0 }
     }
 
     // MARK: - missingFields

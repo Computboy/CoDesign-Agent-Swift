@@ -230,6 +230,19 @@ struct ClarificationWorkspaceView: View {
                 .zIndex(2)
             }
 
+            if selectedTimelineStage != nil {
+                Button {
+                    dismissStageTimelineBubble()
+                } label: {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHidden(true)
+                .zIndex(19)
+            }
+
             stageTimelineBubble(in: proxy.size)
                 .zIndex(20)
         }
@@ -251,7 +264,7 @@ struct ClarificationWorkspaceView: View {
             })
         {
             let bubbleWidth: CGFloat = 360
-            let bubbleHeight: CGFloat = 320
+            let bubbleHeight: CGFloat = 360
             let arrowHeight: CGFloat = 11
             let outerHorizontalInset = AppTheme.spacingMedium
             let timelineHorizontalInset: CGFloat = 18
@@ -296,9 +309,7 @@ struct ClarificationWorkspaceView: View {
                     stage: selectedTimelineStage,
                     definition: definition,
                     onDismiss: {
-                        withAnimation(AppTheme.Animation.spring) {
-                            self.selectedTimelineStage = nil
-                        }
+                        dismissStageTimelineBubble()
                     }
                 )
                 .frame(width: bubbleWidth, height: bubbleHeight)
@@ -327,6 +338,12 @@ struct ClarificationWorkspaceView: View {
                     .combined(with: .opacity)
             )
             .accessibilityIdentifier("workspace.stageExplanation")
+        }
+    }
+
+    private func dismissStageTimelineBubble() {
+        withAnimation(AppTheme.Animation.spring) {
+            selectedTimelineStage = nil
         }
     }
 

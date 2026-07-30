@@ -133,12 +133,17 @@ final class RealCoDesignDialogueAgentRunner: DialogueAgentRunning {
 
         // ② Run LiveStructuredExtractor
         do {
+            let extractionStageOrder = currentActiveStage()?.order ?? 1
             let outcome = try await extractor.extract(
                 from: messages,
                 existing: briefSnapshot
             )
             if let brief = project.brief {
-                brief.applyValidatedExtraction(outcome: outcome, context: context)
+                brief.applyValidatedExtraction(
+                    outcome: outcome,
+                    context: context,
+                    currentStageOrder: extractionStageOrder
+                )
             }
         } catch {
             print("[RealCoDesignDialogueAgentRunner] Extraction error: \(error)")
@@ -229,9 +234,9 @@ final class RealCoDesignDialogueAgentRunner: DialogueAgentRunning {
     // MARK: - Private Helpers
 
     private func currentActiveStage() -> ProgressStageSnapshot? {
-        stageSnapshots.first { $0.status == .needsReview }
-            ?? stageSnapshots.first { $0.status == .active }
-            ?? stageSnapshots.first { $0.status == .notStarted }
+        stageSnapshots
+            .sorted { $0.order < $1.order }
+            .first { $0.status != .completed }
     }
 
     private func computeChangedFields(

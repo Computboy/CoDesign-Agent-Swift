@@ -5,6 +5,14 @@ import Testing
 
 struct CoDesign_AgentTests {
 
+    @Test func removedBoundaryDraftActionHasNoDedicatedMode() {
+        #expect(
+            ClarificationMode.detect(
+                from: "请基于已有回答生成边界草稿"
+            ) == .normal
+        )
+    }
+
     @Test @MainActor func extractionRunsBeforeNextAssistantQuestion() async throws {
         let container = try makeInMemoryContainer()
         let context = container.mainContext
@@ -97,6 +105,86 @@ struct CoDesign_AgentTests {
         #expect(llm.capturedStage?.order == 1)
         #expect(messages.last?.content.contains("这个判断会影响") == true)
         #expect(messages.last?.content.contains("所以这轮我只想先确认") == true)
+    }
+
+    @Test @MainActor func deferredFutureStageFieldsRequireConfirmationBeforeCompletion() async throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let project = Project(
+            name: "阶段顺序测试",
+            briefDescription: "验证未来阶段候选不会提前完成"
+        )
+        let brief = DesignBrief()
+        context.insert(project)
+        context.insert(brief)
+        project.brief = brief
+        project.stages = StageDefinition.all.map { definition in
+            let stage = ProgressStage(
+                order: definition.order,
+                name: definition.name,
+                status: definition.order < 4
+                    ? "completed"
+                    : (definition.order == 4 ? "active" : "notStarted"),
+                completionRatio: definition.order < 4 ? 1 : 0
+            )
+            context.insert(stage)
+            return stage
+        }
+
+        let candidates: [(BriefField, String)] = [
+            (.mvpFeatures, "状态总览与异常提醒"),
+            (.technicalModules, "传感器、规则引擎与通知模块"),
+            (.interactionFlow, "查看状态—识别异常—通知家人"),
+        ]
+        for candidate in candidates {
+            let log = ExtractionAuditLog(
+                fieldName: candidate.0.rawValue,
+                candidateValue: candidate.1,
+                confidence: 0.92,
+                level: .confirmed,
+                evidenceQuote: candidate.1,
+                decision: .deferredUntilStage
+            )
+            context.insert(log)
+            brief.extractionAuditLogs.append(log)
+        }
+
+        let viewModel = ChatViewModel(
+            project: project,
+            llmService: ImmediateLLMService(response: "继续正常澄清"),
+            extractor: RecordingExtractor()
+        )
+
+        await viewModel.sendMessage("继续")
+
+        #expect(brief.mvpFeatures == nil)
+        #expect(
+            project.messages.contains {
+                $0.role == "assistant"
+                    && $0.content.contains("状态总览与异常提醒")
+            }
+        )
+        #expect(
+            project.stages.first { $0.order == 4 }?.status == "active"
+        )
+
+        await viewModel.sendMessage("对，确认无误")
+        #expect(brief.mvpFeatures == "状态总览与异常提醒")
+        #expect(brief.technicalModules == nil)
+
+        await viewModel.sendMessage("对，确认无误")
+        #expect(brief.technicalModules == "传感器、规则引擎与通知模块")
+        #expect(brief.interactionFlow == nil)
+
+        await viewModel.sendMessage("对，确认无误")
+
+        #expect(brief.interactionFlow == "查看状态—识别异常—通知家人")
+        #expect(
+            project.stages.first { $0.order == 4 }?.status == "completed"
+        )
+        #expect(
+            project.stages.first { $0.order == 5 }?.status == "active"
+        )
     }
 
     @Test @MainActor func questionRevisionGeneratesNewQuestionFromActiveBranchContext() async throws {

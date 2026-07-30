@@ -123,7 +123,11 @@ extension DesignBrief {
         applyValidatedExtraction(outcome: outcome, context: context)
     }
 
-    func applyValidatedExtraction(outcome: ExtractionOutcome, context: ModelContext) {
+    func applyValidatedExtraction(
+        outcome: ExtractionOutcome,
+        context: ModelContext,
+        currentStageOrder: Int? = nil
+    ) {
         guard !outcome.isFailed, let envelope = outcome.envelope else {
             recordAudit(
                 fieldName: "extraction",
@@ -140,23 +144,24 @@ extension DesignBrief {
             return
         }
 
-        processCandidate("targetUser", envelope.targetUser, oldValue: targetUser, context: context) { targetUser = $0 }
-        processCandidate("painPoint", envelope.painPoint, oldValue: painPoint, context: context) { painPoint = $0 }
-        processCandidate("useScenario", envelope.useScenario, oldValue: useScenario, context: context) { useScenario = $0 }
-        processCandidate("coreValue", envelope.coreValue, oldValue: coreValue, context: context) { coreValue = $0 }
-        processCandidate("differentiation", envelope.differentiation, oldValue: differentiation, context: context) { differentiation = $0 }
-        processCandidate("mvpFeatures", envelope.mvpFeatures, oldValue: mvpFeatures, context: context) { mvpFeatures = $0 }
-        processCandidate("technicalModules", envelope.technicalModules, oldValue: technicalModules, context: context) { technicalModules = $0 }
-        processCandidate("interactionFlow", envelope.interactionFlow, oldValue: interactionFlow, context: context) { interactionFlow = $0 }
-        processCandidate("operationLogic", envelope.operationLogic, oldValue: operationLogic, context: context) { operationLogic = $0 }
-        processCandidate("hardConstraints", envelope.hardConstraints, oldValue: hardConstraints, context: context) { hardConstraints = $0 }
-        processCandidate("milestones", envelope.milestones, oldValue: milestones, context: context) { milestones = $0 }
+        processCandidate("targetUser", envelope.targetUser, oldValue: targetUser, currentStageOrder: currentStageOrder, context: context) { targetUser = $0 }
+        processCandidate("painPoint", envelope.painPoint, oldValue: painPoint, currentStageOrder: currentStageOrder, context: context) { painPoint = $0 }
+        processCandidate("useScenario", envelope.useScenario, oldValue: useScenario, currentStageOrder: currentStageOrder, context: context) { useScenario = $0 }
+        processCandidate("coreValue", envelope.coreValue, oldValue: coreValue, currentStageOrder: currentStageOrder, context: context) { coreValue = $0 }
+        processCandidate("differentiation", envelope.differentiation, oldValue: differentiation, currentStageOrder: currentStageOrder, context: context) { differentiation = $0 }
+        processCandidate("mvpFeatures", envelope.mvpFeatures, oldValue: mvpFeatures, currentStageOrder: currentStageOrder, context: context) { mvpFeatures = $0 }
+        processCandidate("technicalModules", envelope.technicalModules, oldValue: technicalModules, currentStageOrder: currentStageOrder, context: context) { technicalModules = $0 }
+        processCandidate("interactionFlow", envelope.interactionFlow, oldValue: interactionFlow, currentStageOrder: currentStageOrder, context: context) { interactionFlow = $0 }
+        processCandidate("operationLogic", envelope.operationLogic, oldValue: operationLogic, currentStageOrder: currentStageOrder, context: context) { operationLogic = $0 }
+        processCandidate("hardConstraints", envelope.hardConstraints, oldValue: hardConstraints, currentStageOrder: currentStageOrder, context: context) { hardConstraints = $0 }
+        processCandidate("milestones", envelope.milestones, oldValue: milestones, currentStageOrder: currentStageOrder, context: context) { milestones = $0 }
 
         processCandidate(
             "boundaryItems",
             envelope.boundaryItems,
             oldValue: boundaryItemsText,
             candidateValueFormatter: formatBoundaryItems,
+            currentStageOrder: currentStageOrder,
             context: context
         ) { mergeBoundaryItems($0, context: context) }
 
@@ -165,6 +170,7 @@ extension DesignBrief {
             envelope.successMetrics,
             oldValue: successMetricsText,
             candidateValueFormatter: formatSuccessMetrics,
+            currentStageOrder: currentStageOrder,
             context: context
         ) { mergeSuccessMetrics($0, context: context) }
 
@@ -173,6 +179,7 @@ extension DesignBrief {
             envelope.risks,
             oldValue: risksText,
             candidateValueFormatter: formatRisks,
+            currentStageOrder: currentStageOrder,
             context: context
         ) { mergeRisks($0, context: context) }
 
@@ -183,6 +190,65 @@ extension DesignBrief {
         extractionAuditLogs
             .filter { $0.decisionValue == .needsReview }
             .sorted { $0.timestamp > $1.timestamp }
+    }
+
+    func deferredExtractionLogs(forStageOrder stageOrder: Int) -> [ExtractionAuditLog] {
+        latestStageExtractionLogs(
+            forStageOrder: stageOrder,
+            decisions: [.deferredUntilStage]
+        )
+    }
+
+    func awaitingConfirmationLogs(forStageOrder stageOrder: Int) -> [ExtractionAuditLog] {
+        latestStageExtractionLogs(
+            forStageOrder: stageOrder,
+            decisions: [.awaitingConfirmation]
+        )
+    }
+
+    func beginConfirmation(for logs: [ExtractionAuditLog]) {
+        let now = Date()
+        let selectedIDs = Set(logs.map(\.id))
+        let selectedFields = Set(logs.map(\.fieldName))
+
+        for log in extractionAuditLogs where
+            log.decisionValue == .deferredUntilStage
+                && selectedFields.contains(log.fieldName)
+                && !selectedIDs.contains(log.id) {
+            log.decision = ExtractionAuditDecision.superseded.rawValue
+            log.timestamp = now
+        }
+
+        for log in logs {
+            log.decision = ExtractionAuditDecision.awaitingConfirmation.rawValue
+            log.timestamp = now
+        }
+    }
+
+    func supersedeConfirmationLogs(_ logs: [ExtractionAuditLog]) {
+        let now = Date()
+        for log in logs {
+            log.decision = ExtractionAuditDecision.superseded.rawValue
+            log.timestamp = now
+        }
+    }
+
+    func supersedeConfirmedAwaitingLogs(
+        forStageOrder stageOrder: Int,
+        snapshot: DesignBriefSnapshot
+    ) {
+        let confirmedFields = Set(
+            StageDefinition.all
+                .first(where: { $0.order == stageOrder })?
+                .briefFields
+                .filter { $0.isFilled(in: snapshot) }
+                .map(\.rawValue) ?? []
+        )
+        guard !confirmedFields.isEmpty else { return }
+
+        let matchingLogs = awaitingConfirmationLogs(forStageOrder: stageOrder)
+            .filter { confirmedFields.contains($0.fieldName) }
+        supersedeConfirmationLogs(matchingLogs)
     }
 
     func latestReliabilityLog(for field: BriefField) -> ExtractionAuditLog? {
@@ -240,13 +306,33 @@ extension DesignBrief {
         _ candidate: ExtractedFieldCandidate<Value>?,
         oldValue: String?,
         candidateValueFormatter: (Value) -> String,
+        currentStageOrder: Int?,
         context: ModelContext,
         commit: (Value) -> Void
     ) {
         guard let candidate, let value = candidate.value else { return }
         let candidateValue = candidateValueFormatter(value)
         let decision: ExtractionAuditDecision
-        if candidate.level == .confirmed && candidate.shouldAutoCommit {
+        let candidateStageOrder = BriefField(rawValue: fieldName)?.stageOrder
+        let belongsToFutureStage = currentStageOrder.map { currentStageOrder in
+            guard let candidateStageOrder else { return false }
+            return candidateStageOrder > currentStageOrder
+        } ?? false
+        let requiresDeferredConfirmation = currentStageOrder.map { currentStageOrder in
+            guard candidateStageOrder == currentStageOrder else { return false }
+            return extractionAuditLogs.contains {
+                $0.fieldName == fieldName
+                    && [
+                        ExtractionAuditDecision.deferredUntilStage,
+                        .awaitingConfirmation,
+                    ].contains($0.decisionValue)
+            }
+        } ?? false
+
+        if (belongsToFutureStage || requiresDeferredConfirmation)
+            && candidate.level != .rejected {
+            decision = .deferredUntilStage
+        } else if candidate.level == .confirmed && candidate.shouldAutoCommit {
             commit(value)
             decision = .autoCommitted
         } else if candidate.level == .needsReview || candidate.level == .confirmed {
@@ -272,6 +358,7 @@ extension DesignBrief {
         _ fieldName: String,
         _ candidate: ExtractedFieldCandidate<String>?,
         oldValue: String?,
+        currentStageOrder: Int?,
         context: ModelContext,
         commit: (String) -> Void
     ) {
@@ -280,9 +367,28 @@ extension DesignBrief {
             candidate,
             oldValue: oldValue,
             candidateValueFormatter: { $0 },
+            currentStageOrder: currentStageOrder,
             context: context,
             commit: commit
         )
+    }
+
+    private func latestStageExtractionLogs(
+        forStageOrder stageOrder: Int,
+        decisions: [ExtractionAuditDecision]
+    ) -> [ExtractionAuditLog] {
+        let stageFields = StageDefinition.all
+            .first(where: { $0.order == stageOrder })?
+            .briefFields ?? []
+
+        return stageFields.compactMap { field in
+            extractionAuditLogs
+                .filter {
+                    $0.fieldName == field.rawValue
+                        && decisions.contains($0.decisionValue)
+                }
+                .max(by: { $0.timestamp < $1.timestamp })
+        }
     }
 
     private func recordAudit(

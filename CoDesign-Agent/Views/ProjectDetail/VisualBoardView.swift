@@ -591,8 +591,6 @@ private struct ClarificationConnectionLayer: View {
     let layout: ClarificationMapLayout
     let selectedNodeID: String?
 
-    @State private var lineReveal: CGFloat = 0
-
     var body: some View {
         Canvas { context, _ in
             context.stroke(
@@ -608,18 +606,17 @@ private struct ClarificationConnectionLayer: View {
 
             for node in nodes {
                 let path = connectionPath(for: node)
-                    .trimmedPath(from: 0, to: lineReveal)
                 let isSelected = selectedNodeID == node.id
                 let opacity: Double = isSelected
-                    ? 0.72
-                    : (node.completionState == .complete ? 0.65 : 0.58)
+                    ? (node.completionState == .complete ? 0.72 : 0.90)
+                    : (node.completionState == .complete ? 0.65 : 0.78)
                 let lineWidth: CGFloat = isSelected
                     ? 2.3
                     : (node.completionState == .complete ? 2.1 : 1.85)
 
                 context.stroke(
                     path,
-                    with: .color(node.accentColor.opacity(opacity)),
+                    with: .color(node.mapTint.opacity(opacity)),
                     style: StrokeStyle(
                         lineWidth: lineWidth,
                         lineCap: .round,
@@ -629,11 +626,6 @@ private struct ClarificationConnectionLayer: View {
             }
         }
         .allowsHitTesting(false)
-        .onAppear {
-            withAnimation(.easeOut(duration: 0.62)) {
-                lineReveal = 1
-            }
-        }
         .animation(.easeOut(duration: 0.20), value: selectedNodeID)
     }
 
@@ -750,7 +742,7 @@ private struct OrbitNodeCard: View {
             HStack(spacing: 10) {
                 Image(systemName: node.systemImage)
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(node.accentColor)
+                    .foregroundStyle(node.mapTint)
                     .frame(width: 23)
 
                 Text(node.title)
@@ -789,18 +781,18 @@ private struct OrbitNodeCard: View {
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(
-                    node.accentColor.opacity(
-                        node.completionState == .complete ? 0.06 : 0.042
+                    node.mapTint.opacity(
+                        node.completionState == .complete ? 0.06 : 0.18
                     )
                 )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(
-                    node.accentColor.opacity(
+                    node.mapTint.opacity(
                         isSelected
-                            ? 0.64
-                            : (node.completionState == .complete ? 0.42 : 0.30)
+                            ? (node.completionState == .complete ? 0.64 : 0.96)
+                            : (node.completionState == .complete ? 0.42 : 0.72)
                     ),
                     lineWidth: isSelected ? 1.8 : 1.15
                 )
@@ -842,6 +834,10 @@ private struct ClarificationNode: Identifiable {
 
     var displayValue: String {
         cleanedText(content) ?? "待澄清"
+    }
+
+    var mapTint: Color {
+        completionState == .complete ? accentColor : .stageNotStarted
     }
 }
 
