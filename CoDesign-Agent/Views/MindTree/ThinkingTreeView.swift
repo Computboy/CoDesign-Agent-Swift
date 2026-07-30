@@ -637,15 +637,7 @@ struct ThinkingTreeView: View {
     }
 
     private var treeBackground: some View {
-        LinearGradient(
-            colors: [
-                Color.panelBackground,
-                Color.appBackground,
-                Color.softAccentBackground.opacity(0.42)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+        MindTreeDottedBackground()
     }
 
     @ViewBuilder
