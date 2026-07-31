@@ -269,10 +269,22 @@ final class CoDesign_AgentUITests: XCTestCase {
         app.buttons["完成"].tap()
 
         let transition = app.buttons["mindTree.transition.1"]
-        XCTAssertTrue(
-            transition.waitForExistence(timeout: 10),
-            "阶段连线应提供可访问的展开按钮"
-        )
+        guard transition.waitForExistence(timeout: 10) else {
+            XCTAssertFalse(
+                app.buttons.matching(
+                    NSPredicate(
+                        format: "identifier BEGINSWITH %@",
+                        "mindTree.transition."
+                    )
+                ).firstMatch.exists,
+                "进行中的 Stage 不应提前提供整体收起按钮"
+            )
+            XCTAssertTrue(
+                annotation.exists,
+                "进行中 Stage 保持开放时，文字批注仍应存在"
+            )
+            return
+        }
         if transition.label.hasPrefix("收起") {
             transition.tap()
             let expandedLabel = NSPredicate(format: "label BEGINSWITH %@", "展开")

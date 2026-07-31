@@ -7,6 +7,7 @@ struct ProjectReportSnapshotBuilder {
         self.recommendationService = recommendationService
     }
 
+    @MainActor
     func build(
         project: Project,
         options: ReportExportOptions,
@@ -112,7 +113,9 @@ struct ProjectReportSnapshotBuilder {
                     momType: moment.momType,
                     kind: ReportSnapshotValue.momentTypeTitle(moment.momType),
                     content: moment.content,
+                    summary: moment.summary,
                     relatedField: moment.relatedField,
+                    resourceCardID: moment.resourceCardID,
                     timestamp: moment.timestamp,
                     isActiveBranch: moment.isActiveBranch,
                     branchVersion: moment.branchVersion,

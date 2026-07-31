@@ -9,8 +9,10 @@ final class ThinkingMoment {
     @Attribute(.unique) var id: UUID
     var momType: String          // "seed" | "branch" | "deepen" | "converge" | "abandon" | "revise"
     var content: String          // display text
+    var summary: String?         // compact tree label; full question remains in content
     var stageOrder: Int          // associated stage 1~9
     var relatedField: String?    // BriefField rawValue, nil for stage-level moments
+    var resourceCardID: String?  // stable ResourceLibrary identifier for method/evidence cards
     var parentMomentID: UUID?    // parent moment in tree hierarchy
     var timestamp: Date
 
@@ -25,8 +27,10 @@ final class ThinkingMoment {
         id: UUID = UUID(),
         momType: String,
         content: String,
+        summary: String? = nil,
         stageOrder: Int,
         relatedField: String? = nil,
+        resourceCardID: String? = nil,
         parentMomentID: UUID? = nil,
         timestamp: Date = Date(),
         isActiveBranch: Bool = true,
@@ -36,8 +40,10 @@ final class ThinkingMoment {
         self.id = id
         self.momType = momType
         self.content = content
+        self.summary = summary
         self.stageOrder = stageOrder
         self.relatedField = relatedField
+        self.resourceCardID = resourceCardID
         self.parentMomentID = parentMomentID
         self.timestamp = timestamp
         self.isActiveBranch = isActiveBranch

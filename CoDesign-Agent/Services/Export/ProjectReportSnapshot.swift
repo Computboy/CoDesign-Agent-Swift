@@ -71,7 +71,9 @@ struct ThinkingMomentSnapshot: Codable, Identifiable {
     var momType: String
     var kind: String
     var content: String
+    var summary: String?
     var relatedField: String?
+    var resourceCardID: String?
     var timestamp: Date
     var isActiveBranch: Bool
     var branchVersion: Int

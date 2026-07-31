@@ -79,7 +79,12 @@ struct ProjectDetailView: View {
         #endif
         .task {
             mindTreePresentationState.restorePersistedExpansionIfNeeded(
-                from: project.mindTreeAnnotations
+                from: project.mindTreeAnnotations,
+                completedStageOrders: Set(
+                    project.stages
+                        .filter { $0.stageStatusValue == .completed }
+                        .map(\.order)
+                )
             )
             // 只在首次加载时初始化一次
             if chatViewModel == nil {

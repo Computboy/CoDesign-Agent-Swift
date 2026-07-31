@@ -336,6 +336,108 @@ struct MindTreeAnnotationTests {
         #expect(item.anchor == anchor)
     }
 
+    @Test @MainActor func resourceCardAnnotationHidesAndReturnsWithQuestionExpansion() {
+        let project = Project(name: "资源批注", briefDescription: "")
+        project.stages = [
+            ProgressStage(order: 1, name: "阶段 1", status: "active", completionRatio: 0.4)
+        ]
+        let question = ThinkingMoment(
+            momType: "question",
+            content: "用户最担心什么？",
+            stageOrder: 1
+        )
+        let resource = ResourceLibrary.all[0]
+        let method = ThinkingMoment(
+            momType: "method",
+            content: "调用依据：\(resource.title)",
+            stageOrder: 1,
+            resourceCardID: resource.id,
+            parentMomentID: question.id
+        )
+        project.thinkingMoments = [question, method]
+
+        let collapsedGraph = MindTreeCanonicalLayout.layout(
+            TreeBuilder().build(
+                project: project,
+                expandedTransitionOrders: [1]
+            ),
+            visibleStageLimit: 1,
+            in: CGSize(width: 1_000, height: 800)
+        )
+        let expandedGraph = MindTreeCanonicalLayout.layout(
+            TreeBuilder().build(
+                project: project,
+                expandedTransitionOrders: [1]
+            ),
+            visibleStageLimit: 1,
+            in: CGSize(width: 1_000, height: 800)
+        )
+        let collapsedSnapshot = MindTreeAnnotationProjectionService.layoutSnapshot(
+            graph: collapsedGraph,
+            fingerprint: "resource-collapsed",
+            expandedTransitionOrders: [1],
+            expandedArchivedStageOrders: []
+        )
+        let expandedSnapshot = MindTreeAnnotationProjectionService.layoutSnapshot(
+            graph: expandedGraph,
+            fingerprint: "resource-expanded",
+            expandedTransitionOrders: [1],
+            expandedArchivedStageOrders: [],
+            resourceDeckProgressByQuestionID: [
+                "moment-\(question.id)": 1
+            ]
+        )
+        let draggingSnapshot = MindTreeAnnotationProjectionService.layoutSnapshot(
+            graph: expandedGraph,
+            fingerprint: "resource-dragging",
+            expandedTransitionOrders: [1],
+            expandedArchivedStageOrders: [],
+            resourceDeckProgressByQuestionID: [
+                "moment-\(question.id)": 0.55
+            ]
+        )
+        let anchor = MindTreeAnnotationAnchor.moment(
+            id: method.id,
+            branchVersion: method.branchVersion,
+            stageOrder: method.stageOrder
+        )
+        let annotation = MindTreeTextAnnotationItem(
+            text: "资源批注",
+            x: 0,
+            y: 0,
+            anchor: anchor,
+            localX: 8,
+            localY: 12,
+            fallbackNormalizedX: 0.5,
+            fallbackNormalizedY: 0.5
+        )
+        let hidden = MindTreeAnnotationProjectionService.projectedTextItem(
+            annotation,
+            in: collapsedSnapshot,
+            knownAnchors: [anchor]
+        )
+        let restored = MindTreeAnnotationProjectionService.projectedTextItem(
+            hidden,
+            in: expandedSnapshot,
+            knownAnchors: [anchor]
+        )
+        let dragging = MindTreeAnnotationProjectionService.projectedTextItem(
+            hidden,
+            in: draggingSnapshot,
+            knownAnchors: [anchor]
+        )
+
+        #expect(collapsedSnapshot.frame(for: anchor) == nil)
+        #expect(expandedSnapshot.frame(for: anchor) != nil)
+        #expect(draggingSnapshot.frame(for: anchor) != nil)
+        #expect(hidden.resolutionState == .hidden)
+        #expect(restored.resolutionState == .resolved)
+        #expect(dragging.resolutionState == .resolved)
+        #expect(restored.anchor == anchor)
+        #expect(dragging.y == restored.y)
+        #expect(dragging.x < restored.x)
+    }
+
     @Test func deletedAnchorUsesNormalizedFallbackAndIsMarkedUnresolved() {
         let removedAnchor = MindTreeAnnotationAnchor.moment(
             id: UUID(),

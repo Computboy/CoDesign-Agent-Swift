@@ -10,10 +10,11 @@ struct MindTreeFingerprintNode: Equatable {
 }
 
 enum MindTreeAnnotationFingerprint {
-    static func make(
+    nonisolated static func make(
         nodes: [MindTreeFingerprintNode],
         expandedTransitionOrders: Set<Int>,
         expandedArchivedStageOrders: Set<Int>,
+        expandedResourceQuestionIDs: Set<String> = [],
         contentWidth: Double,
         contentHeight: Double
     ) -> String {
@@ -39,6 +40,14 @@ enum MindTreeAnnotationFingerprint {
         canonicalLines.append(
             "expanded-archived|\(MindTreeAnnotationExpansionCodec.encode(expandedArchivedStageOrders))"
         )
+        if !expandedResourceQuestionIDs.isEmpty {
+            let expandedResources = expandedResourceQuestionIDs
+                .sorted()
+                .joined(separator: ",")
+            canonicalLines.append(
+                "expanded-resources|\(expandedResources)"
+            )
+        }
 
         canonicalLines.append(contentsOf: sortedNodes.map { node in
             [
@@ -56,11 +65,11 @@ enum MindTreeAnnotationFingerprint {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func lengthPrefixed(_ value: String) -> String {
+    nonisolated private static func lengthPrefixed(_ value: String) -> String {
         "\(value.utf8.count):\(value)"
     }
 
-    private static func normalizedDimension(_ value: Double) -> String {
+    nonisolated private static func normalizedDimension(_ value: Double) -> String {
         guard value.isFinite else { return "0.000" }
         return String(
             format: "%.3f",
@@ -71,11 +80,11 @@ enum MindTreeAnnotationFingerprint {
 }
 
 enum MindTreeAnnotationExpansionCodec {
-    static func encode(_ orders: Set<Int>) -> String {
+    nonisolated static func encode(_ orders: Set<Int>) -> String {
         orders.sorted().map(String.init).joined(separator: ",")
     }
 
-    static func decode(_ value: String) -> Set<Int> {
+    nonisolated static func decode(_ value: String) -> Set<Int> {
         Set(
             value
                 .split(separator: ",")

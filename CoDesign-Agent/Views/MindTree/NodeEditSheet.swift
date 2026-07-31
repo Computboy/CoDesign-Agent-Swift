@@ -330,8 +330,10 @@ struct NodeEditSheet: View {
         let newMoment = ThinkingMoment(
             momType: editedMoment.momType == "seed" ? "revise" : editedMoment.momType,
             content: trimmedLabel,
+            summary: editedMoment.summary,
             stageOrder: editedMoment.stageOrder,
             relatedField: editedMoment.relatedField,
+            resourceCardID: editedMoment.resourceCardID,
             parentMomentID: editedMoment.parentMomentID,
             timestamp: Date(),
             isActiveBranch: true,
@@ -433,7 +435,12 @@ struct NodeEditSheet: View {
     }
 
     private var originalQuestionText: String {
-        ThinkingTreeMomentProjector.displayQuestionText(for: node, in: project.messages)
+        if let momentID = node.momentID,
+           let question = project.thinkingMoments.first(where: { $0.id == momentID }),
+           question.momType == "question" {
+            return question.content
+        }
+        return ThinkingTreeMomentProjector.displayQuestionText(for: node, in: project.messages)
     }
 
     private func collectDescendants(of parentID: UUID, in moments: [ThinkingMoment]) -> [ThinkingMoment] {
@@ -534,7 +541,6 @@ struct NodeEditSheet: View {
         case .question: return "问题节点"
         case .field: return "字段节点"
         case .process: return "过程节点"
-        case .evidence: return "依据节点"
         case .revision: return "回溯节点"
         }
     }
@@ -547,7 +553,6 @@ struct NodeEditSheet: View {
         case .question: return "questionmark.circle"
         case .field: return "leaf.fill"
         case .process: return node.iconSystemName ?? "bubble.left"
-        case .evidence: return "doc.text.magnifyingglass"
         case .revision: return "arrow.uturn.backward"
         }
     }

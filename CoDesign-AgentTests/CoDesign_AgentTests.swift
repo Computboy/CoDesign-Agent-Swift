@@ -105,6 +105,15 @@ struct CoDesign_AgentTests {
         #expect(llm.capturedStage?.order == 1)
         #expect(messages.last?.content.contains("这个判断会影响") == true)
         #expect(messages.last?.content.contains("所以这轮我只想先确认") == true)
+        let generatedQuestion = project.thinkingMoments.last {
+            $0.momType == "question" && $0.isActiveBranch
+        }
+        #expect(generatedQuestion?.summary?.isEmpty == false)
+        let boundResources = project.thinkingMoments.filter {
+            $0.momType == "method" && $0.parentMomentID == generatedQuestion?.id
+        }
+        #expect(!boundResources.isEmpty)
+        #expect(boundResources.allSatisfy { $0.resourceCardID != nil })
     }
 
     @Test @MainActor func deferredFutureStageFieldsRequireConfirmationBeforeCompletion() async throws {

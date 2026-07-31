@@ -132,8 +132,6 @@ final class ChatViewModel {
             limit: 5,
             mode: .normal
         )
-        let selectedMethodCard = selectedResourceCards.first
-
         assistantActivityText = "正在生成下一轮澄清问题……"
 
         let stream = llmService.streamChat(
@@ -153,30 +151,31 @@ final class ChatViewModel {
         let assistantMsg = ChatMessage(role: "assistant", content: assistantText)
         context.insert(assistantMsg)
         project.messages.append(assistantMsg)
-        if let selectedMethodCard {
-            recordMethodInvocation(
-                card: selectedMethodCard,
-                generatedQuestion: assistantMsg.content,
-                stageOrder: activeStageOrder,
-                mode: .normal,
-                context: context
-            )
-            appendMethodLearningTrace(
-                card: selectedMethodCard,
-                stageOrder: activeStageOrder,
-                context: context
-            )
-        }
+        var resourceParentQuestion: ThinkingMoment?
         if shouldRecordFormalQuestion(mode: .normal, assistantText: assistantMsg.content) {
-            recordThinkingMoment(
+            let question = questionMomentText(from: assistantMsg.content)
+            let field = QuestionTreeSummary.inferredField(
+                from: question,
+                stageOrder: activeStageOrder
+            )
+            resourceParentQuestion = recordThinkingMoment(
                 momType: "question",
-                content: assistantMsg.content,
+                content: question,
+                summary: QuestionTreeSummary.make(from: question),
                 stageOrder: activeStageOrder,
-                relatedField: nil,
+                relatedField: field?.rawValue,
                 parentMomentID: parentForNewMoment(stageOrder: activeStageOrder, momType: "question"),
                 context: context
             )
         }
+        bindResources(
+            selectedResourceCards,
+            to: resourceParentQuestion ?? lastActiveQuestionMoment(stageOrder: activeStageOrder),
+            generatedQuestion: assistantMsg.content,
+            stageOrder: activeStageOrder,
+            mode: .normal,
+            context: context
+        )
 
         endAssistantActivity()
         try? context.save()
@@ -292,8 +291,6 @@ final class ChatViewModel {
             limit: clarificationMode == .stuckScaffold ? 2 : 5,
             mode: clarificationMode
         )
-        let selectedMethodCard = selectedResourceCards.first
-
         assistantActivityText = "正在生成下一轮澄清问题……"
 
         let stream = llmService.streamChat(
@@ -314,31 +311,32 @@ final class ChatViewModel {
         let assistantMsg = ChatMessage(role: "assistant", content: assistantText)
         context.insert(assistantMsg)
         project.messages.append(assistantMsg)
-        if let selectedMethodCard {
-            recordMethodInvocation(
-                card: selectedMethodCard,
-                generatedQuestion: assistantMsg.content,
-                stageOrder: nextActiveStage?.order ?? activeStageOrder,
-                mode: clarificationMode,
-                context: context
-            )
-            appendMethodLearningTrace(
-                card: selectedMethodCard,
-                stageOrder: nextActiveStage?.order ?? activeStageOrder,
-                context: context
-            )
-        }
+        let questionStageOrder = nextActiveStage?.order ?? activeStageOrder
+        var resourceParentQuestion: ThinkingMoment?
         if shouldRecordFormalQuestion(mode: clarificationMode, assistantText: assistantMsg.content) {
-            let questionStageOrder = nextActiveStage?.order ?? activeStageOrder
-            recordThinkingMoment(
+            let question = questionMomentText(from: assistantMsg.content)
+            let field = QuestionTreeSummary.inferredField(
+                from: question,
+                stageOrder: questionStageOrder
+            )
+            resourceParentQuestion = recordThinkingMoment(
                 momType: "question",
-                content: assistantMsg.content,
+                content: question,
+                summary: QuestionTreeSummary.make(from: question),
                 stageOrder: questionStageOrder,
-                relatedField: nil,
+                relatedField: field?.rawValue,
                 parentMomentID: parentForNewMoment(stageOrder: questionStageOrder, momType: "question"),
                 context: context
             )
         }
+        bindResources(
+            selectedResourceCards,
+            to: resourceParentQuestion ?? lastActiveQuestionMoment(stageOrder: questionStageOrder),
+            generatedQuestion: assistantMsg.content,
+            stageOrder: questionStageOrder,
+            mode: clarificationMode,
+            context: context
+        )
         endAssistantActivity()
 
         // ⑦ 保存
@@ -659,9 +657,13 @@ final class ChatViewModel {
         recordThinkingMoment(
             momType: "question",
             content: question,
+            summary: QuestionTreeSummary.make(from: question),
             stageOrder: stage.order,
-            relatedField: nil,
-            parentMomentID: nil,
+            relatedField: candidates.first?.field.rawValue,
+            parentMomentID: parentForNewMoment(
+                stageOrder: stage.order,
+                momType: "question"
+            ),
             context: context
         )
         endAssistantActivity()
@@ -811,7 +813,7 @@ final class ChatViewModel {
 
     private func parentForNewMoment(stageOrder: Int, momType: String) -> UUID? {
         switch momType {
-        case "answer", "decision", "deepen", "method", "evidence":
+        case "question", "answer", "decision", "deepen", "method", "evidence":
             return lastActiveQuestionMoment(stageOrder: stageOrder)?.id
         default:
             return nil
@@ -819,15 +821,10 @@ final class ChatViewModel {
     }
 
     private func lastActiveQuestionMoment(stageOrder: Int) -> ThinkingMoment? {
-        project.thinkingMoments
-            .filter {
-                $0.stageOrder == stageOrder &&
-                $0.momType == "question" &&
-                $0.isActiveBranch &&
-                ThinkingTreeMomentProjector.isVisibleInTree($0)
-            }
-            .sorted { $0.timestamp < $1.timestamp }
-            .last
+        ThinkingTreeTopology.activeLeafNode(
+            for: stageOrder,
+            in: project.thinkingMoments
+        )
     }
 
     // MARK: - Thinking Moment Recording
@@ -836,8 +833,10 @@ final class ChatViewModel {
     private func recordThinkingMoment(
         momType: String,
         content: String,
+        summary: String? = nil,
         stageOrder: Int,
         relatedField: String?,
+        resourceCardID: String? = nil,
         parentMomentID: UUID? = nil,
         context: ModelContext
     ) -> ThinkingMoment? {
@@ -857,19 +856,72 @@ final class ChatViewModel {
         let moment = ThinkingMoment(
             momType: momType,
             content: normalized,
+            summary: summary,
             stageOrder: stageOrder,
             relatedField: relatedField,
+            resourceCardID: resourceCardID,
             parentMomentID: parentMomentID,
             timestamp: now,
-            isActiveBranch: true
+            isActiveBranch: true,
+            branchVersion: inheritedBranchVersion(
+                stageOrder: stageOrder,
+                parentMomentID: parentMomentID
+            )
         )
         context.insert(moment)
         project.thinkingMoments.append(moment)
         return moment
     }
 
-    private func recordMethodInvocation(
+    private func inheritedBranchVersion(
+        stageOrder: Int,
+        parentMomentID: UUID?
+    ) -> Int {
+        let activeVersion = project.thinkingMoments
+            .filter {
+                $0.stageOrder == stageOrder && $0.isActiveBranch
+            }
+            .map(\.branchVersion)
+            .max()
+            ?? 1
+        let parentVersion = parentMomentID.flatMap { parentMomentID in
+            project.thinkingMoments.first {
+                $0.id == parentMomentID
+            }?.branchVersion
+        } ?? 1
+        return max(activeVersion, parentVersion)
+    }
+
+    private func bindResources(
+        _ cards: [ResourceCard],
+        to question: ThinkingMoment?,
+        generatedQuestion: String,
+        stageOrder: Int,
+        mode: ClarificationMode,
+        context: ModelContext
+    ) {
+        guard let question else { return }
+
+        for card in cards {
+            recordResourceInvocation(
+                card: card,
+                questionID: question.id,
+                generatedQuestion: generatedQuestion,
+                stageOrder: stageOrder,
+                mode: mode,
+                context: context
+            )
+            appendMethodLearningTrace(
+                card: card,
+                stageOrder: stageOrder,
+                context: context
+            )
+        }
+    }
+
+    private func recordResourceInvocation(
         card: ResourceCard,
+        questionID: UUID,
         generatedQuestion: String,
         stageOrder: Int,
         mode: ClarificationMode,
@@ -895,9 +947,8 @@ final class ChatViewModel {
 
         let isDuplicate = project.thinkingMoments.contains { moment in
             moment.momType == "method" &&
-            moment.stageOrder == stageOrder &&
-            moment.content.contains(card.title) &&
-            abs(moment.timestamp.timeIntervalSince(Date())) < 8
+            moment.parentMomentID == questionID &&
+            moment.resourceCardID == card.id
         }
         guard !isDuplicate else { return }
 
@@ -906,7 +957,8 @@ final class ChatViewModel {
             content: content,
             stageOrder: stageOrder,
             relatedField: card.relatedFields.first?.rawValue,
-            parentMomentID: parentForNewMoment(stageOrder: stageOrder, momType: "method"),
+            resourceCardID: card.id,
+            parentMomentID: questionID,
             timestamp: Date(),
             isActiveBranch: true
         )

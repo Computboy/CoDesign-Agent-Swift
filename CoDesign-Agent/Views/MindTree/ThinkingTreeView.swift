@@ -46,6 +46,10 @@ struct ThinkingTreeView: View {
     @State private var localPresentationState = MindTreePresentationState()
     @State private var selectedNode: TreeNode?
     @State private var editingNode: TreeNode?
+    @State private var selectedResourceAttachment:
+        QuestionResourceAttachmentPresentation?
+    @State private var resourceDeckDragProgress: [String: CGFloat] = [:]
+    @State private var activeResourceDeckDragQuestionID: String?
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -64,6 +68,7 @@ struct ThinkingTreeView: View {
     @State private var annotationSaveError: String?
     @State private var textAnnotationEditorTarget: TextAnnotationEditorTarget?
     @State private var isHandlingCreationRequest = false
+    @State private var hasInitializedArchivedBranch = false
 
     #if os(iOS) && canImport(PencilKit)
     @StateObject private var annotationCanvasController = MindTreeAnnotationCanvasController()
@@ -89,10 +94,33 @@ struct ThinkingTreeView: View {
         resolvedPresentationState.expandedArchivedStageOrders
     }
 
+    private var expandedResourceQuestionIDs: Set<String> {
+        resolvedPresentationState.expandedResourceQuestionIDs
+    }
+
+    private var completedStageOrders: Set<Int> {
+        Set(
+            project.stages
+                .filter { $0.stageStatusValue == .completed }
+                .map(\.order)
+        )
+    }
+
     var body: some View {
         GeometryReader { geo in
             let graph = layoutGraph(for: geo.size)
             let fingerprint = treeFingerprint(for: graph)
+            let resourceDeckProgress = resourceDeckProgressByQuestionID(
+                in: graph
+            )
+            let canvasContentSize = QuestionResourceDeckLayout.canvasContentSize(
+                graph: graph,
+                progressByQuestionID: resourceDeckProgress
+            )
+            let resourcePresentations = QuestionResourceDeckLayout.presentations(
+                graph: graph,
+                progressByQuestionID: resourceDeckProgress
+            )
 
             ZStack {
                 treeBackground
@@ -101,15 +129,50 @@ struct ThinkingTreeView: View {
                     Canvas { context, _ in
                         drawEdges(context: context, graph: graph)
                     }
-                    .frame(width: graph.contentSize.width, height: graph.contentSize.height)
+                    .frame(
+                        width: canvasContentSize.width,
+                        height: canvasContentSize.height
+                    )
 
-                    edgeHitAreas(graph: graph, viewport: geo.size)
-                        .allowsHitTesting(interactionMode == .browsing)
+                    QuestionResourceDeckLayer(
+                        presentations: resourcePresentations,
+                        contentSize: canvasContentSize,
+                        onSelect: { presentation in
+                            guard interactionMode == .browsing else { return }
+                            selectedResourceAttachment = presentation
+                        }
+                    )
+                    .zIndex(3)
+                    .allowsHitTesting(interactionMode == .browsing)
 
                     ForEach(graph.nodes) { node in
-                        let nodeView = TreeNodeView(node: node) {
-                            handleTap(node)
-                        }
+                        let nodeView = TreeNodeView(
+                            node: node,
+                            isResourceExpanded: expandedResourceQuestionIDs.contains(node.id),
+                            onTap: {
+                                handleTap(node)
+                            },
+                            onResourceExpansionChanged: {
+                                toggleQuestionResources(node, in: graph)
+                            },
+                            onResourceDragChanged: { translation in
+                                updateQuestionResourceDrag(
+                                    node,
+                                    translation: translation,
+                                    in: graph
+                                )
+                            },
+                            onResourceDragEnded: {
+                                translation,
+                                predictedTranslation in
+                                finishQuestionResourceDrag(
+                                    node,
+                                    translation: translation,
+                                    predictedTranslation: predictedTranslation,
+                                    in: graph
+                                )
+                            }
+                        )
                         .accessibilityIdentifier(accessibilityIdentifier(for: node))
                         .position(node.position)
                         .zIndex(zIndex(for: node))
@@ -145,15 +208,24 @@ struct ThinkingTreeView: View {
                     }
 
                     annotationCanvasLayer(graph: graph)
-                        .frame(width: graph.contentSize.width, height: graph.contentSize.height)
+                        .frame(
+                            width: canvasContentSize.width,
+                            height: canvasContentSize.height
+                        )
                         .zIndex(10_000)
 
                     annotationTextLayer(graph: graph)
-                        .frame(width: graph.contentSize.width, height: graph.contentSize.height)
+                        .frame(
+                            width: canvasContentSize.width,
+                            height: canvasContentSize.height
+                        )
                         .zIndex(10_001)
                 }
-                .coordinateSpace(name: MindTreeAnnotationCoordinateSpace.graph)
-                .frame(width: graph.contentSize.width, height: graph.contentSize.height)
+                .coordinateSpace(.named(MindTreeAnnotationCoordinateSpace.graph))
+                .frame(
+                    width: canvasContentSize.width,
+                    height: canvasContentSize.height
+                )
                 .scaleEffect(scale, anchor: .topLeading)
                 .offset(offset)
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
@@ -196,8 +268,18 @@ struct ThinkingTreeView: View {
                 standaloneAnnotationControls
                     .padding(AppTheme.spacingLarge)
             }
+            .overlay(alignment: .bottomLeading) {
+                if mode == .standalone {
+                    TreeLegendView()
+                        .padding(AppTheme.spacingLarge)
+                }
+            }
             .onAppear {
                 lastViewportSize = geo.size
+                resolvedPresentationState.synchronizeCompletedStages(
+                    completedStageOrders
+                )
+                expandArchivedBranchIfNeeded()
                 refreshAnnotationState(for: fingerprint, graph: graph)
                 if !hasInitializedViewport {
                     DispatchQueue.main.async {
@@ -226,6 +308,13 @@ struct ThinkingTreeView: View {
                     graph: graph
                 )
             }
+            .onChange(of: completedStageOrders) { _, newOrders in
+                withAnimation(AppTheme.Animation.standard) {
+                    resolvedPresentationState.synchronizeCompletedStages(
+                        newOrders
+                    )
+                }
+            }
         }
         .clipShape(RoundedRectangle(cornerRadius: mode == .embedded ? AppTheme.cornerRadiusLarge : 0, style: .continuous))
         .overlay {
@@ -243,6 +332,16 @@ struct ThinkingTreeView: View {
                 .presentationCornerRadius(28)
         }
         #endif
+        .sheet(item: $selectedResourceAttachment) { presentation in
+            QuestionResourceAttachmentDetailSheet(
+                presentation: presentation
+            )
+            #if os(iOS)
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(28)
+            #endif
+        }
         .sheet(item: $editingNode) { node in
             NodeEditSheet(
                 node: node,
@@ -335,12 +434,10 @@ struct ThinkingTreeView: View {
 
     private func layoutGraph(for viewport: CGSize, expandedTransitions: Set<Int>) -> TreeData {
         let effectiveExpandedTransitions = expandedTransitions
-        let evidence = evidenceResourcesByStage(expandedTransitions: effectiveExpandedTransitions)
         let raw = TreeBuilder().build(
             project: project,
             expandedTransitionOrders: effectiveExpandedTransitions,
             expandedArchivedStageOrders: expandedArchivedStageOrders,
-            evidenceResourcesByStage: evidence,
             visibleStageLimit: visibleStageLimit
         )
         return MindTreeCanonicalLayout.layout(
@@ -356,24 +453,6 @@ struct ThinkingTreeView: View {
         }
 
         return MindTreeCanonicalLayout.visibleStageLimit
-    }
-
-    private func evidenceResourcesByStage(expandedTransitions: Set<Int>) -> [Int: [ResourceCard]] {
-        var result: [Int: [ResourceCard]] = [:]
-        let limit = MindTreeCanonicalLayout.evidenceLimit
-        let service = ResourceRecommendationService()
-
-        // Collapsed transitions never render evidence nodes, so rank resources
-        // only after the corresponding problem chain is expanded.
-        for order in expandedTransitions where (1...9).contains(order) {
-            result[order] = service.recommend(
-                currentStageOrder: order,
-                brief: project.brief,
-                recentMessage: project.latestConversationText,
-                limit: limit
-            )
-        }
-        return result
     }
 
     // MARK: - Header and Controls
@@ -768,8 +847,9 @@ struct ThinkingTreeView: View {
             nodes: nodes,
             expandedTransitionOrders: expandedTransitionOrders,
             expandedArchivedStageOrders: expandedArchivedStageOrders,
-            contentWidth: Double(graph.contentSize.width),
-            contentHeight: Double(graph.contentSize.height)
+            expandedResourceQuestionIDs: expandedResourceQuestionIDs,
+            contentWidth: Double(stableCanvasContentSize(for: graph).width),
+            contentHeight: Double(stableCanvasContentSize(for: graph).height)
         )
     }
 
@@ -787,8 +867,6 @@ struct ThinkingTreeView: View {
             return "field"
         case .process:
             return "process"
-        case .evidence:
-            return "evidence"
         case .revision:
             return "revision"
         }
@@ -798,6 +876,10 @@ struct ThinkingTreeView: View {
         switch node.kind {
         case .root:
             return "mindTree.rootNode"
+        case .stage:
+            return node.stageOrder.map {
+                "mindTree.transition.\($0)"
+            } ?? "mindTree.node.\(node.id)"
         default:
             return "mindTree.node.\(node.id)"
         }
@@ -850,14 +932,62 @@ struct ThinkingTreeView: View {
 
     private func annotationLayoutSnapshot(
         graph: TreeData,
-        fingerprint: String
+        fingerprint: String,
+        resourceDeckProgressOverride: [String: CGFloat]? = nil
     ) -> MindTreeAnnotationLayoutSnapshot {
-        MindTreeAnnotationProjectionService.layoutSnapshot(
+        let resourceDeckProgress = resourceDeckProgressOverride
+            ?? resourceDeckProgressByQuestionID(in: graph)
+        let canvasContentSize = QuestionResourceDeckLayout.canvasContentSize(
+            graph: graph,
+            progressByQuestionID: resourceDeckProgress
+        )
+        return MindTreeAnnotationProjectionService.layoutSnapshot(
             graph: graph,
             fingerprint: fingerprint,
             expandedTransitionOrders: expandedTransitionOrders,
-            expandedArchivedStageOrders: expandedArchivedStageOrders
+            expandedArchivedStageOrders: expandedArchivedStageOrders,
+            resourceDeckProgressByQuestionID: resourceDeckProgress,
+            canvasContentSize: canvasContentSize
         )
+    }
+
+    private func stableCanvasContentSize(for graph: TreeData) -> CGSize {
+        QuestionResourceDeckLayout.canvasContentSize(
+            graph: graph,
+            progressByQuestionID: stableResourceDeckProgressByQuestionID(
+                in: graph
+            )
+        )
+    }
+
+    private func stableResourceDeckProgressByQuestionID(
+        in graph: TreeData
+    ) -> [String: CGFloat] {
+        Dictionary(
+            uniqueKeysWithValues: graph.nodes.compactMap { node in
+                guard node.kind == .question,
+                      node.hasCollapsedResources else {
+                    return nil
+                }
+                return (
+                    node.id,
+                    expandedResourceQuestionIDs.contains(node.id) ? 1 : 0
+                )
+            }
+        )
+    }
+
+    private func resourceDeckProgressByQuestionID(
+        in graph: TreeData
+    ) -> [String: CGFloat] {
+        var result = stableResourceDeckProgressByQuestionID(in: graph)
+        for (questionID, progress) in resourceDeckDragProgress
+            where result[questionID] != nil {
+            result[questionID] = QuestionResourceDeckLayout.clampedProgress(
+                progress
+            )
+        }
+        return result
     }
 
     private func requestCreationModeIfNeeded() {
@@ -1032,9 +1162,19 @@ struct ThinkingTreeView: View {
     ) -> CGPoint {
         let halfWidth = CGFloat(item.width) / 2
         let halfHeight = CGFloat(item.height) / 2
+        let contentSize = QuestionResourceDeckLayout.canvasContentSize(
+            graph: graph,
+            progressByQuestionID: resourceDeckProgressByQuestionID(in: graph)
+        )
         return CGPoint(
-            x: min(max(point.x, halfWidth), max(halfWidth, graph.contentSize.width - halfWidth)),
-            y: min(max(point.y, halfHeight), max(halfHeight, graph.contentSize.height - halfHeight))
+            x: min(
+                max(point.x, halfWidth),
+                max(halfWidth, contentSize.width - halfWidth)
+            ),
+            y: min(
+                max(point.y, halfHeight),
+                max(halfHeight, contentSize.height - halfHeight)
+            )
         )
     }
 
@@ -1370,12 +1510,164 @@ struct ThinkingTreeView: View {
     private func handleTap(_ node: TreeNode) {
         guard interactionMode == .browsing else { return }
 
-        if node.kind == .branchStage, let order = node.stageOrder {
-            toggleArchivedStage(order)
+        if node.kind == .stage,
+           node.stageTreeState?.isCompleted == true,
+           let order = node.stageOrder {
+            toggleTransition(order)
+            return
+        }
+
+        if node.kind == .branchStage {
             return
         }
 
         selectedNode = node
+    }
+
+    private func toggleQuestionResources(_ node: TreeNode, in graph: TreeData) {
+        guard interactionMode == .browsing,
+              node.hasCollapsedResources else {
+            return
+        }
+
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+            if expandedResourceQuestionIDs.contains(node.id) {
+                resolvedPresentationState.expandedResourceQuestionIDs.remove(node.id)
+            } else {
+                resolvedPresentationState.expandedResourceQuestionIDs.insert(node.id)
+            }
+            resourceDeckDragProgress.removeValue(forKey: node.id)
+        }
+        reprojectAnnotationsForResourceDeck(in: graph)
+    }
+
+    private func updateQuestionResourceDrag(
+        _ node: TreeNode,
+        translation: CGSize,
+        in graph: TreeData
+    ) {
+        guard interactionMode == .browsing,
+              node.hasCollapsedResources,
+              abs(translation.width) > abs(translation.height) * 1.18
+        else {
+            return
+        }
+
+        if let activeResourceDeckDragQuestionID,
+           activeResourceDeckDragQuestionID != node.id {
+            return
+        }
+
+        activeResourceDeckDragQuestionID = node.id
+        offset = lastOffset
+        resourceDeckDragProgress[node.id] = QuestionResourceDeckLayout.progress(
+            isExpanded: expandedResourceQuestionIDs.contains(node.id),
+            translationX: translation.width
+        )
+        reprojectAnnotationsForResourceDeck(in: graph)
+    }
+
+    private func finishQuestionResourceDrag(
+        _ node: TreeNode,
+        translation: CGSize,
+        predictedTranslation: CGSize,
+        in graph: TreeData
+    ) {
+        guard interactionMode == .browsing,
+              node.hasCollapsedResources,
+              abs(translation.width) > abs(translation.height) * 1.18,
+              activeResourceDeckDragQuestionID == nil
+                || activeResourceDeckDragQuestionID == node.id
+        else {
+            return
+        }
+
+        let wasExpanded = expandedResourceQuestionIDs.contains(node.id)
+        let shouldExpand = QuestionResourceDeckLayout.shouldExpand(
+            isExpanded: wasExpanded,
+            predictedTranslationX: predictedTranslation.width
+        )
+
+        activeResourceDeckDragQuestionID = nil
+        offset = lastOffset
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
+            if shouldExpand {
+                resolvedPresentationState.expandedResourceQuestionIDs.insert(
+                    node.id
+                )
+            } else {
+                resolvedPresentationState.expandedResourceQuestionIDs.remove(
+                    node.id
+                )
+            }
+            resourceDeckDragProgress.removeValue(forKey: node.id)
+        }
+        reprojectAnnotationsForResourceDeck(in: graph)
+    }
+
+    private func reprojectAnnotationsForResourceDeck(in graph: TreeData) {
+        #if os(iOS) && canImport(PencilKit)
+        guard let annotationID = loadedAnnotationID else { return }
+
+        let resourceMomentIDs = Set(
+            graph.nodes
+                .filter {
+                    $0.kind == .question
+                        && $0.isActiveBranch
+                }
+                .flatMap(\.boundResources)
+                .map(\.momentID)
+        )
+        let hasResourceAnnotation = annotationTextItems.contains {
+            isResourceAnnotationAnchor(
+                $0.anchor,
+                resourceMomentIDs: resourceMomentIDs
+            )
+        } || annotationInkGroups.contains {
+            isResourceAnnotationAnchor(
+                $0.anchor,
+                resourceMomentIDs: resourceMomentIDs
+            )
+        }
+        guard hasResourceAnnotation else { return }
+
+        let fingerprint = treeFingerprint(for: graph)
+        let snapshot = annotationLayoutSnapshot(
+            graph: graph,
+            fingerprint: fingerprint,
+            resourceDeckProgressOverride:
+                resourceDeckProgressByQuestionID(in: graph)
+        )
+        applyProjection(
+            annotationID: annotationID,
+            textItems: annotationTextItems,
+            inkGroups: annotationInkGroups,
+            snapshot: snapshot
+        )
+        #endif
+    }
+
+    private func isResourceAnnotationAnchor(
+        _ anchor: MindTreeAnnotationAnchor?,
+        resourceMomentIDs: Set<UUID>
+    ) -> Bool {
+        guard let anchor,
+              case let .moment(id, _, _) = anchor else {
+            return false
+        }
+        return resourceMomentIDs.contains(id)
+    }
+
+    private func expandArchivedBranchIfNeeded() {
+        guard !hasInitializedArchivedBranch else { return }
+        hasInitializedArchivedBranch = true
+        guard expandedArchivedStageOrders.isEmpty else { return }
+        let orders = Set(
+            project.thinkingMoments
+                .filter { !$0.isActiveBranch && $0.momType == "answer" }
+                .map(\.stageOrder)
+        )
+        resolvedPresentationState.expandedArchivedStageOrders.formUnion(orders)
     }
 
     private func continueAfterQuestionRevision(_ revision: QuestionRevisionContext) {
@@ -1494,8 +1786,8 @@ struct ThinkingTreeView: View {
     private func adoptEvidence(_ resource: ResourceCard, stageOrder: Int) {
         let duplicate = project.thinkingMoments.contains { moment in
             moment.stageOrder == stageOrder &&
-            moment.momType == "evidence" &&
-            moment.content == resource.title &&
+            (moment.momType == "method" || moment.momType == "evidence") &&
+            (moment.resourceCardID == resource.id || moment.content == resource.title) &&
             moment.isActiveBranch
         }
         guard !duplicate else {
@@ -1507,7 +1799,8 @@ struct ThinkingTreeView: View {
             momType: "evidence",
             content: resource.title,
             stageOrder: stageOrder,
-            relatedField: nil,
+            relatedField: resource.relatedFields.first?.rawValue,
+            resourceCardID: resource.id,
             parentMomentID: lastActiveQuestionMoment(stageOrder: stageOrder)?.id,
             timestamp: Date(),
             isActiveBranch: true
@@ -1523,15 +1816,10 @@ struct ThinkingTreeView: View {
     }
 
     private func lastActiveQuestionMoment(stageOrder: Int) -> ThinkingMoment? {
-        project.thinkingMoments
-            .filter {
-                $0.stageOrder == stageOrder &&
-                $0.momType == "question" &&
-                $0.isActiveBranch &&
-                ThinkingTreeMomentProjector.isVisibleInTree($0)
-            }
-            .sorted { $0.timestamp < $1.timestamp }
-            .last
+        ThinkingTreeTopology.activeLeafNode(
+            for: stageOrder,
+            in: project.thinkingMoments
+        )
     }
 
     @ViewBuilder
@@ -1547,7 +1835,7 @@ struct ThinkingTreeView: View {
                         .contentShape(Rectangle())
 
                     transitionLabel(order: transitionOrder)
-                        .offset(x: TreeNodeMetrics.stageSize.width / 2 + 48)
+                        .offset(x: -(TreeNodeMetrics.stageSize.width / 2 + 58))
                 }
                 .position(
                     CGPoint(
@@ -1622,10 +1910,11 @@ struct ThinkingTreeView: View {
     }
 
     private func transitionNodeCount(_ order: Int) -> Int {
-        ThinkingTreeMomentProjector.visibleMoments(
-            project.thinkingMoments.filter { $0.stageOrder == order }
-        ).count +
-        project.learningTraces.filter { $0.stageOrder == order }.count
+        project.thinkingMoments.filter {
+            $0.stageOrder == order
+                && $0.momType == "question"
+                && ThinkingTreeMomentProjector.isVisibleInTree($0)
+        }.count
     }
 
     private func zIndex(for node: TreeNode) -> Double {
@@ -1633,7 +1922,7 @@ struct ThinkingTreeView: View {
         case .root: return 6
         case .stage: return 5
         case .branchStage: return 4
-        case .question, .field, .process, .evidence, .revision: return 4
+        case .question, .field, .process, .revision: return 4
         }
     }
 
@@ -1641,7 +1930,7 @@ struct ThinkingTreeView: View {
         switch node.kind {
         case .branchStage:
             return true
-        case .question, .field, .process, .evidence, .revision:
+        case .question, .field, .process, .revision:
             return true
         case .root, .stage:
             return false
@@ -1668,39 +1957,20 @@ struct ThinkingTreeView: View {
     }
 
     private func edgePath(from: TreeNode, to: TreeNode, graph: TreeData) -> Path {
-        let trunkX = mainTrunkX(in: graph)
-        let isTrunk = (from.kind == .root || from.kind == .stage) && to.kind == .stage
-
-        if isTrunk {
+        _ = graph
+        if abs(from.position.x - to.position.x) < 1 {
             return directEdgePath(from: from, to: to)
         }
 
-        if isArchivedTimelineEdge(from: from, to: to) {
-            return directEdgePath(from: from, to: to)
-        }
-
-        if isBranchNode(to) {
-            return branchEdgePath(from: from, to: to, trunkX: trunkX)
-        }
-
-        if isBranchNode(from) {
-            var path = Path()
-            let target = CGPoint(x: trunkX, y: from.position.y)
-            let start = edgeAnchor(for: from, toward: target)
-            path.move(to: start)
-            path.addLine(to: target)
-            return path
-        }
-
-        let dy = abs(to.position.y - from.position.y)
         let start = edgeAnchor(for: from, toward: to.position)
         let end = edgeAnchor(for: to, toward: from.position)
+        let midY = (start.y + end.y) / 2
         var path = Path()
         path.move(to: start)
         path.addCurve(
             to: end,
-            control1: CGPoint(x: start.x, y: start.y - max(dy * 0.34, 24)),
-            control2: CGPoint(x: end.x, y: end.y + max(dy * 0.18, 18))
+            control1: CGPoint(x: start.x, y: midY),
+            control2: CGPoint(x: end.x, y: midY)
         )
         return path
     }
@@ -1742,7 +2012,7 @@ struct ThinkingTreeView: View {
         switch node.kind {
         case .root, .stage, .branchStage:
             return 0
-        case .question, .field, .process, .evidence, .revision:
+        case .question, .field, .process, .revision:
             return TreeNodeMetrics.size(for: node.kind).width / 2 + 18
         }
     }
@@ -1817,20 +2087,21 @@ struct ThinkingTreeView: View {
     private func edgeColor(_ edge: TreeEdge, to node: TreeNode) -> Color {
         if let order = edge.togglesTransitionOrder,
            isTransitionExpanded(order) {
-            return Color.primaryAccent.opacity(0.62)
+            return Color.primaryAccent.opacity(0.76)
         }
 
         switch edge.style {
         case .active:
-            return node.kind == .stage ? node.nodeColor.opacity(0.68) : Color.primaryAccent.opacity(0.30)
+            return Color.primaryAccent.opacity(
+                node.kind == .stage ? 0.74 : 0.56
+            )
         case .archived:
-            return Color(red: 0.58, green: 0.53, blue: 0.48).opacity(0.32)
+            return Color(red: 0.52, green: 0.54, blue: 0.59)
+                .opacity(0.62)
         case .transition:
             return Color.warning.opacity(0.34)
         case .ghost:
             return Color.stageNotStarted.opacity(0.22)
-        case .evidence:
-            return Color.secondaryAccent.opacity(0.24)
         }
     }
 
@@ -1842,14 +2113,16 @@ struct ThinkingTreeView: View {
 
         switch edge.style {
         case .active:
-            return StrokeStyle(lineWidth: 1.6, lineCap: .round)
+            return StrokeStyle(lineWidth: 2.0, lineCap: .round)
         case .transition:
             return StrokeStyle(lineWidth: 1.3, lineCap: .round, dash: [6, 7])
         case .archived:
-            return StrokeStyle(lineWidth: 1.1, lineCap: .round, dash: [5, 7])
+            return StrokeStyle(
+                lineWidth: 1.35,
+                lineCap: .round,
+                dash: [5, 7]
+            )
         case .ghost:
-            return StrokeStyle(lineWidth: 1.0, lineCap: .round, dash: [3, 7])
-        case .evidence:
             return StrokeStyle(lineWidth: 1.0, lineCap: .round, dash: [3, 7])
         }
     }
@@ -1878,6 +2151,10 @@ struct ThinkingTreeView: View {
         DragGesture(minimumDistance: 6, coordinateSpace: .local)
             .onChanged { value in
                 guard interactionMode == .browsing else { return }
+                guard activeResourceDeckDragQuestionID == nil else {
+                    offset = lastOffset
+                    return
+                }
                 offset = CGSize(
                     width: lastOffset.width + value.translation.width,
                     height: lastOffset.height + value.translation.height

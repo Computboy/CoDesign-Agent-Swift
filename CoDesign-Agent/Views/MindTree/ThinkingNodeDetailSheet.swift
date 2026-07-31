@@ -28,8 +28,6 @@ struct ThinkingNodeDetailSheet: View {
                         fieldContent
                     case .process:
                         processContent
-                    case .evidence:
-                        evidenceContent
                     case .revision:
                         revisionContent
                     }
@@ -296,73 +294,6 @@ struct ThinkingNodeDetailSheet: View {
         }
     }
 
-    // MARK: - Evidence Content
-
-    private var evidenceContent: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
-            if let resource = node.resource {
-                CoDesignSectionHeader(title: "本地知识库依据")
-
-                CoDesignCard {
-                    VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
-                        HStack(spacing: AppTheme.spacingSmall) {
-                            CoDesignStatusBadge(status: .active, text: resource.type == .paper ? "RAG" : resource.type.displayName)
-                            if let year = resource.year {
-                                Text("\(year)")
-                                    .font(AppTheme.Typography.captionMono)
-                                    .foregroundStyle(Color.textTertiary)
-                            }
-                            Spacer()
-                        }
-
-                        Text(resource.title)
-                            .font(AppTheme.Typography.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.textPrimary)
-
-                        resourceBlock("核心观点", resource.promptCoreIdea)
-                        resourceBlock("为什么与当前阶段相关", resource.whyRelevant)
-                        resourceBlock("它帮助完成哪类设计判断", resource.processActionText)
-                        resourceBlock("AI 可以怎样用", resource.promptRAGUse)
-                        if let source = resource.sourceDisplayText {
-                            resourceBlock("来源简写", source)
-                        }
-
-                        Button {
-                            if let stageOrder = node.stageOrder {
-                                onAdoptEvidence(resource, stageOrder)
-                                dismiss()
-                            }
-                        } label: {
-                            Label("采纳为依据", systemImage: "checkmark.seal")
-                                .font(AppTheme.Typography.caption.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(Color.secondaryAccent)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            } else {
-                CoDesignSectionHeader(title: "已采纳依据")
-                CoDesignCard {
-                    VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-                        Text(node.content)
-                            .font(AppTheme.Typography.body.weight(.semibold))
-                            .foregroundStyle(Color.textPrimary)
-
-                        Text(node.subContent ?? "此依据已进入项目过程记录。")
-                            .font(AppTheme.Typography.body)
-                            .foregroundStyle(Color.textSecondary)
-                    }
-                }
-            }
-        }
-    }
-
     private var revisionContent: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacingMedium) {
             CoDesignSectionHeader(title: "回溯记录")
@@ -419,8 +350,6 @@ struct ThinkingNodeDetailSheet: View {
             return node.field?.displayName ?? node.content
         case .process:
             return node.processLabel ?? "过程"
-        case .evidence:
-            return "Evidence"
         case .revision:
             return "回溯记录"
         }
@@ -432,7 +361,7 @@ struct ThinkingNodeDetailSheet: View {
             return project.name
         case .stage, .branchStage:
             return node.subContent
-        case .question, .field, .process, .evidence, .revision:
+        case .question, .field, .process, .revision:
             return node.content
         }
     }
@@ -458,7 +387,12 @@ struct ThinkingNodeDetailSheet: View {
     }
 
     private var questionText: String {
-        ThinkingTreeMomentProjector.displayQuestionText(for: node, in: project.messages)
+        if let momentID = node.momentID,
+           let question = project.thinkingMoments.first(where: { $0.id == momentID }),
+           question.momType == "question" {
+            return question.content
+        }
+        return ThinkingTreeMomentProjector.displayQuestionText(for: node, in: project.messages)
     }
 
     private func fieldRow(_ field: BriefField, brief: DesignBriefSnapshot) -> some View {
@@ -523,17 +457,6 @@ struct ThinkingNodeDetailSheet: View {
             RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
                 .strokeBorder(Color.secondaryAccent.opacity(0.16), lineWidth: AppTheme.Border.thin)
         )
-    }
-
-    private func resourceBlock(_ title: String, _ content: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(AppTheme.Typography.caption.weight(.semibold))
-                .foregroundStyle(Color.textTertiary)
-            Text(content)
-                .font(AppTheme.Typography.body)
-                .foregroundStyle(Color.textSecondary)
-        }
     }
 
     private func statItem(value: String, label: String) -> some View {

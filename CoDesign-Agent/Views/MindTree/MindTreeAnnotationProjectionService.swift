@@ -24,9 +24,17 @@ struct MindTreeAnnotationProjectionService {
         fingerprint: String,
         expandedTransitionOrders: Set<Int>,
         expandedArchivedStageOrders: Set<Int>,
+        resourceDeckProgressByQuestionID: [String: CGFloat] = [:],
+        canvasContentSize: CGSize? = nil,
         capturedAt: Date = Date()
     ) -> MindTreeAnnotationLayoutSnapshot {
         var frames = graph.nodes.compactMap(anchorFrame(for:))
+        frames.append(
+            contentsOf: QuestionResourceDeckLayout.annotationFrames(
+                graph: graph,
+                progressByQuestionID: resourceDeckProgressByQuestionID
+            )
+        )
 
         for edge in graph.edges {
             guard let order = edge.togglesTransitionOrder,
@@ -50,10 +58,16 @@ struct MindTreeAnnotationProjectionService {
             )
         }
 
+        let resolvedContentSize = canvasContentSize
+            ?? QuestionResourceDeckLayout.canvasContentSize(
+                graph: graph,
+                progressByQuestionID: resourceDeckProgressByQuestionID
+            )
+
         return MindTreeAnnotationLayoutSnapshot(
             anchors: deduplicated(frames),
-            contentWidth: graph.contentSize.width,
-            contentHeight: graph.contentSize.height,
+            contentWidth: resolvedContentSize.width,
+            contentHeight: resolvedContentSize.height,
             expandedTransitionOrders: MindTreeAnnotationExpansionCodec.encode(expandedTransitionOrders),
             expandedArchivedStageOrders: MindTreeAnnotationExpansionCodec.encode(expandedArchivedStageOrders),
             fingerprint: fingerprint,
@@ -258,7 +272,7 @@ struct MindTreeAnnotationProjectionService {
         case .branchStage:
             guard let order = node.stageOrder else { return nil }
             anchor = .archivedBranch(stageOrder: order, branchVersion: node.branchVersion)
-        case .question, .field, .process, .evidence, .revision:
+        case .question, .field, .process, .revision:
             guard let id = node.momentID, let order = node.stageOrder else { return nil }
             anchor = .moment(id: id, branchVersion: node.branchVersion, stageOrder: order)
         }

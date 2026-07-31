@@ -135,7 +135,10 @@ struct CoDesignPackageBuilder {
                     branchVersion: moment.branchVersion,
                     archivedAt: moment.archivedAt,
                     positionHint: nil,
-                    metadata: [:]
+                    metadata: [
+                        "summary": moment.summary,
+                        "resourceCardID": moment.resourceCardID,
+                    ].compactMapValues { $0 }
                 )
             )
             edges.append(

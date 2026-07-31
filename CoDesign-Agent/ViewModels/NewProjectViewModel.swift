@@ -58,6 +58,7 @@ final class NewProjectViewModel {
         let openingMoment = ThinkingMoment(
             momType: "question",
             content: Self.storedMomentText(openingQuestion),
+            summary: QuestionTreeSummary.make(from: openingQuestion),
             stageOrder: 1,
             relatedField: nil
         )
