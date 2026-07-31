@@ -33,7 +33,7 @@ struct ReportExportSheet: View {
                 .padding(AppTheme.spacingLarge)
             }
             .background(Color.appBackground)
-            .navigationTitle("导出 AI 产品设计报告")
+            .navigationTitle("导出报告")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -94,29 +94,50 @@ struct ReportExportSheet: View {
                 .foregroundStyle(Color.textPrimary)
 
             VStack(spacing: 0) {
-                Toggle("最终设计报告", isOn: $options.includeReportSections)
-                    .disabled(options.format == .json || options.format == .codesignPackage)
-                Toggle("设计决策路径", isOn: $options.includeDecisionTrace)
-                    .disabled(true)
-                Toggle("资源线索与引用", isOn: $options.includeResources)
-                    .disabled(options.format == .json || options.format == .codesignPackage)
-                Toggle("对话摘要", isOn: $options.includeConversationSummary)
+                exportOptionRow(
+                    "最终设计报告",
+                    isOn: $options.includeReportSections,
+                    isDisabled: options.format == .json || options.format == .codesignPackage
+                )
+                exportOptionDivider
+                exportOptionRow(
+                    "设计决策路径",
+                    isOn: $options.includeDecisionTrace,
+                    isDisabled: true
+                )
+                exportOptionDivider
+                exportOptionRow(
+                    "资源线索与引用",
+                    isOn: $options.includeResources,
+                    isDisabled: options.format == .json || options.format == .codesignPackage
+                )
+                exportOptionDivider
+                exportOptionRow(
+                    "对话摘要",
+                    isOn: $options.includeConversationSummary
+                )
 
                 if options.format.isStaticReport {
-                    Divider().padding(.vertical, AppTheme.spacingSmall)
-                    Toggle("完整思维树快照", isOn: $options.includeFullMindTree)
-                    Toggle("回溯分支与旧方案", isOn: $options.includeArchivedBranches)
-                        .disabled(!options.includeFullMindTree)
+                    optionGroupDivider
+                    exportOptionRow(
+                        "完整思维树快照",
+                        isOn: $options.includeFullMindTree
+                    )
+                    exportOptionDivider
+                    exportOptionRow(
+                        "回溯分支与旧方案",
+                        isOn: $options.includeArchivedBranches,
+                        isDisabled: !options.includeFullMindTree
+                    )
                 } else {
-                    Divider().padding(.vertical, AppTheme.spacingSmall)
-                    Toggle("完整思维树", isOn: .constant(true))
-                        .disabled(true)
-                    Toggle("回溯分支与旧方案", isOn: .constant(true))
-                        .disabled(true)
-                    Toggle("Design Brief", isOn: .constant(true))
-                        .disabled(true)
-                    Toggle("报告结构", isOn: .constant(true))
-                        .disabled(true)
+                    optionGroupDivider
+                    exportOptionRow("完整思维树", isOn: .constant(true), isDisabled: true)
+                    exportOptionDivider
+                    exportOptionRow("回溯分支与旧方案", isOn: .constant(true), isDisabled: true)
+                    exportOptionDivider
+                    exportOptionRow("Design Brief", isOn: .constant(true), isDisabled: true)
+                    exportOptionDivider
+                    exportOptionRow("报告结构", isOn: .constant(true), isDisabled: true)
                 }
             }
             .toggleStyle(.switch)
@@ -131,6 +152,28 @@ struct ReportExportSheet: View {
                     .strokeBorder(AppTheme.Border.color, lineWidth: AppTheme.Border.thin)
             )
         }
+    }
+
+    private func exportOptionRow(
+        _ title: String,
+        isOn: Binding<Bool>,
+        isDisabled: Bool = false
+    ) -> some View {
+        Toggle(title, isOn: isOn)
+            .disabled(isDisabled)
+            .padding(.horizontal, AppTheme.spacingMedium)
+            .frame(minHeight: 50)
+    }
+
+    private var exportOptionDivider: some View {
+        Divider()
+            .padding(.horizontal, AppTheme.spacingMedium)
+    }
+
+    private var optionGroupDivider: some View {
+        Divider()
+            .padding(.vertical, AppTheme.spacingSmall)
+            .padding(.horizontal, AppTheme.spacingSmall)
     }
 
     @ViewBuilder

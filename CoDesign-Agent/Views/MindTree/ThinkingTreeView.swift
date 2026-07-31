@@ -123,7 +123,7 @@ struct ThinkingTreeView: View {
             )
 
             ZStack {
-                treeBackground
+                treeBackground(scale: scale, offset: offset)
 
                 ZStack {
                     Canvas { context, _ in
@@ -715,8 +715,8 @@ struct ThinkingTreeView: View {
         #endif
     }
 
-    private var treeBackground: some View {
-        MindTreeDottedBackground()
+    private func treeBackground(scale: CGFloat, offset: CGSize) -> some View {
+        MindTreeDottedBackground(scale: scale, offset: offset)
     }
 
     @ViewBuilder
@@ -2130,11 +2130,11 @@ struct ThinkingTreeView: View {
     // MARK: - Viewport
 
     private var magnificationGesture: some Gesture {
-        MagnificationGesture()
+        MagnifyGesture()
             .onChanged { value in
                 guard interactionMode == .browsing else { return }
                 setScalePreservingViewportCenter(
-                    lastScale * value,
+                    lastScale * value.magnification,
                     viewport: lastViewportSize,
                     animated: false,
                     commit: false

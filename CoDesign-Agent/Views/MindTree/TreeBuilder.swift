@@ -640,6 +640,63 @@ struct TreeBuilder {
     // MARK: - Question metadata
 
     private func questionNumbers(in project: Project) -> [UUID: Int] {
+        var numbers: [UUID: Int] = [:]
+        var nextActiveNumber = 1
+        let momentsByID = Dictionary(
+            uniqueKeysWithValues: project.thinkingMoments.map { ($0.id, $0) }
+        )
+
+        // The active trunk owns the canonical 1...n sequence. Archived
+        // questions must never consume numbers from the current path.
+        for stageOrder in StageDefinition.all.map(\.order) {
+            let activeQuestions = ThinkingTreeTopology.activeQuestions(
+                for: stageOrder,
+                in: project.thinkingMoments
+            )
+            for question in activeQuestions where numbers[question.id] == nil {
+                numbers[question.id] = nextActiveNumber
+                nextActiveNumber += 1
+            }
+        }
+
+        // An archived branch starts after its shared parent. Reusing that
+        // ordinal makes active 04 and archived 04-旧 coexist explicitly.
+        let forks = rollbackForks(in: project).sorted {
+            if $0.archivedAt != $1.archivedAt {
+                return $0.archivedAt < $1.archivedAt
+            }
+            return $0.id < $1.id
+        }
+        for fork in forks {
+            let archivedQuestions = archivedQuestions(
+                for: fork,
+                in: project.thinkingMoments
+            )
+            // Newer data points directly at the active parent. Older projects
+            // often point at the first archived question instead (or omit the
+            // question-to-question link entirely), so recover the shared
+            // active ancestor before falling back to the nearest active
+            // question that existed when this branch was created.
+            let baseNumber = activeAncestorNumber(
+                from: fork.parentQuestionID,
+                momentsByID: momentsByID,
+                numbers: numbers
+            )
+                ?? nearestActiveNumber(
+                    before: archivedQuestions.first?.timestamp ?? fork.archivedAt,
+                    stageOrder: fork.sourceStageOrder,
+                    in: project.thinkingMoments,
+                    numbers: numbers
+                )
+                ?? 0
+            for (offset, question) in archivedQuestions.enumerated() {
+                numbers[question.id] = baseNumber + offset + 1
+            }
+        }
+
+        // Legacy projects can contain archived questions that cannot be
+        // reconstructed into a RollbackFork. Keep them visible with a stable
+        // fallback number without renumbering the active trunk.
         let questions = project.thinkingMoments
             .filter {
                 $0.momType == "question"
@@ -651,11 +708,55 @@ struct TreeBuilder {
                 }
                 return $0.id.uuidString < $1.id.uuidString
             }
-        return Dictionary(
-            uniqueKeysWithValues: questions.enumerated().map {
-                ($0.element.id, $0.offset + 1)
+        var fallbackNumber = max(numbers.values.max() ?? 0, 0) + 1
+        for question in questions where numbers[question.id] == nil {
+            numbers[question.id] = fallbackNumber
+            fallbackNumber += 1
+        }
+        return numbers
+    }
+
+    private func activeAncestorNumber(
+        from momentID: UUID?,
+        momentsByID: [UUID: ThinkingMoment],
+        numbers: [UUID: Int]
+    ) -> Int? {
+        var currentID = momentID
+        var visited = Set<UUID>()
+
+        while let id = currentID, visited.insert(id).inserted {
+            if let moment = momentsByID[id],
+               moment.momType == "question",
+               moment.isActiveBranch,
+               let number = numbers[id] {
+                return number
             }
-        )
+            currentID = momentsByID[id]?.parentMomentID
+        }
+        return nil
+    }
+
+    private func nearestActiveNumber(
+        before timestamp: Date,
+        stageOrder: Int,
+        in moments: [ThinkingMoment],
+        numbers: [UUID: Int]
+    ) -> Int? {
+        moments
+            .filter {
+                $0.momType == "question"
+                    && $0.stageOrder == stageOrder
+                    && $0.isActiveBranch
+                    && $0.timestamp <= timestamp
+            }
+            .sorted {
+                if $0.timestamp != $1.timestamp {
+                    return $0.timestamp < $1.timestamp
+                }
+                return $0.id.uuidString < $1.id.uuidString
+            }
+            .last
+            .flatMap { numbers[$0.id] }
     }
 
     private func resourceBindings(

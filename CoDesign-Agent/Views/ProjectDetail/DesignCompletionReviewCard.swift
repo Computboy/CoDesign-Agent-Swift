@@ -12,7 +12,6 @@ struct DesignCompletionReviewCard: View {
     let onSend: (String) -> Void
     let onExport: () -> Void
     var onReviewBrief: () -> Void = {}
-    var onRevisitPreviousStage: () -> Void = {}
 
     // MARK: - Key fields
 
@@ -47,7 +46,7 @@ struct DesignCompletionReviewCard: View {
                 if !keyFields.isEmpty {
                     summarySection
                 } else {
-                    Text("暂无已提取的字段，请在 Insights 面板中查看你的设计简报。")
+                    Text("暂无已提取的字段，请打开 Design Brief 查看并补全设计简报。")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(Color.textTertiary)
                 }
@@ -184,24 +183,13 @@ struct DesignCompletionReviewCard: View {
                 .buttonStyle(.plain)
             }
 
-            // Secondary row
-            HStack(spacing: AppTheme.spacingSmall) {
-                Button {
-                    onRevisitPreviousStage()
-                } label: {
-                    Label("回到上一阶段", systemImage: "arrow.counterclockwise")
-                        .secondaryCompletionButtonStyle(tint: .textSecondary)
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    onSend("继续优化")
-                } label: {
-                    Label("继续优化", systemImage: "bubble.left.and.bubble.right")
-                        .secondaryCompletionButtonStyle(tint: .textSecondary)
-                }
-                .buttonStyle(.plain)
+            Button {
+                onSend("继续优化")
+            } label: {
+                Label("继续优化", systemImage: "bubble.left.and.bubble.right")
+                    .secondaryCompletionButtonStyle(tint: .textSecondary)
             }
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
     }

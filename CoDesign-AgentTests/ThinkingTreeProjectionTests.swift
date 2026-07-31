@@ -5,6 +5,30 @@ import Testing
 @testable import CoDesign_Agent
 
 struct ThinkingTreeProjectionTests {
+    @Test func dottedBackgroundScalesSpacingAndDotSizeTogether() {
+        let baseSpacing = MindTreeDottedBackgroundMetrics.spacing(for: 1)
+        let baseDiameter = MindTreeDottedBackgroundMetrics.dotDiameter(for: 1)
+
+        #expect(
+            MindTreeDottedBackgroundMetrics.spacing(for: 1.8)
+                == baseSpacing * 1.8
+        )
+        #expect(
+            MindTreeDottedBackgroundMetrics.dotDiameter(for: 0.6)
+                == baseDiameter * 0.6
+        )
+    }
+
+    @Test func dottedBackgroundPhaseFollowsCanvasOffset() {
+        let phase = MindTreeDottedBackgroundMetrics.phase(
+            for: CGSize(width: 37, height: -22),
+            scale: 1
+        )
+
+        #expect(phase.x == 1)
+        #expect(phase.y == -4)
+    }
+
     @Test @MainActor func scaffoldTurnsAreCollapsedIntoCoreQuestion() {
         let base = Date()
         let coreQuestion = moment("question", "核心问题：用户是谁？", at: base)
@@ -663,6 +687,102 @@ struct ThinkingTreeProjectionTests {
         let newX = layout.node(for: "new-question")?.position.x ?? 0
         #expect(oldX < forkX)
         #expect(newX > forkX)
+    }
+
+    @Test @MainActor func activeTrunkNumbersStayCanonicalWhenOldBranchCoexists() {
+        let fixture = rollbackFixture(stageStatus: "needsReview")
+        let tree = TreeBuilder().build(
+            project: fixture.project,
+            expandedTransitionOrders: [1],
+            visibleStageLimit: 1
+        )
+
+        let activeNumbers = tree.nodes
+            .filter { $0.kind == .question && $0.isActiveBranch }
+            .sorted { ($0.questionNumber ?? 0) < ($1.questionNumber ?? 0) }
+            .compactMap(\.questionNumber)
+        #expect(activeNumbers == [1, 2, 3, 4, 5, 6])
+
+        let oldNumbers = tree.nodes
+            .filter { $0.kind == .question && !$0.isActiveBranch }
+            .sorted { ($0.questionNumber ?? 0) < ($1.questionNumber ?? 0) }
+            .compactMap(\.questionNumber)
+        #expect(oldNumbers == [4, 5, 6])
+        #expect(
+            tree.nodes.contains {
+                $0.isActiveBranch && $0.questionNumber == 4
+            }
+        )
+        #expect(
+            tree.nodes.contains {
+                !$0.isActiveBranch && $0.questionNumber == 4
+            }
+        )
+    }
+
+    @Test @MainActor func legacyArchivedParentStillSharesNumberWithActiveTrunk() {
+        let base = Date()
+        let archivedAt = base.addingTimeInterval(10)
+        let project = stageProject(stageOneStatus: "needsReview")
+        let activeFirst = question("当前问题 01", stage: 1, at: base)
+        let archivedAnchor = question(
+            "旧分叉锚点",
+            stage: 1,
+            at: base.addingTimeInterval(1),
+            isActive: false,
+            archivedAt: archivedAt
+        )
+        let archivedAnswer = ThinkingMoment(
+            momType: "answer",
+            content: "旧回答",
+            stageOrder: 1,
+            parentMomentID: archivedAnchor.id,
+            timestamp: base.addingTimeInterval(1.5),
+            isActiveBranch: false,
+            archivedAt: archivedAt
+        )
+        let archivedFollowup = question(
+            "旧问题 02",
+            stage: 1,
+            at: base.addingTimeInterval(2),
+            parentID: archivedAnchor.id,
+            isActive: false,
+            archivedAt: archivedAt
+        )
+        let activeReplacement = question(
+            "当前问题 02",
+            stage: 1,
+            at: base.addingTimeInterval(3),
+            branchVersion: 2
+        )
+        project.thinkingMoments = [
+            activeFirst,
+            archivedAnchor,
+            archivedAnswer,
+            archivedFollowup,
+            activeReplacement,
+        ]
+
+        let tree = TreeBuilder().build(
+            project: project,
+            expandedTransitionOrders: [1],
+            visibleStageLimit: 1
+        )
+
+        #expect(
+            tree.nodes.contains {
+                $0.momentID == activeReplacement.id
+                    && $0.questionNumber == 2
+                    && $0.isActiveBranch
+            }
+        )
+        #expect(
+            tree.nodes.contains {
+                $0.momentID == archivedFollowup.id
+                    && $0.questionNumber == 2
+                    && !$0.isActiveBranch
+            }
+        )
     }
 
     @Test @MainActor func repeatedRollbacksCreateNestedBinaryForks() {

@@ -113,12 +113,6 @@ struct ProjectDetailView: View {
                     project: project,
                     chatViewModel: chatVM,
                     mindTreePresentationState: mindTreePresentationState,
-                    onReviewBrief: {
-                        selectTab(.insights)
-                    },
-                    onRevisitPreviousStage: {
-                        selectTab(.progress)
-                    },
                     onExportBrief: {
                         isShowingExportSheet = true
                     },
@@ -147,12 +141,6 @@ struct ProjectDetailView: View {
                         selectTab(.workspace)
                     }
                 )
-            case .portfolio:
-                VisualPortfolioView(project: project)
-            case .progress:
-                ProgressPanel(project: project)
-            case .insights:
-                InsightsPanel(project: project)
             }
         } else {
             ProgressView("正在准备工作台...")
@@ -284,33 +272,6 @@ private struct ProjectExportStatusMessage: Identifiable {
     let id = UUID()
     let text: String
     let isError: Bool
-}
-
-// MARK: - Header
-
-struct ProjectDetailHeader: View {
-    let project: Project
-    let viewModel: ProjectDetailViewModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacingSmall) {
-            Text(project.briefDescription)
-                .font(.subheadline)
-                .foregroundStyle(Color.textSecondary)
-
-            ProgressView(value: project.completionRate)
-                .tint(.primaryAccent)
-
-            HStack(spacing: AppTheme.spacingMedium) {
-                Label("\(viewModel.completionPercent(for: project))%", systemImage: "chart.bar.fill")
-                Label("\(project.messages.count)", systemImage: "bubble.left.fill")
-                Label("\(project.stages.count)", systemImage: "list.number")
-                Label("\(project.learningTraces.count)", systemImage: "lightbulb.fill")
-            }
-            .font(.caption)
-            .foregroundStyle(Color.textTertiary)
-        }
-    }
 }
 
 // MARK: - Preview

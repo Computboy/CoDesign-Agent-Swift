@@ -11,8 +11,6 @@ struct ClarificationWorkspaceView: View {
     let project: Project
     let chatViewModel: ChatViewModel
     var mindTreePresentationState: MindTreePresentationState? = nil
-    var onReviewBrief: () -> Void = {}
-    var onRevisitPreviousStage: () -> Void = {}
     var onExportBrief: () -> Void = {}
     var onOpenProjectLibrary: () -> Void = {}
     var onStartMindTreeCreation: () -> Void = {}
@@ -40,6 +38,9 @@ struct ClarificationWorkspaceView: View {
                 #if os(iOS)
                 .frame(minHeight: 620)
                 .presentationSizing(.form)
+                // Give the nested Design Brief ScrollView priority over the
+                // sheet's resize gesture when the user swipes its cards.
+                .presentationContentInteraction(.scrolls)
                 .presentationDragIndicator(.visible)
                 #endif
         }
@@ -144,8 +145,9 @@ struct ClarificationWorkspaceView: View {
                             includesHeader: false,
                             showsResourcePanel: false,
                             dashboardActions: dashboardActions,
-                            onReviewBrief: onReviewBrief,
-                            onRevisitPreviousStage: onRevisitPreviousStage,
+                            onReviewBrief: {
+                                presentedAccessory = .brief
+                            },
                             onExportBrief: onExportBrief
                         )
                         .frame(
@@ -370,8 +372,9 @@ struct ClarificationWorkspaceView: View {
                     CurrentWorkspaceColumn(
                         project: project,
                         chatViewModel: chatViewModel,
-                        onReviewBrief: onReviewBrief,
-                        onRevisitPreviousStage: onRevisitPreviousStage,
+                        onReviewBrief: {
+                            presentedAccessory = .brief
+                        },
                         onExportBrief: onExportBrief
                     )
                 }
@@ -398,8 +401,9 @@ struct ClarificationWorkspaceView: View {
                     project: project,
                     chatViewModel: chatViewModel,
                     includesHeader: true,
-                    onReviewBrief: onReviewBrief,
-                    onRevisitPreviousStage: onRevisitPreviousStage,
+                    onReviewBrief: {
+                        presentedAccessory = .brief
+                    },
                     onExportBrief: onExportBrief
                 )
 
@@ -438,12 +442,23 @@ struct ClarificationWorkspaceView: View {
                     .coDesignHideScrollIndicators()
                     .background(Color.appBackground)
                 case .brief:
-                    ScrollView(.vertical, showsIndicators: false) {
-                        InsightCardsPanel(project: project)
-                            .padding(AppTheme.spacingMedium)
+                    GeometryReader { proxy in
+                        ScrollView(.vertical, showsIndicators: false) {
+                            InsightCardsPanel(project: project)
+                                // Preserve the panel's full intrinsic height so
+                                // the outer ScrollView has real content to move.
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(AppTheme.spacingMedium)
+                        }
+                        // A form-sized sheet can otherwise measure the ScrollView
+                        // at its full ideal content height and then visually clip
+                        // it. Pinning the viewport to the sheet's available size
+                        // gives the ScrollView a finite height and a real scroll
+                        // range.
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .coDesignHideScrollIndicators()
+                        .background(Color.appBackground)
                     }
-                    .coDesignHideScrollIndicators()
-                    .background(Color.appBackground)
                 case .learning:
                     ScrollView(.vertical, showsIndicators: false) {
                         LearningTraceSection(project: project)
@@ -995,7 +1010,6 @@ private struct CurrentWorkspaceColumn: View {
     var showsResourcePanel: Bool = true
     var dashboardActions: WorkspaceDashboardActions?
     var onReviewBrief: () -> Void = {}
-    var onRevisitPreviousStage: () -> Void = {}
     var onExportBrief: () -> Void = {}
 
     // MARK: - Completion Detection
@@ -1046,8 +1060,7 @@ private struct CurrentWorkspaceColumn: View {
                     project: project,
                     onSend: send,
                     onExport: onExportBrief,
-                    onReviewBrief: onReviewBrief,
-                    onRevisitPreviousStage: onRevisitPreviousStage
+                    onReviewBrief: onReviewBrief
                 )
             } else {
                 CurrentClarificationCard(

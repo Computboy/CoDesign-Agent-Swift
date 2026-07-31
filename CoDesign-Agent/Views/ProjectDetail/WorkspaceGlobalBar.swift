@@ -56,7 +56,7 @@ struct WorkspaceGlobalBar: View {
 
                 Spacer(minLength: 24)
 
-                trailingActions
+                exportButton(compact: false)
             }
 
             primaryModePicker
@@ -206,60 +206,11 @@ struct WorkspaceGlobalBar: View {
         .accessibilityIdentifier("workspace.mode.\(tab.rawValue)")
     }
 
-    private var trailingActions: some View {
-        HStack(spacing: 8) {
-            viewModeMenu
-            exportButton(compact: false)
-        }
-    }
-
-    private var viewModeMenu: some View {
-        Menu {
-            Button {
-                onSelectTab(.portfolio)
-            } label: {
-                Label("作品档案", systemImage: ProjectDetailTab.portfolio.systemImage)
-            }
-
-            Button {
-                onSelectTab(.insights)
-            } label: {
-                Label("设计洞察", systemImage: ProjectDetailTab.insights.systemImage)
-            }
-
-            Button {
-                onSelectTab(.progress)
-            } label: {
-                Label("阶段进度", systemImage: ProjectDetailTab.progress.systemImage)
-            }
-
-            Divider()
-
-            Button(action: onExportBrief) {
-                Label("导出报告", systemImage: "square.and.arrow.up")
-            }
-        } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 17, weight: .bold))
-                .foregroundStyle(Color.textPrimary)
-                .frame(width: 42, height: 42)
-                .background(actionBackground(isSelected: false))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("更多")
-    }
-
     private var compactNavigationMenu: some View {
         Menu {
             compactDestination("工作台", icon: "sparkles", tab: .workspace)
             compactDestination("思维树", icon: ProjectDetailTab.mindTree.systemImage, tab: .mindTree)
             compactDestination("成果看板", icon: ProjectDetailTab.visualBoard.systemImage, tab: .visualBoard)
-
-            Divider()
-
-            compactDestination("作品档案", icon: ProjectDetailTab.portfolio.systemImage, tab: .portfolio)
-            compactDestination("设计洞察", icon: ProjectDetailTab.insights.systemImage, tab: .insights)
-            compactDestination("阶段进度", icon: ProjectDetailTab.progress.systemImage, tab: .progress)
         } label: {
             Label(
                 selectedTab == .workspace ? "工作台" : selectedTab.title,

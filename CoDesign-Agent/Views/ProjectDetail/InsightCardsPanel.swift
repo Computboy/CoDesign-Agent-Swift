@@ -36,7 +36,11 @@ struct InsightCardsPanel: View {
             if showsPanelChrome {
                 panelContent
                     .padding(AppTheme.Layout.cardPadding)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    // Let the parent ScrollView measure the full card stack.
+                    // An unbounded maxHeight here makes the sheet treat the
+                    // panel as viewport-sized, so content below the fold
+                    // cannot receive vertical scrolling gestures.
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                     .background(
                         RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
                             .fill(Color.panelBackground)

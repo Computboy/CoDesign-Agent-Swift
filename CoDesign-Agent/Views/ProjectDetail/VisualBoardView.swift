@@ -1135,13 +1135,13 @@ private struct RiskEmptyState: View {
                     .font(BoardTypography.cardTitle)
                     .foregroundStyle(Color.textPrimary)
 
-                Text("让 AI 追问“最可能失败在哪里”，这里会自动形成风险矩阵。")
+                Text("AI会根据交互内容，自动形成风险矩阵，用来提示产品开发中可能遇到的风险。")
                     .font(BoardTypography.cardBody)
                     .foregroundStyle(Color.textTertiary)
                     .lineLimit(2)
 
                 Button(action: onStartDiscovery) {
-                    Label("开始识别风险", systemImage: "sparkles")
+                    Label("返回工作台继续澄清", systemImage: "sparkles")
                         .font(.callout.weight(.semibold))
                         .foregroundStyle(BoardPalette.indigo)
                         .padding(.horizontal, 12)

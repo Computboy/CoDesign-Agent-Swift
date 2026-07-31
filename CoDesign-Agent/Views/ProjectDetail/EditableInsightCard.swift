@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftData
+#if os(iOS)
+import UIKit
+#endif
 
 // MARK: - EditableInsightCard
 
@@ -99,7 +102,19 @@ struct EditableInsightCard: View {
             // Main card content
             cardContent
                 .offset(x: dragOffset)
+                #if os(iOS)
+                // Fail before recognition when the drag is vertical. This lets
+                // the enclosing Design Brief ScrollView own vertical panning,
+                // while preserving the card's horizontal review interaction.
+                .gesture(
+                    HorizontalCardSwipeGesture(
+                        onChanged: updateSwipe(translation:),
+                        onEnded: finishSwipe(translation:)
+                    )
+                )
+                #else
                 .gesture(swipeGesture)
+                #endif
                 .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.7), value: dragOffset)
         }
     }
@@ -107,30 +122,36 @@ struct EditableInsightCard: View {
     private var swipeGesture: some Gesture {
         DragGesture()
             .onChanged { value in
-                // Only apply horizontal drag if horizontal movement is greater than vertical
                 if abs(value.translation.width) > abs(value.translation.height) {
-                    isDragging = true
-                    dragOffset = value.translation.width
+                    updateSwipe(translation: value.translation.width)
                 }
             }
             .onEnded { value in
-                isDragging = false
-
-                // Only trigger action if horizontal movement was dominant and exceeds threshold
                 if abs(value.translation.width) > abs(value.translation.height) {
-                    if value.translation.width > swipeThreshold {
-                        // Right swipe: confirm
-                        onConfirm()
-                    } else if value.translation.width < -swipeThreshold {
-                        // Left swipe: reject
-                        onReject()
-                    }
-                }
-
-                withAnimation(AppTheme.Animation.spring) {
-                    dragOffset = 0
+                    finishSwipe(translation: value.translation.width)
+                } else {
+                    finishSwipe(translation: 0)
                 }
             }
+    }
+
+    private func updateSwipe(translation: CGFloat) {
+        isDragging = true
+        dragOffset = translation
+    }
+
+    private func finishSwipe(translation: CGFloat) {
+        isDragging = false
+
+        if translation > swipeThreshold {
+            onConfirm()
+        } else if translation < -swipeThreshold {
+            onReject()
+        }
+
+        withAnimation(AppTheme.Animation.spring) {
+            dragOffset = 0
+        }
     }
 
     @ViewBuilder
@@ -364,6 +385,73 @@ struct EditableInsightCard: View {
         #endif
     }
 }
+
+#if os(iOS)
+/// A direction-locked pan recognizer for card review gestures.
+///
+/// SwiftUI's `DragGesture` begins before its `onChanged` direction check runs,
+/// which can prevent an ancestor `ScrollView` from ever receiving a vertical
+/// drag. This recognizer rejects vertical pans in
+/// `gestureRecognizerShouldBegin`, before gesture arbitration completes.
+private struct HorizontalCardSwipeGesture: UIGestureRecognizerRepresentable {
+    let onChanged: (CGFloat) -> Void
+    let onEnded: (CGFloat) -> Void
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onChanged: (CGFloat) -> Void
+        var onEnded: (CGFloat) -> Void
+
+        init(
+            onChanged: @escaping (CGFloat) -> Void,
+            onEnded: @escaping (CGFloat) -> Void
+        ) {
+            self.onChanged = onChanged
+            self.onEnded = onEnded
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let panGesture = gestureRecognizer as? UIPanGestureRecognizer else {
+                return false
+            }
+
+            let velocity = panGesture.velocity(in: panGesture.view)
+            return abs(velocity.x) > abs(velocity.y)
+        }
+
+    }
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+        Coordinator(onChanged: onChanged, onEnded: onEnded)
+    }
+
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let recognizer = UIPanGestureRecognizer()
+        recognizer.delegate = context.coordinator
+        recognizer.maximumNumberOfTouches = 1
+        return recognizer
+    }
+
+    func updateUIGestureRecognizer(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        context.coordinator.onChanged = onChanged
+        context.coordinator.onEnded = onEnded
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        let translation = recognizer.translation(in: recognizer.view).x
+
+        switch recognizer.state {
+        case .began, .changed:
+            context.coordinator.onChanged(translation)
+        case .ended:
+            context.coordinator.onEnded(translation)
+        case .cancelled, .failed:
+            context.coordinator.onEnded(0)
+        default:
+            break
+        }
+    }
+}
+#endif
 
 // MARK: - Preview
 

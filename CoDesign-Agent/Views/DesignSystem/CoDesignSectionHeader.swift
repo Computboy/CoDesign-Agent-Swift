@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - CoDesignSectionHeader
 
 /// A section header with title, optional subtitle, and optional trailing action.
-/// Used for organizing InsightsPanel, Workspace sections, and ProjectList groups.
+/// Used for organizing workspace sections and project-list groups.
 ///
 /// Usage:
 /// ```swift
