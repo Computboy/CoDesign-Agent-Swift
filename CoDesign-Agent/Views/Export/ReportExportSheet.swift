@@ -92,6 +92,7 @@ struct ReportExportSheet: View {
             Text("导出内容")
                 .font(AppTheme.Typography.headline)
                 .foregroundStyle(Color.textPrimary)
+                .padding(.horizontal, AppTheme.Layout.cardPadding)
 
             VStack(spacing: 0) {
                 exportOptionRow(
@@ -159,21 +160,27 @@ struct ReportExportSheet: View {
         isOn: Binding<Bool>,
         isDisabled: Bool = false
     ) -> some View {
-        Toggle(title, isOn: isOn)
-            .disabled(isDisabled)
-            .padding(.horizontal, AppTheme.spacingMedium)
-            .frame(minHeight: 50)
+        HStack(alignment: .center, spacing: AppTheme.spacingLarge) {
+            Text(title)
+                .foregroundStyle(isDisabled ? Color.textSecondary : Color.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Toggle(title, isOn: isOn)
+                .labelsHidden()
+                .accessibilityLabel(title)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 52, alignment: .center)
+        .disabled(isDisabled)
     }
 
     private var exportOptionDivider: some View {
         Divider()
-            .padding(.horizontal, AppTheme.spacingMedium)
     }
 
     private var optionGroupDivider: some View {
         Divider()
-            .padding(.vertical, AppTheme.spacingSmall)
-            .padding(.horizontal, AppTheme.spacingSmall)
+            .padding(.vertical, AppTheme.spacingXS)
     }
 
     @ViewBuilder
