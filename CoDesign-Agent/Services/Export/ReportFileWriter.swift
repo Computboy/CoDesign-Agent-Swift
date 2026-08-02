@@ -7,7 +7,7 @@ enum ReportFileWriter {
 
         switch format {
         case .pdf:
-            return "\(safeName)-AI产品设计报告-\(dateString).pdf"
+            return "\(safeName)-AI产品设计交接简报-\(dateString).pdf"
         case .markdown:
             return "\(safeName)-AI产品设计报告-\(dateString).md"
         case .json:

@@ -16,7 +16,7 @@ private final class MindTreeResizingCanvasView: PKCanvasView {
     }
 }
 
-enum MindTreeAnnotationInputPolicy {
+enum MindTreeAnnotationInputPolicy: Equatable {
     case anyInput
     case pencilOnly
 
@@ -27,6 +27,10 @@ enum MindTreeAnnotationInputPolicy {
         case .pencilOnly:
             return .pencilOnly
         }
+    }
+
+    fileprivate var enablesFingerNavigation: Bool {
+        self == .pencilOnly
     }
 }
 
@@ -97,11 +101,19 @@ struct MindTreeAnnotationCanvas: UIViewRepresentable {
     var inputPolicy: MindTreeAnnotationInputPolicy = .anyInput
     let controller: MindTreeAnnotationCanvasController
     let onDebouncedDrawingChange: (Data) -> Void
+    let onFingerPanChanged: (CGSize) -> Void
+    let onFingerPanEnded: (CGSize) -> Void
+    let onFingerMagnificationChanged: (CGFloat) -> Void
+    let onFingerMagnificationEnded: (CGFloat) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             controller: controller,
-            onDebouncedDrawingChange: onDebouncedDrawingChange
+            onDebouncedDrawingChange: onDebouncedDrawingChange,
+            onFingerPanChanged: onFingerPanChanged,
+            onFingerPanEnded: onFingerPanEnded,
+            onFingerMagnificationChanged: onFingerMagnificationChanged,
+            onFingerMagnificationEnded: onFingerMagnificationEnded
         )
     }
 
@@ -119,8 +131,13 @@ struct MindTreeAnnotationCanvas: UIViewRepresentable {
         canvasView.isUserInteractionEnabled = isInteractionEnabled
         canvasView.tool = PKInkingTool(.pen, color: .systemBlue, width: 5)
         canvasView.accessibilityLabel = "思维树批注画布"
+        canvasView.accessibilityHint = "使用 Apple Pencil 书写；单指移动，双指缩放"
 
         context.coordinator.attach(canvasView)
+        context.coordinator.updateFingerNavigation(
+            enabled: inputPolicy.enablesFingerNavigation,
+            on: canvasView
+        )
         context.coordinator.loadDrawing(
             data: drawingData,
             identity: drawingIdentity,
@@ -135,9 +152,17 @@ struct MindTreeAnnotationCanvas: UIViewRepresentable {
 
     func updateUIView(_ canvasView: PKCanvasView, context: Context) {
         context.coordinator.onDebouncedDrawingChange = onDebouncedDrawingChange
+        context.coordinator.onFingerPanChanged = onFingerPanChanged
+        context.coordinator.onFingerPanEnded = onFingerPanEnded
+        context.coordinator.onFingerMagnificationChanged = onFingerMagnificationChanged
+        context.coordinator.onFingerMagnificationEnded = onFingerMagnificationEnded
         canvasView.drawingPolicy = inputPolicy.pencilKitPolicy
         canvasView.isUserInteractionEnabled = isInteractionEnabled
         canvasView.contentSize = canvasView.bounds.size
+        context.coordinator.updateFingerNavigation(
+            enabled: inputPolicy.enablesFingerNavigation,
+            on: canvasView
+        )
 
         if context.coordinator.loadedDrawingIdentity != drawingIdentity {
             context.coordinator.loadDrawing(
@@ -160,8 +185,12 @@ struct MindTreeAnnotationCanvas: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, PKCanvasViewDelegate {
+    final class Coordinator: NSObject, PKCanvasViewDelegate, UIGestureRecognizerDelegate {
         fileprivate var onDebouncedDrawingChange: (Data) -> Void
+        fileprivate var onFingerPanChanged: (CGSize) -> Void
+        fileprivate var onFingerPanEnded: (CGSize) -> Void
+        fileprivate var onFingerMagnificationChanged: (CGFloat) -> Void
+        fileprivate var onFingerMagnificationEnded: (CGFloat) -> Void
         fileprivate var loadedDrawingIdentity: UUID?
 
         private let controller: MindTreeAnnotationCanvasController
@@ -169,15 +198,25 @@ struct MindTreeAnnotationCanvas: UIViewRepresentable {
         private var toolPicker: PKToolPicker?
         private var debounceWorkItem: DispatchWorkItem?
         private var pendingDrawingData: Data?
+        private var fingerPanGesture: UIPanGestureRecognizer?
+        private var fingerPinchGesture: UIPinchGestureRecognizer?
         private var isLoadingDrawing = false
         private let debounceInterval: TimeInterval = 0.4
 
         init(
             controller: MindTreeAnnotationCanvasController,
-            onDebouncedDrawingChange: @escaping (Data) -> Void
+            onDebouncedDrawingChange: @escaping (Data) -> Void,
+            onFingerPanChanged: @escaping (CGSize) -> Void,
+            onFingerPanEnded: @escaping (CGSize) -> Void,
+            onFingerMagnificationChanged: @escaping (CGFloat) -> Void,
+            onFingerMagnificationEnded: @escaping (CGFloat) -> Void
         ) {
             self.controller = controller
             self.onDebouncedDrawingChange = onDebouncedDrawingChange
+            self.onFingerPanChanged = onFingerPanChanged
+            self.onFingerPanEnded = onFingerPanEnded
+            self.onFingerMagnificationChanged = onFingerMagnificationChanged
+            self.onFingerMagnificationEnded = onFingerMagnificationEnded
         }
 
         func attach(_ canvasView: PKCanvasView) {
@@ -200,6 +239,82 @@ struct MindTreeAnnotationCanvas: UIViewRepresentable {
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             guard !isLoadingDrawing else { return }
             captureDrawingChange()
+        }
+
+        fileprivate func updateFingerNavigation(
+            enabled: Bool,
+            on canvasView: PKCanvasView
+        ) {
+            if fingerPanGesture == nil {
+                let pan = UIPanGestureRecognizer(
+                    target: self,
+                    action: #selector(handleFingerPan(_:))
+                )
+                pan.minimumNumberOfTouches = 1
+                pan.maximumNumberOfTouches = 1
+                pan.allowedTouchTypes = [
+                    NSNumber(value: UITouch.TouchType.direct.rawValue)
+                ]
+                pan.cancelsTouchesInView = false
+                pan.delegate = self
+                canvasView.addGestureRecognizer(pan)
+                fingerPanGesture = pan
+            }
+
+            if fingerPinchGesture == nil {
+                let pinch = UIPinchGestureRecognizer(
+                    target: self,
+                    action: #selector(handleFingerPinch(_:))
+                )
+                pinch.allowedTouchTypes = [
+                    NSNumber(value: UITouch.TouchType.direct.rawValue)
+                ]
+                pinch.cancelsTouchesInView = false
+                pinch.delegate = self
+                canvasView.addGestureRecognizer(pinch)
+                fingerPinchGesture = pinch
+            }
+
+            fingerPanGesture?.isEnabled = enabled
+            fingerPinchGesture?.isEnabled = enabled
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            gestureRecognizer === fingerPanGesture
+                || gestureRecognizer === fingerPinchGesture
+        }
+
+        @objc
+        private func handleFingerPan(_ gesture: UIPanGestureRecognizer) {
+            guard let canvasView else { return }
+            let point = gesture.translation(in: canvasView)
+            let translation = CGSize(width: point.x, height: point.y)
+
+            switch gesture.state {
+            case .began, .changed:
+                onFingerPanChanged(translation)
+            case .ended, .cancelled, .failed:
+                onFingerPanEnded(translation)
+            default:
+                break
+            }
+        }
+
+        @objc
+        private func handleFingerPinch(_ gesture: UIPinchGestureRecognizer) {
+            let magnification = CGFloat(gesture.scale)
+
+            switch gesture.state {
+            case .began, .changed:
+                onFingerMagnificationChanged(magnification)
+            case .ended, .cancelled, .failed:
+                onFingerMagnificationEnded(magnification)
+            default:
+                break
+            }
         }
 
         fileprivate func loadDrawing(
@@ -297,6 +412,123 @@ struct MindTreeAnnotationCanvas: UIViewRepresentable {
                 deadline: .now() + debounceInterval,
                 execute: workItem
             )
+        }
+    }
+}
+
+/// Read-only PencilKit renderer used while browsing the tree. The projected
+/// drawing is rasterized only when its identity changes; resource-card drags
+/// can then fade this entire layer without rebuilding any strokes.
+struct MindTreeAnnotationInkOverlay: UIViewRepresentable {
+    let groups: [MindTreeAnchoredInkGroup]
+    let snapshot: MindTreeAnnotationLayoutSnapshot
+    let drawingIdentity: UUID
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = .clear
+        view.isOpaque = false
+        view.isUserInteractionEnabled = false
+        view.accessibilityElementsHidden = true
+        context.coordinator.render(
+            groups: groups,
+            snapshot: snapshot,
+            identity: drawingIdentity,
+            in: view
+        )
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        context.coordinator.render(
+            groups: groups,
+            snapshot: snapshot,
+            identity: drawingIdentity,
+            in: view
+        )
+    }
+
+    final class Coordinator {
+        private var loadedDrawingIdentity: UUID?
+        private var loadedGroupIDs: [UUID] = []
+
+        func render(
+            groups: [MindTreeAnchoredInkGroup],
+            snapshot: MindTreeAnnotationLayoutSnapshot,
+            identity: UUID,
+            in container: UIView
+        ) {
+            let groupIDs = groups.map(\.id)
+            guard loadedDrawingIdentity != identity
+                    || loadedGroupIDs != groupIDs else {
+                return
+            }
+
+            loadedDrawingIdentity = identity
+            loadedGroupIDs = groupIDs
+            container.subviews.forEach { $0.removeFromSuperview() }
+
+            var drawing = PKDrawing()
+            for group in groups where group.resolutionState != .hidden {
+                guard let localDrawing = try? PKDrawing(data: group.drawingData) else {
+                    continue
+                }
+
+                if let frame = snapshot.frame(for: group.anchor) {
+                    drawing.append(
+                        localDrawing.transformed(
+                            using: CGAffineTransform(
+                                translationX: frame.x,
+                                y: frame.y
+                            )
+                        )
+                    )
+                } else if group.resolutionState == .unresolved {
+                    let target = CGPoint(
+                        x: clampedNormalized(group.fallbackNormalizedX)
+                            * snapshot.contentWidth,
+                        y: clampedNormalized(group.fallbackNormalizedY)
+                            * snapshot.contentHeight
+                    )
+                    let localCenter = CGPoint(
+                        x: localDrawing.bounds.midX,
+                        y: localDrawing.bounds.midY
+                    )
+                    drawing.append(
+                        localDrawing.transformed(
+                            using: CGAffineTransform(
+                                translationX: target.x - localCenter.x,
+                                y: target.y - localCenter.y
+                            )
+                        )
+                    )
+                }
+            }
+
+            guard !drawing.strokes.isEmpty else { return }
+            let imageBounds = drawing.bounds.insetBy(dx: -4, dy: -4)
+            guard imageBounds.width > 0, imageBounds.height > 0 else { return }
+
+            let imageView = UIImageView(
+                image: drawing.image(
+                    from: imageBounds,
+                    scale: max(container.traitCollection.displayScale, 1)
+                )
+            )
+            imageView.frame = imageBounds
+            imageView.backgroundColor = .clear
+            imageView.isOpaque = false
+            imageView.isUserInteractionEnabled = false
+            container.addSubview(imageView)
+        }
+
+        private func clampedNormalized(_ value: Double) -> Double {
+            guard value.isFinite else { return 0.5 }
+            return min(max(value, 0), 1)
         }
     }
 }

@@ -32,6 +32,11 @@ struct ThinkingTreeView: View {
         let proposedY: Double
     }
 
+    private struct ResourceDeckDragSession: Equatable {
+        let questionID: String
+        let source: QuestionResourceDeckDragSource
+    }
+
     let project: Project
     var mode: DisplayMode = .standalone
     var chatViewModel: ChatViewModel?
@@ -49,7 +54,7 @@ struct ThinkingTreeView: View {
     @State private var selectedResourceAttachment:
         QuestionResourceAttachmentPresentation?
     @State private var resourceDeckDragProgress: [String: CGFloat] = [:]
-    @State private var activeResourceDeckDragQuestionID: String?
+    @State private var activeResourceDeckDragSession: ResourceDeckDragSession?
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -60,6 +65,8 @@ struct ThinkingTreeView: View {
     @State private var annotationDrawingData = Data()
     @State private var annotationTextItems: [MindTreeTextAnnotationItem] = []
     @State private var annotationInkGroups: [MindTreeAnchoredInkGroup] = []
+    @State private var annotationRenderingSnapshot:
+        MindTreeAnnotationLayoutSnapshot?
     @State private var annotationProjectionSummary = MindTreeAnnotationProjectionSummary()
     @State private var loadedAnnotationID: UUID?
     @State private var annotationDrawingIdentity = UUID()
@@ -137,9 +144,35 @@ struct ThinkingTreeView: View {
                     QuestionResourceDeckLayer(
                         presentations: resourcePresentations,
                         contentSize: canvasContentSize,
+                        activeDragQuestionID:
+                            activeResourceDeckDragSession?.questionID,
                         onSelect: { presentation in
                             guard interactionMode == .browsing else { return }
                             selectedResourceAttachment = presentation
+                        },
+                        onCollapseDragChanged: { presentation, translation in
+                            guard let node = graph.node(for: presentation.questionID) else {
+                                return
+                            }
+                            updateQuestionResourceDrag(
+                                node,
+                                translation: translation,
+                                source: .resourceCard
+                            )
+                        },
+                        onCollapseDragEnded: {
+                            presentation,
+                            translation,
+                            predictedTranslation in
+                            guard let node = graph.node(for: presentation.questionID) else {
+                                return
+                            }
+                            finishQuestionResourceDrag(
+                                node,
+                                translation: translation,
+                                predictedTranslation: predictedTranslation,
+                                source: .resourceCard
+                            )
                         }
                     )
                     .zIndex(3)
@@ -153,13 +186,13 @@ struct ThinkingTreeView: View {
                                 handleTap(node)
                             },
                             onResourceExpansionChanged: {
-                                toggleQuestionResources(node, in: graph)
+                                toggleQuestionResources(node)
                             },
                             onResourceDragChanged: { translation in
                                 updateQuestionResourceDrag(
                                     node,
                                     translation: translation,
-                                    in: graph
+                                    source: .questionNode
                                 )
                             },
                             onResourceDragEnded: {
@@ -169,7 +202,7 @@ struct ThinkingTreeView: View {
                                     node,
                                     translation: translation,
                                     predictedTranslation: predictedTranslation,
-                                    in: graph
+                                    source: .questionNode
                                 )
                             }
                         )
@@ -207,14 +240,19 @@ struct ThinkingTreeView: View {
                         #endif
                     }
 
-                    annotationCanvasLayer(graph: graph)
+                    annotationCanvasLayer(
+                        resourcePresentations: resourcePresentations
+                    )
                         .frame(
                             width: canvasContentSize.width,
                             height: canvasContentSize.height
                         )
                         .zIndex(10_000)
 
-                    annotationTextLayer(graph: graph)
+                    annotationTextLayer(
+                        graph: graph,
+                        resourcePresentations: resourcePresentations
+                    )
                         .frame(
                             width: canvasContentSize.width,
                             height: canvasContentSize.height
@@ -720,34 +758,106 @@ struct ThinkingTreeView: View {
     }
 
     @ViewBuilder
-    private func annotationCanvasLayer(graph: TreeData) -> some View {
+    private func annotationCanvasLayer(
+        resourcePresentations:
+            [QuestionResourceAttachmentPresentation]
+    ) -> some View {
         #if os(iOS) && canImport(PencilKit)
-        MindTreeAnnotationCanvas(
-            drawingData: annotationDrawingData,
-            drawingIdentity: annotationDrawingIdentity,
-            isInteractionEnabled: mode == .standalone && interactionMode == .annotating,
-            showsToolPicker: mode == .standalone &&
-                interactionMode == .annotating &&
-                textAnnotationEditorTarget == nil,
-            inputPolicy: .anyInput,
-            controller: annotationCanvasController,
-            onDebouncedDrawingChange: { data in
-                persistAnnotationDrawing(data)
+        if interactionMode == .annotating {
+            MindTreeAnnotationCanvas(
+                drawingData: annotationDrawingData,
+                drawingIdentity: annotationDrawingIdentity,
+                isInteractionEnabled: mode == .standalone,
+                showsToolPicker: mode == .standalone &&
+                    textAnnotationEditorTarget == nil,
+                inputPolicy: .pencilOnly,
+                controller: annotationCanvasController,
+                onDebouncedDrawingChange: { data in
+                    persistAnnotationDrawing(data)
+                },
+                onFingerPanChanged: { translation in
+                    updateAnnotationFingerPan(translation)
+                },
+                onFingerPanEnded: { translation in
+                    finishAnnotationFingerPan(translation)
+                },
+                onFingerMagnificationChanged: { magnification in
+                    updateAnnotationFingerMagnification(magnification)
+                },
+                onFingerMagnificationEnded: { magnification in
+                    finishAnnotationFingerMagnification(magnification)
+                }
+            )
+            .background(Color.clear)
+            .allowsHitTesting(mode == .standalone)
+            .accessibilityHidden(mode != .standalone)
+        } else if let snapshot = annotationRenderingSnapshot {
+            let resourceMomentIDs = Set(
+                resourcePresentations.map(\.binding.momentID)
+            )
+            let baseGroups = annotationInkGroups.filter {
+                guard let momentID = annotationMomentID(for: $0.anchor) else {
+                    return true
+                }
+                return !resourceMomentIDs.contains(momentID)
             }
-        )
-        .background(Color.clear)
-        .allowsHitTesting(mode == .standalone && interactionMode == .annotating)
-        .accessibilityHidden(mode != .standalone)
+
+            ZStack {
+                MindTreeAnnotationInkOverlay(
+                    groups: baseGroups,
+                    snapshot: snapshot,
+                    drawingIdentity: annotationDrawingIdentity
+                )
+
+                ForEach(resourcePresentations) { presentation in
+                    let groups = annotationInkGroups.filter {
+                        annotationMomentID(for: $0.anchor)
+                            == presentation.binding.momentID
+                    }
+                    MindTreeAnnotationInkOverlay(
+                        groups: groups,
+                        snapshot: snapshot,
+                        drawingIdentity: annotationDrawingIdentity
+                    )
+                    .opacity(
+                        QuestionResourceDeckLayout.annotationOpacity(
+                            cardProgress: presentation.cardProgress
+                        )
+                    )
+                }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
         #else
         EmptyView()
         #endif
     }
 
     @ViewBuilder
-    private func annotationTextLayer(graph: TreeData) -> some View {
+    private func annotationTextLayer(
+        graph: TreeData,
+        resourcePresentations:
+            [QuestionResourceAttachmentPresentation]
+    ) -> some View {
         #if os(iOS) && canImport(PencilKit)
+        let opacityByMomentID = Dictionary(
+            uniqueKeysWithValues: resourcePresentations.map { presentation in
+                (
+                    presentation.binding.momentID,
+                    QuestionResourceDeckLayout.annotationOpacity(
+                        cardProgress: presentation.cardProgress
+                    )
+                )
+            }
+        )
+
         ZStack {
             ForEach(annotationTextItems.filter { $0.resolutionState != .hidden }) { item in
+                let opacity = annotationOpacity(
+                    for: item.anchor,
+                    opacityByMomentID: opacityByMomentID
+                )
                 MindTreeTextAnnotationBox(
                     item: item,
                     isEditable: mode == .standalone && interactionMode == .annotating,
@@ -772,6 +882,13 @@ struct ThinkingTreeView: View {
                     }
                 )
                 .position(x: item.x, y: item.y)
+                .opacity(opacity)
+                .allowsHitTesting(
+                    mode == .standalone
+                        && interactionMode == .annotating
+                        && opacity > 0.01
+                )
+                .accessibilityHidden(opacity <= 0.01)
             }
         }
         .allowsHitTesting(mode == .standalone && interactionMode == .annotating)
@@ -779,6 +896,26 @@ struct ThinkingTreeView: View {
         #else
         EmptyView()
         #endif
+    }
+
+    private func annotationMomentID(
+        for anchor: MindTreeAnnotationAnchor?
+    ) -> UUID? {
+        guard let anchor,
+              case let .moment(id, _, _) = anchor else {
+            return nil
+        }
+        return id
+    }
+
+    private func annotationOpacity(
+        for anchor: MindTreeAnnotationAnchor?,
+        opacityByMomentID: [UUID: Double]
+    ) -> Double {
+        guard let momentID = annotationMomentID(for: anchor) else {
+            return 1
+        }
+        return opacityByMomentID[momentID] ?? 1
     }
 
     @ViewBuilder
@@ -898,6 +1035,7 @@ struct ThinkingTreeView: View {
             annotationDrawingData = Data()
             annotationTextItems = []
             annotationInkGroups = []
+            annotationRenderingSnapshot = nil
             annotationProjectionSummary = MindTreeAnnotationProjectionSummary()
             annotationDrawingIdentity = UUID()
             return
@@ -932,15 +1070,14 @@ struct ThinkingTreeView: View {
 
     private func annotationLayoutSnapshot(
         graph: TreeData,
-        fingerprint: String,
-        resourceDeckProgressOverride: [String: CGFloat]? = nil
+        fingerprint: String
     ) -> MindTreeAnnotationLayoutSnapshot {
-        let resourceDeckProgress = resourceDeckProgressOverride
-            ?? resourceDeckProgressByQuestionID(in: graph)
-        let canvasContentSize = QuestionResourceDeckLayout.canvasContentSize(
-            graph: graph,
-            progressByQuestionID: resourceDeckProgress
-        )
+        let resourceDeckProgress =
+            QuestionResourceDeckLayout.fullyExpandedProgressByQuestionID(
+                graph: graph
+            )
+        let canvasContentSize =
+            QuestionResourceDeckLayout.annotationContentSize(graph: graph)
         return MindTreeAnnotationProjectionService.layoutSnapshot(
             graph: graph,
             fingerprint: fingerprint,
@@ -1281,6 +1418,7 @@ struct ThinkingTreeView: View {
         loadedAnnotationID = annotationID
         annotationTextItems = projectedText
         annotationInkGroups = projectedInk.groups
+        annotationRenderingSnapshot = snapshot
         annotationDrawingData = projectedInk.drawingData
         annotationProjectionSummary = MindTreeAnnotationProjectionService.summary(
             textItems: projectedText,
@@ -1524,7 +1662,7 @@ struct ThinkingTreeView: View {
         selectedNode = node
     }
 
-    private func toggleQuestionResources(_ node: TreeNode, in graph: TreeData) {
+    private func toggleQuestionResources(_ node: TreeNode) {
         guard interactionMode == .browsing,
               node.hasCollapsedResources else {
             return
@@ -1538,59 +1676,86 @@ struct ThinkingTreeView: View {
             }
             resourceDeckDragProgress.removeValue(forKey: node.id)
         }
-        reprojectAnnotationsForResourceDeck(in: graph)
     }
 
     private func updateQuestionResourceDrag(
         _ node: TreeNode,
         translation: CGSize,
-        in graph: TreeData
+        source: QuestionResourceDeckDragSource
     ) {
+        let isExpanded = expandedResourceQuestionIDs.contains(node.id)
         guard interactionMode == .browsing,
-              node.hasCollapsedResources,
-              abs(translation.width) > abs(translation.height) * 1.18
-        else {
+              node.hasCollapsedResources else {
             return
         }
 
-        if let activeResourceDeckDragQuestionID,
-           activeResourceDeckDragQuestionID != node.id {
-            return
+        let session = ResourceDeckDragSession(
+            questionID: node.id,
+            source: source
+        )
+        if let activeResourceDeckDragSession {
+            guard activeResourceDeckDragSession == session else { return }
+        } else {
+            let capturesResourceCardDrag = source == .resourceCard
+                && isExpanded
+            guard capturesResourceCardDrag
+                    || QuestionResourceDeckInteraction.acceptsDrag(
+                        source: source,
+                        isExpanded: isExpanded,
+                        translation: translation
+                    ) else {
+                return
+            }
+            activeResourceDeckDragSession = session
         }
 
-        activeResourceDeckDragQuestionID = node.id
         offset = lastOffset
-        resourceDeckDragProgress[node.id] = QuestionResourceDeckLayout.progress(
-            isExpanded: expandedResourceQuestionIDs.contains(node.id),
+        let progress = QuestionResourceDeckLayout.progress(
+            isExpanded: isExpanded,
             translationX: translation.width
         )
-        reprojectAnnotationsForResourceDeck(in: graph)
+        let currentProgress = resourceDeckDragProgress[node.id]
+            ?? (isExpanded ? 1 : 0)
+        let hasMeaningfulProgressChange = abs(currentProgress - progress) >= 0.001
+        let reachesProgressEndpoint = progress == 0 || progress == 1
+        if currentProgress != progress
+            && (hasMeaningfulProgressChange || reachesProgressEndpoint) {
+            resourceDeckDragProgress[node.id] = progress
+        }
     }
 
     private func finishQuestionResourceDrag(
         _ node: TreeNode,
         translation: CGSize,
         predictedTranslation: CGSize,
-        in graph: TreeData
+        source: QuestionResourceDeckDragSource
     ) {
+        let wasExpanded = expandedResourceQuestionIDs.contains(node.id)
+        let session = ResourceDeckDragSession(
+            questionID: node.id,
+            source: source
+        )
+        let didBeginAcceptedDrag = activeResourceDeckDragSession == session
         guard interactionMode == .browsing,
               node.hasCollapsedResources,
-              abs(translation.width) > abs(translation.height) * 1.18,
-              activeResourceDeckDragQuestionID == nil
-                || activeResourceDeckDragQuestionID == node.id
-        else {
+              didBeginAcceptedDrag
+                || QuestionResourceDeckInteraction.acceptsDrag(
+                    source: source,
+                    isExpanded: wasExpanded,
+                    translation: translation
+                ) else {
             return
         }
 
-        let wasExpanded = expandedResourceQuestionIDs.contains(node.id)
         let shouldExpand = QuestionResourceDeckLayout.shouldExpand(
             isExpanded: wasExpanded,
+            translationX: translation.width,
             predictedTranslationX: predictedTranslation.width
         )
 
-        activeResourceDeckDragQuestionID = nil
+        activeResourceDeckDragSession = nil
         offset = lastOffset
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
+        withAnimation(.smooth(duration: 0.22)) {
             if shouldExpand {
                 resolvedPresentationState.expandedResourceQuestionIDs.insert(
                     node.id
@@ -1602,60 +1767,6 @@ struct ThinkingTreeView: View {
             }
             resourceDeckDragProgress.removeValue(forKey: node.id)
         }
-        reprojectAnnotationsForResourceDeck(in: graph)
-    }
-
-    private func reprojectAnnotationsForResourceDeck(in graph: TreeData) {
-        #if os(iOS) && canImport(PencilKit)
-        guard let annotationID = loadedAnnotationID else { return }
-
-        let resourceMomentIDs = Set(
-            graph.nodes
-                .filter {
-                    $0.kind == .question
-                        && $0.isActiveBranch
-                }
-                .flatMap(\.boundResources)
-                .map(\.momentID)
-        )
-        let hasResourceAnnotation = annotationTextItems.contains {
-            isResourceAnnotationAnchor(
-                $0.anchor,
-                resourceMomentIDs: resourceMomentIDs
-            )
-        } || annotationInkGroups.contains {
-            isResourceAnnotationAnchor(
-                $0.anchor,
-                resourceMomentIDs: resourceMomentIDs
-            )
-        }
-        guard hasResourceAnnotation else { return }
-
-        let fingerprint = treeFingerprint(for: graph)
-        let snapshot = annotationLayoutSnapshot(
-            graph: graph,
-            fingerprint: fingerprint,
-            resourceDeckProgressOverride:
-                resourceDeckProgressByQuestionID(in: graph)
-        )
-        applyProjection(
-            annotationID: annotationID,
-            textItems: annotationTextItems,
-            inkGroups: annotationInkGroups,
-            snapshot: snapshot
-        )
-        #endif
-    }
-
-    private func isResourceAnnotationAnchor(
-        _ anchor: MindTreeAnnotationAnchor?,
-        resourceMomentIDs: Set<UUID>
-    ) -> Bool {
-        guard let anchor,
-              case let .moment(id, _, _) = anchor else {
-            return false
-        }
-        return resourceMomentIDs.contains(id)
     }
 
     private func expandArchivedBranchIfNeeded() {
@@ -2151,7 +2262,7 @@ struct ThinkingTreeView: View {
         DragGesture(minimumDistance: 6, coordinateSpace: .local)
             .onChanged { value in
                 guard interactionMode == .browsing else { return }
-                guard activeResourceDeckDragQuestionID == nil else {
+                guard activeResourceDeckDragSession == nil else {
                     offset = lastOffset
                     return
                 }
@@ -2165,6 +2276,39 @@ struct ThinkingTreeView: View {
                 lastOffset = offset
             }
     }
+
+    #if os(iOS) && canImport(PencilKit)
+    private func updateAnnotationFingerPan(_ translation: CGSize) {
+        guard interactionMode == .annotating else { return }
+        offset = CGSize(
+            width: lastOffset.width + translation.width,
+            height: lastOffset.height + translation.height
+        )
+    }
+
+    private func finishAnnotationFingerPan(_ translation: CGSize) {
+        guard interactionMode == .annotating else { return }
+        updateAnnotationFingerPan(translation)
+        lastOffset = offset
+    }
+
+    private func updateAnnotationFingerMagnification(_ magnification: CGFloat) {
+        guard interactionMode == .annotating else { return }
+        setScalePreservingViewportCenter(
+            lastScale * magnification,
+            viewport: lastViewportSize,
+            animated: false,
+            commit: false
+        )
+    }
+
+    private func finishAnnotationFingerMagnification(_ magnification: CGFloat) {
+        guard interactionMode == .annotating else { return }
+        updateAnnotationFingerMagnification(magnification)
+        lastScale = scale
+        lastOffset = offset
+    }
+    #endif
 
     private func fitTreeToViewport(in viewport: CGSize, preserveScale: Bool) {
         guard viewport.width > 0, viewport.height > 0 else { return }

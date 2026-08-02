@@ -36,7 +36,18 @@ struct ReportExportOptions: Codable, Equatable {
 
     static func defaults(for format: ReportExportFormat) -> ReportExportOptions {
         switch format {
-        case .pdf, .markdown:
+        case .pdf:
+            return ReportExportOptions(
+                format: format,
+                includeDecisionTrace: false,
+                includeFullMindTree: false,
+                includeArchivedBranches: false,
+                includeResources: false,
+                includeConversationSummary: false,
+                includeReportSections: false,
+                includeDesignBrief: true
+            )
+        case .markdown:
             return ReportExportOptions(
                 format: format,
                 includeDecisionTrace: true,
@@ -64,7 +75,15 @@ struct ReportExportOptions: Codable, Equatable {
     mutating func normalizeForFormat() {
         let defaults = Self.defaults(for: format)
         switch format {
-        case .pdf, .markdown:
+        case .pdf:
+            includeDecisionTrace = false
+            includeFullMindTree = false
+            includeArchivedBranches = false
+            includeResources = false
+            includeConversationSummary = false
+            includeReportSections = false
+            includeDesignBrief = true
+        case .markdown:
             includeDecisionTrace = true
             includeReportSections = true
             includeDesignBrief = true

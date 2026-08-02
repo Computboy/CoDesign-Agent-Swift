@@ -95,50 +95,62 @@ struct ReportExportSheet: View {
                 .padding(.horizontal, AppTheme.Layout.cardPadding)
 
             VStack(spacing: 0) {
-                exportOptionRow(
-                    "最终设计报告",
-                    isOn: $options.includeReportSections,
-                    isDisabled: options.format == .json || options.format == .codesignPackage
-                )
-                exportOptionDivider
-                exportOptionRow(
-                    "设计决策路径",
-                    isOn: $options.includeDecisionTrace,
-                    isDisabled: true
-                )
-                exportOptionDivider
-                exportOptionRow(
-                    "资源线索与引用",
-                    isOn: $options.includeResources,
-                    isDisabled: options.format == .json || options.format == .codesignPackage
-                )
-                exportOptionDivider
-                exportOptionRow(
-                    "对话摘要",
-                    isOn: $options.includeConversationSummary
-                )
-
-                if options.format.isStaticReport {
-                    optionGroupDivider
-                    exportOptionRow(
-                        "完整思维树快照",
-                        isOn: $options.includeFullMindTree
-                    )
+                if options.format == .pdf {
+                    exportOptionRow("01 项目定义", isOn: .constant(true), isDisabled: true)
                     exportOptionDivider
-                    exportOptionRow(
-                        "回溯分支与旧方案",
-                        isOn: $options.includeArchivedBranches,
-                        isDisabled: !options.includeFullMindTree
-                    )
+                    exportOptionRow("02 产品范围", isOn: .constant(true), isDisabled: true)
+                    exportOptionDivider
+                    exportOptionRow("03 核心体验流程", isOn: .constant(true), isDisabled: true)
+                    exportOptionDivider
+                    exportOptionRow("04 AI 行为与用户控制", isOn: .constant(true), isDisabled: true)
+                    exportOptionDivider
+                    exportOptionRow("05 验证、风险与下一步", isOn: .constant(true), isDisabled: true)
                 } else {
-                    optionGroupDivider
-                    exportOptionRow("完整思维树", isOn: .constant(true), isDisabled: true)
+                    exportOptionRow(
+                        "最终设计报告",
+                        isOn: $options.includeReportSections,
+                        isDisabled: options.format == .json || options.format == .codesignPackage
+                    )
                     exportOptionDivider
-                    exportOptionRow("回溯分支与旧方案", isOn: .constant(true), isDisabled: true)
+                    exportOptionRow(
+                        "设计决策路径",
+                        isOn: $options.includeDecisionTrace,
+                        isDisabled: true
+                    )
                     exportOptionDivider
-                    exportOptionRow("Design Brief", isOn: .constant(true), isDisabled: true)
+                    exportOptionRow(
+                        "资源线索与引用",
+                        isOn: $options.includeResources,
+                        isDisabled: options.format == .json || options.format == .codesignPackage
+                    )
                     exportOptionDivider
-                    exportOptionRow("报告结构", isOn: .constant(true), isDisabled: true)
+                    exportOptionRow(
+                        "对话摘要",
+                        isOn: $options.includeConversationSummary
+                    )
+
+                    if options.format.isStaticReport {
+                        optionGroupDivider
+                        exportOptionRow(
+                            "完整思维树快照",
+                            isOn: $options.includeFullMindTree
+                        )
+                        exportOptionDivider
+                        exportOptionRow(
+                            "回溯分支与旧方案",
+                            isOn: $options.includeArchivedBranches,
+                            isDisabled: !options.includeFullMindTree
+                        )
+                    } else {
+                        optionGroupDivider
+                        exportOptionRow("完整思维树", isOn: .constant(true), isDisabled: true)
+                        exportOptionDivider
+                        exportOptionRow("回溯分支与旧方案", isOn: .constant(true), isDisabled: true)
+                        exportOptionDivider
+                        exportOptionRow("Design Brief", isOn: .constant(true), isDisabled: true)
+                        exportOptionDivider
+                        exportOptionRow("报告结构", isOn: .constant(true), isDisabled: true)
+                    }
                 }
             }
             .toggleStyle(.switch)
@@ -185,7 +197,20 @@ struct ReportExportSheet: View {
 
     @ViewBuilder
     private var formatExplanation: some View {
-        if options.format == .codesignPackage {
+        if options.format == .pdf {
+            Label(
+                "PDF 只呈现当前已确认的产品方案；完整思维树、分支、资源与批注请使用 .codesign 项目包保存。",
+                systemImage: "doc.text"
+            )
+            .font(AppTheme.Typography.caption)
+            .foregroundStyle(Color.primaryAccent)
+            .padding(AppTheme.Layout.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusLarge, style: .continuous)
+                    .fill(Color.primaryAccent.opacity(AppTheme.Opacity.light))
+            )
+        } else if options.format == .codesignPackage {
             Label(
                 "此文件可在 CoDesign Agent 中重新打开，查看可交互思维树、设计决策路径、回溯分支、Design Brief 与资源线索。",
                 systemImage: "point.3.connected.trianglepath.dotted"

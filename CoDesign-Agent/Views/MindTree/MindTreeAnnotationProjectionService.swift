@@ -31,8 +31,7 @@ struct MindTreeAnnotationProjectionService {
         var frames = graph.nodes.compactMap(anchorFrame(for:))
         frames.append(
             contentsOf: QuestionResourceDeckLayout.annotationFrames(
-                graph: graph,
-                progressByQuestionID: resourceDeckProgressByQuestionID
+                graph: graph
             )
         )
 

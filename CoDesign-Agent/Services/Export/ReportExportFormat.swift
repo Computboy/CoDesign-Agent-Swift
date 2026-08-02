@@ -25,7 +25,7 @@ enum ReportExportFormat: String, CaseIterable, Codable, Identifiable {
     var subtitle: String {
         switch self {
         case .pdf:
-            return "适合提交、评审、归档和对外展示。"
+            return "AI 产品设计交接简报，适合产品评审、原型、开发拆解与验证。"
         case .markdown:
             return "适合继续编辑、同步到 Notion / 飞书 / GitHub / PRD。"
         case .json:

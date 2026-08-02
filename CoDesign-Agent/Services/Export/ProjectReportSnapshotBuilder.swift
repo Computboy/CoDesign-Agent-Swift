@@ -181,17 +181,7 @@ struct ProjectReportSnapshotBuilder {
         project: Project,
         currentStageName: String
     ) -> ReportSectionsSnapshot {
-        let included = brief.boundaryItems.filter(\.isIncluded).map(\.content).joined(separator: "；")
-        let excluded = brief.boundaryItems.filter { !$0.isIncluded }.map(\.content).joined(separator: "；")
-        let coreComplete = [
-            brief.targetUser,
-            brief.painPoint,
-            brief.useScenario,
-            brief.coreValue
-        ].allSatisfy { value in
-            let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return !trimmed.isEmpty
-        }
+        let semantic = ReportSemanticMapper().map(brief: brief)
 
         return ReportSectionsSnapshot(
             projectSummary: [
@@ -202,53 +192,11 @@ struct ProjectReportSnapshotBuilder {
                 "差异化价值": ReportSnapshotValue.text(brief.differentiation),
                 "当前阶段 / 完成状态": "\(currentStageName) / \(Int(project.completionRate * 100))%"
             ],
-            aiValueHypothesis: [
-                "价值假设": "我们认为 AI 能帮助解决「\(ReportSnapshotValue.text(brief.painPoint)) / \(ReportSnapshotValue.text(brief.useScenario))」，因为「\(ReportSnapshotValue.text(brief.coreValue)) / \(ReportSnapshotValue.text(brief.differentiation))」。",
-                "自动化 / 增强判断": ReportSnapshotValue.missing,
-                "AI 不适合做的事": excluded.isEmpty ? ReportSnapshotValue.missing : excluded,
-                "Go / No-go 结论": coreComplete ? "Go，待人工确认" : "需要补充"
-            ],
-            behaviorSpec: [
-                "UNDERSTAND": [
-                    "输入维度": ReportSnapshotValue.text(brief.useScenario),
-                    "输出维度": ReportSnapshotValue.text(brief.coreValue ?? brief.mvpFeatures),
-                    "时机维度": ReportSnapshotValue.text(brief.interactionFlow ?? brief.operationLogic),
-                    "Bloom 层级": ReportSnapshotValue.missing
-                ],
-                "CAPABILITY": [
-                    "推理模式": ReportSnapshotValue.text(brief.technicalModules ?? brief.operationLogic),
-                    "输出模态": ReportSnapshotValue.text(brief.mvpFeatures ?? brief.interactionFlow),
-                    "语言层": ReportSnapshotValue.missing,
-                    "反馈回路": ReportSnapshotValue.text(brief.interactionFlow ?? brief.operationLogic)
-                ],
-                "BOUNDARY": [
-                    "做的清单": included.isEmpty ? ReportSnapshotValue.missing : included,
-                    "不做的清单": excluded.isEmpty ? ReportSnapshotValue.missing : excluded,
-                    "审批链": ReportSnapshotValue.text(brief.hardConstraints),
-                    "责任归属": ReportSnapshotValue.text(brief.hardConstraints),
-                    "降级剧本入口": brief.risks.map(\.desc).joined(separator: "；").nilIfEmpty ?? ReportSnapshotValue.missing
-                ]
-            ],
-            rewardFunction: [
-                "指标数量": brief.successMetrics.isEmpty ? "0" : "\(brief.successMetrics.count)",
-                "Goodhart 自查": ReportSnapshotValue.missing,
-                "Action Plan": "如果 ______ 跌破 ______，我们将 ______。\n如果 ______ 超过 ______，我们将 ______。\n如果 ______ 跌破 ______，我们将 ______。"
-            ],
-            failureRecovery: [
-                "风险来源": brief.risks.isEmpty ? ReportSnapshotValue.missing : brief.risks.map(\.desc).joined(separator: "；"),
-                "硬性约束": ReportSnapshotValue.text(brief.hardConstraints),
-                "排除边界": excluded.isEmpty ? ReportSnapshotValue.missing : excluded
-            ],
-            interventionSpec: [
-                "时机": ReportSnapshotValue.text(brief.interactionFlow ?? brief.operationLogic),
-                "强度": ReportSnapshotValue.missing,
-                "可见": ReportSnapshotValue.missing,
-                "干预": ReportSnapshotValue.missing,
-                "实际场景验证": [brief.useScenario, brief.hardConstraints].compactMap { $0 }.joined(separator: "；").nilIfEmpty ?? ReportSnapshotValue.missing,
-                "失败恢复": brief.risks.compactMap(\.mitigation).joined(separator: "；").nilIfEmpty ?? ReportSnapshotValue.missing,
-                "关系识别": ReportSnapshotValue.missing,
-                "层级定位": ReportSnapshotValue.missing
-            ]
+            aiValueHypothesis: [:],
+            behaviorSpec: semantic.availableBehaviorSpec,
+            rewardFunction: [:],
+            failureRecovery: [:],
+            interventionSpec: [:]
         )
     }
 

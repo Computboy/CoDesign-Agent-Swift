@@ -8,7 +8,36 @@ enum QuestionResourceDeckMetrics {
     static let maximumVisibleCollapsedEdges = 3
     static let expansionDragDistance: CGFloat = 176
     static let completionThreshold: CGFloat = 0.46
+    static let collapseCommitDistance: CGFloat = 56
+    static let horizontalIntentRatio: CGFloat = 1.05
+    static let dragMinimumDistance: CGFloat = 6
     static let canvasTrailingPadding: CGFloat = 96
+}
+
+enum QuestionResourceDeckDragSource: Equatable {
+    case questionNode
+    case resourceCard
+}
+
+enum QuestionResourceDeckInteraction {
+    static func acceptsDrag(
+        source: QuestionResourceDeckDragSource,
+        isExpanded: Bool,
+        translation: CGSize
+    ) -> Bool {
+        guard abs(translation.width)
+                > abs(translation.height)
+                    * QuestionResourceDeckMetrics.horizontalIntentRatio else {
+            return false
+        }
+
+        switch source {
+        case .questionNode:
+            return !isExpanded && translation.width > 0
+        case .resourceCard:
+            return isExpanded && translation.width < 0
+        }
+    }
 }
 
 struct QuestionResourceAttachmentPresentation: Identifiable {
@@ -45,11 +74,21 @@ enum QuestionResourceDeckLayout {
 
     static func shouldExpand(
         isExpanded: Bool,
+        translationX: CGFloat,
         predictedTranslationX: CGFloat
     ) -> Bool {
-        progress(
+        let decisiveTranslationX = isExpanded
+            ? min(translationX, predictedTranslationX)
+            : max(translationX, predictedTranslationX)
+
+        if isExpanded {
+            return decisiveTranslationX
+                > -QuestionResourceDeckMetrics.collapseCommitDistance
+        }
+
+        return progress(
             isExpanded: isExpanded,
-            translationX: predictedTranslationX
+            translationX: decisiveTranslationX
         ) >= QuestionResourceDeckMetrics.completionThreshold
     }
 
@@ -167,15 +206,42 @@ enum QuestionResourceDeckLayout {
         )
     }
 
+    static func fullyExpandedProgressByQuestionID(
+        graph: TreeData
+    ) -> [String: CGFloat] {
+        Dictionary(
+            uniqueKeysWithValues: graph.nodes.compactMap { node in
+                guard node.kind == .question,
+                      node.isActiveBranch,
+                      !node.boundResources.isEmpty else {
+                    return nil
+                }
+                return (node.id, CGFloat(1))
+            }
+        )
+    }
+
+    static func annotationContentSize(graph: TreeData) -> CGSize {
+        canvasContentSize(
+            graph: graph,
+            progressByQuestionID: fullyExpandedProgressByQuestionID(
+                graph: graph
+            )
+        )
+    }
+
+    /// Resource annotations are projected against the fully expanded card
+    /// positions. Dragging a deck therefore never changes an annotation's
+    /// coordinates; visibility is handled independently with opacity.
     static func annotationFrames(
-        graph: TreeData,
-        progressByQuestionID: [String: CGFloat]
+        graph: TreeData
     ) -> [MindTreeAnnotationAnchorFrame] {
         presentations(
             graph: graph,
-            progressByQuestionID: progressByQuestionID
+            progressByQuestionID: fullyExpandedProgressByQuestionID(
+                graph: graph
+            )
         )
-        .filter { $0.cardProgress > 0.16 }
         .map { presentation in
             MindTreeAnnotationAnchorFrame(
                 anchor: .moment(
@@ -190,6 +256,18 @@ enum QuestionResourceDeckLayout {
                 height: QuestionResourceDeckMetrics.cardSize.height
             )
         }
+    }
+
+    /// Keeps annotations invisible until their card is close to its final
+    /// expanded position, preventing a fixed annotation from being clipped by
+    /// the still-growing resource deck canvas.
+    static func annotationOpacity(cardProgress: CGFloat) -> Double {
+        let fadeStart: CGFloat = 0.72
+        let normalized = clampedProgress(
+            (cardProgress - fadeStart) / (1 - fadeStart)
+        )
+        let eased = normalized * normalized * (3 - 2 * normalized)
+        return Double(eased)
     }
 
     private static func staggeredCardProgress(
@@ -209,7 +287,12 @@ enum QuestionResourceDeckLayout {
 struct QuestionResourceDeckLayer: View {
     let presentations: [QuestionResourceAttachmentPresentation]
     let contentSize: CGSize
+    let activeDragQuestionID: String?
     let onSelect: (QuestionResourceAttachmentPresentation) -> Void
+    let onCollapseDragChanged:
+        (QuestionResourceAttachmentPresentation, CGSize) -> Void
+    let onCollapseDragEnded:
+        (QuestionResourceAttachmentPresentation, CGSize, CGSize) -> Void
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -230,29 +313,63 @@ struct QuestionResourceDeckLayer: View {
     private func attachmentView(
         for presentation: QuestionResourceAttachmentPresentation
     ) -> some View {
-        if presentation.cardProgress > 0.96 {
-            Button {
-                onSelect(presentation)
-            } label: {
-                QuestionResourceAttachmentCard(
-                    resource: presentation.binding.card
+        let isInteractive = presentation.cardProgress > 0.96
+            || activeDragQuestionID == presentation.questionID
+
+        QuestionResourceAttachmentCard(
+            resource: presentation.binding.card
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onSelect(presentation)
+        }
+        .simultaneousGesture(collapseGesture(for: presentation))
+        .allowsHitTesting(isInteractive)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(
+            "\(presentation.binding.card.type.displayName)：\(presentation.binding.card.title)"
+        )
+        .accessibilityHint("轻点打开；向左拖入问题节点可以收纳")
+        .accessibilityHidden(!isInteractive)
+        .accessibilityAction {
+            onSelect(presentation)
+        }
+        .accessibilityAction(named: "收纳到问题节点") {
+            onCollapseDragEnded(
+                presentation,
+                CGSize(
+                    width: -QuestionResourceDeckMetrics.expansionDragDistance,
+                    height: 0
+                ),
+                CGSize(
+                    width: -QuestionResourceDeckMetrics.expansionDragDistance,
+                    height: 0
+                )
+            )
+        }
+        .accessibilityIdentifier(
+            "mindTree.resource.\(presentation.binding.momentID.uuidString)"
+        )
+    }
+
+    private func collapseGesture(
+        for presentation: QuestionResourceAttachmentPresentation
+    ) -> some Gesture {
+        DragGesture(
+            minimumDistance: QuestionResourceDeckMetrics.dragMinimumDistance,
+            coordinateSpace: .named(MindTreeAnnotationCoordinateSpace.graph)
+        )
+            .onChanged { value in
+                onCollapseDragChanged(presentation, value.translation)
+            }
+            .onEnded { value in
+                onCollapseDragEnded(
+                    presentation,
+                    value.translation,
+                    value.predictedEndTranslation
                 )
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(
-                "\(presentation.binding.card.type.displayName)：\(presentation.binding.card.title)"
-            )
-            .accessibilityHint("打开这张问题资源卡")
-            .accessibilityIdentifier(
-                "mindTree.resource.\(presentation.binding.momentID.uuidString)"
-            )
-        } else {
-            QuestionResourceAttachmentCard(
-                resource: presentation.binding.card
-            )
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        }
     }
 }
 
@@ -291,7 +408,9 @@ struct QuestionResourceAttachmentDetailSheet: View {
             }
             .background(Color.appBackground)
             .navigationTitle("问题资源卡")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
         }
     }
 }

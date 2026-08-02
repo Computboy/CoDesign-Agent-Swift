@@ -44,3 +44,14 @@ xcuserdata/
 # Codex
 AGENTS.md
 
+# 本地临时目录与生成产物
+/tmp/
+/output/
+
+# Python / 工具链缓存
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/

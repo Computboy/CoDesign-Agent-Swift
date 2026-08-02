@@ -2,6 +2,12 @@ import SwiftUI
 
 /// Renders a single node in the thinking tree with compact semantic styles.
 struct TreeNodeView: View {
+    private enum ActivationBehavior {
+        case singleTap
+        case doubleTap
+        case none
+    }
+
     let node: TreeNode
     var isResourceExpanded = false
     var onTap: () -> Void = {}
@@ -20,8 +26,8 @@ struct TreeNodeView: View {
                     }
                     .accessibilityHint(
                         isResourceExpanded
-                            ? "当前已展开；向左滑动可以收起"
-                            : "当前已收纳；向右滑动可以展开"
+                            ? "当前已展开；将资源卡向左拖入问题节点可以收起"
+                            : "当前已收纳；向右拖动问题节点可以展开"
                     )
             } else {
                 baseButton
@@ -32,12 +38,49 @@ struct TreeNodeView: View {
     }
 
     private var baseButton: some View {
-        Button(action: onTap) {
-            content
+        Group {
+            switch activationBehavior {
+            case .singleTap:
+                Button(action: onTap) {
+                    content
+                }
+                .buttonStyle(.plain)
+            case .doubleTap:
+                content
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        onTap()
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint(detailAccessibilityHint)
+                    .accessibilityAction {
+                        onTap()
+                    }
+            case .none:
+                content
+                    .accessibilityElement(children: .combine)
+            }
         }
-        .buttonStyle(.plain)
         .opacity(nodeOpacity)
         .simultaneousGesture(resourceSwipeGesture)
+    }
+
+    private var activationBehavior: ActivationBehavior {
+        switch node.kind {
+        case .stage where node.stageTreeState?.isCompleted == true:
+            return .singleTap
+        case .branchStage:
+            return .none
+        default:
+            return .doubleTap
+        }
+    }
+
+    private var detailAccessibilityHint: String {
+        node.isEditable
+            ? "双击查看详情；长按可以编辑"
+            : "双击查看详情"
     }
 
     @ViewBuilder
@@ -174,15 +217,31 @@ struct TreeNodeView: View {
             y: 5
         )
         .accessibilityHint(
-            node.stageTreeState == .completedCollapsed
-                ? "点击展开该阶段的问题树"
-                : "点击收起该阶段的问题树"
+            stageAccessibilityHint
         )
         .accessibilityLabel(
-            node.stageTreeState == .completedCollapsed
-                ? "展开 Stage \(node.stageOrder ?? 0) 问题链"
-                : "收起 Stage \(node.stageOrder ?? 0) 问题链"
+            stageAccessibilityLabel
         )
+    }
+
+    private var stageAccessibilityHint: String {
+        guard node.stageTreeState?.isCompleted == true else {
+            return detailAccessibilityHint
+        }
+
+        return node.stageTreeState == .completedCollapsed
+            ? "轻点展开该阶段的问题树"
+            : "轻点收起该阶段的问题树"
+    }
+
+    private var stageAccessibilityLabel: String {
+        guard node.stageTreeState?.isCompleted == true else {
+            return "Stage \(node.stageOrder ?? 0)，\(node.subContent ?? node.content)"
+        }
+
+        return node.stageTreeState == .completedCollapsed
+            ? "展开 Stage \(node.stageOrder ?? 0) 问题链"
+            : "收起 Stage \(node.stageOrder ?? 0) 问题链"
     }
 
     private var stageBackground: Color {
@@ -320,10 +379,7 @@ struct TreeNodeView: View {
                 onResourceDragChanged(value.translation)
             }
             .onEnded { value in
-                guard node.hasCollapsedResources,
-                      abs(value.translation.width)
-                        > abs(value.translation.height) * 1.18
-                else {
+                guard node.hasCollapsedResources else {
                     return
                 }
                 onResourceDragEnded(

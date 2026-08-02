@@ -17,28 +17,21 @@ struct CoDesignHomeView: View {
 
             VStack(spacing: 0) {
                 topBar(layout: layout)
+                    .zIndex(100)
 
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        heroSection(layout: layout)
+                heroSection(layout: layout)
 
-                        recentSection(layout: layout)
-                            .padding(.top, layout.recentTopPadding)
-                            .padding(.bottom, 44)
-                    }
-                }
-                .coDesignHideScrollIndicators()
-                .background(HomePalette.pageBackground)
+                recentSection(layout: layout)
+                    .padding(.top, layout.recentSectionTopSpacing)
+                    .padding(.bottom, layout.recentBottomPadding)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .zIndex(10)
             }
             .background(HomePalette.pageBackground)
         }
     }
 
     private var visibleProjects: [Project] {
-        if isFiltering {
-            return projects
-        }
-
         return Array(projects.prefix(3))
     }
 
@@ -68,7 +61,7 @@ private extension CoDesignHomeView {
                 HomeSearchBar(text: $searchText)
             }
             .padding(.horizontal, layout.horizontalPadding)
-            .padding(.vertical, 14)
+            .padding(.vertical, 10)
             .background(HomePalette.surface.opacity(0.94))
             .overlay(alignment: .bottom) {
                 Rectangle()
@@ -89,8 +82,8 @@ private extension CoDesignHomeView {
                 HomeSearchBar(text: $searchText)
                     .frame(width: min(320, max(260, layout.width * 0.22)))
             }
-            .padding(.horizontal, 28)
-            .frame(height: 72)
+            .padding(.horizontal, 24)
+            .frame(height: layout.topBarHeight)
             .background(HomePalette.surface.opacity(0.94))
             .overlay(alignment: .bottom) {
                 Rectangle()
@@ -102,12 +95,13 @@ private extension CoDesignHomeView {
 
     var brandTitle: some View {
         HStack(spacing: 10) {
-            Image(systemName: "point.3.connected.trianglepath.dotted")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(HomePalette.accent)
+            Image(decorative: "HomeBrandIcon")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 34, height: 34)
 
             Text("CoDesign")
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .font(.system(size: 22, weight: .bold, design: .rounded))
                 .foregroundStyle(HomePalette.primaryText)
         }
         .accessibilityElement(children: .combine)
@@ -123,7 +117,7 @@ private extension CoDesignHomeView {
             }
             .foregroundStyle(HomePalette.primaryText)
             .padding(.horizontal, 18)
-            .frame(height: 44)
+            .frame(height: 40)
             .background(HomePalette.surface)
             .clipShape(Capsule())
             .overlay(
@@ -141,16 +135,11 @@ private extension CoDesignHomeView {
 
 private extension CoDesignHomeView {
     func heroSection(layout: HomeLayout) -> some View {
-        VStack(spacing: layout.heroSectionSpacing) {
-            if layout.usesStackedHero {
-                VStack(spacing: 28) {
-                    heroCopy(layout: layout)
-                        .frame(maxWidth: layout.heroCopyMaxWidth, alignment: .leading)
-
-                    HeroTreeIllustration(layout: layout)
-                        .frame(maxWidth: layout.heroIllustrationFrameWidth)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+        Group {
+            if layout.usesCompactHero {
+                heroCopy(layout: layout)
+                    .frame(maxWidth: layout.heroCopyMaxWidth, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 HStack(alignment: .center, spacing: layout.heroColumnSpacing) {
                     heroCopy(layout: layout)
@@ -160,16 +149,20 @@ private extension CoDesignHomeView {
 
                     HeroTreeIllustration(layout: layout)
                         .frame(width: layout.heroIllustrationFrameWidth)
+                        .allowsHitTesting(false)
                 }
             }
-
-            featureCards(layout: layout)
         }
         .padding(.horizontal, layout.horizontalPadding)
         .padding(.top, layout.heroTopPadding)
         .padding(.bottom, layout.heroBottomPadding)
-        .frame(minHeight: layout.heroMinHeight)
-        .background(HeroBackground())
+        .offset(y: layout.contentVerticalOffset)
+        .frame(height: layout.heroHeight, alignment: .center)
+        .background(alignment: .top) {
+            HeroBackground()
+                .frame(height: layout.heroBackgroundHeight)
+                .allowsHitTesting(false)
+        }
     }
 
     func heroCopy(layout: HomeLayout) -> some View {
@@ -201,7 +194,7 @@ private extension CoDesignHomeView {
                 .fixedSize(horizontal: false, vertical: true)
 
             heroActions(layout: layout)
-                .padding(.top, 8)
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -272,49 +265,21 @@ private extension CoDesignHomeView {
         }
     }
 
-    func featureCards(layout: HomeLayout) -> some View {
-        let columns = [
-            GridItem(.adaptive(minimum: layout.isCompact ? 250 : 300), spacing: 18)
-        ]
-
-        return LazyVGrid(columns: columns, spacing: 18) {
-            HomeFeatureCard(
-                icon: "point.3.connected.trianglepath.dotted",
-                title: "思维树生长",
-                subtitle: "从模糊想法到清晰结构",
-                tint: HomePalette.purple
-            )
-
-            HomeFeatureCard(
-                icon: "book.closed.fill",
-                title: "本地知识库依据",
-                subtitle: "让 AI 追问更有方法论支撑",
-                tint: HomePalette.accent
-            )
-
-            HomeFeatureCard(
-                icon: "square.stack.3d.up.fill",
-                title: "工作台沉淀",
-                subtitle: "自动汇聚为 Design Brief",
-                tint: HomePalette.teal
-            )
-        }
-    }
 }
 
 // MARK: - Recent Projects
 
 private extension CoDesignHomeView {
     func recentSection(layout: HomeLayout) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: layout.recentContentSpacing) {
             HStack(alignment: .firstTextBaseline) {
                 Text(isFiltering ? "搜索结果" : "最近项目")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(HomePalette.primaryText)
 
                 Spacer()
 
-                if projects.count > 3 && !isFiltering {
+                if projects.count > 3 {
                     NavigationLink {
                         ProjectLibraryView(
                             searchText: $searchText,
@@ -336,16 +301,15 @@ private extension CoDesignHomeView {
                     onCreateProject: onCreateProject
                 )
             } else {
-                let columns = [
-                    GridItem(.adaptive(minimum: layout.isCompact ? 280 : 350), spacing: 18)
-                ]
-
-                LazyVGrid(columns: columns, spacing: 18) {
+                LazyVGrid(columns: layout.recentProjectColumns, spacing: 16) {
                     ForEach(visibleProjects) { project in
                         NavigationLink {
                             ProjectDetailView(project: project)
                         } label: {
-                            HomeRecentProjectCard(project: project, isCompact: layout.isCompact)
+                            HomeRecentProjectCard(
+                                project: project,
+                                isCompact: layout.usesCondensedProjectCards
+                            )
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
@@ -371,21 +335,10 @@ private struct HeroTreeIllustration: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: illustrationCornerRadius, style: .continuous)
-                .fill(HomePalette.surface.opacity(0.46))
-                .overlay(
-                    RoundedRectangle(cornerRadius: illustrationCornerRadius, style: .continuous)
-                        .stroke(HomePalette.surface.opacity(0.84), lineWidth: 1)
-                )
-                .shadow(color: HomePalette.accent.opacity(0.10), radius: 32, y: 16)
-                .frame(width: imageWidth + 32, height: imageHeight + 32)
-
             Image("hero_design_tree")
                 .resizable()
                 .scaledToFit()
                 .frame(width: imageWidth, height: imageHeight)
-                .clipShape(RoundedRectangle(cornerRadius: illustrationCornerRadius - 2, style: .continuous))
-                .shadow(color: HomePalette.accent.opacity(0.18), radius: 24, y: 14)
 
             if layout.showsFloatingHeroCards {
                 FloatingMiniCard(
@@ -417,6 +370,7 @@ private struct HeroTreeIllustration: View {
         }
         .frame(height: layout.heroIllustrationHeight + 44)
         .frame(maxWidth: .infinity)
+        .accessibilityHidden(true)
     }
 
     private var imageWidth: CGFloat {
@@ -425,10 +379,6 @@ private struct HeroTreeIllustration: View {
 
     private var imageHeight: CGFloat {
         layout.heroIllustrationHeight
-    }
-
-    private var illustrationCornerRadius: CGFloat {
-        layout.isNarrow ? 24 : 30
     }
 
     private var floatingCardScale: CGFloat {
@@ -603,69 +553,26 @@ private struct FloatingBriefCard: View {
     }
 }
 
-// MARK: - Cards
-
-private struct HomeFeatureCard: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    let tint: Color
-
-    var body: some View {
-        HStack(spacing: 18) {
-            Image(systemName: icon)
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 58, height: 58)
-                .background(tint.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.system(size: 19, weight: .bold))
-                    .foregroundStyle(HomePalette.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(subtitle)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(HomePalette.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(22)
-        .frame(maxWidth: .infinity, minHeight: 112)
-        .background(HomePalette.surface.opacity(0.92))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(HomePalette.border, lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.05), radius: 20, y: 9)
-    }
-}
-
 private struct HomeRecentProjectCard: View {
     let project: Project
     let isCompact: Bool
 
     var body: some View {
-        HStack(alignment: .center, spacing: isCompact ? 14 : 18) {
+        HStack(alignment: .center, spacing: isCompact ? 12 : 18) {
             Image(systemName: iconName)
-                .font(.system(size: 27, weight: .semibold))
+                .font(.system(size: isCompact ? 23 : 27, weight: .semibold))
                 .foregroundStyle(tint)
-                .frame(width: 60, height: 60)
+                .frame(width: isCompact ? 52 : 60, height: isCompact ? 52 : 60)
                 .background(tint.opacity(0.14))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: isCompact ? 8 : 10) {
                 Text(project.name)
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.system(size: isCompact ? 16 : 17, weight: .bold))
                     .foregroundStyle(HomePalette.primaryText)
                     .lineLimit(2)
 
-                if let summaryText {
+                if let summaryText, !isCompact {
                     Text(summaryText)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(HomePalette.secondaryText)
@@ -691,27 +598,35 @@ private struct HomeRecentProjectCard: View {
                 }
                 .lineLimit(1)
 
-                Text(stageText)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(HomePalette.tertiaryText)
-                    .lineLimit(1)
+                if !isCompact {
+                    Text(stageText)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(HomePalette.tertiaryText)
+                        .lineLimit(1)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: 8)
 
-            HStack(spacing: 8) {
-                Text("继续")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(HomePalette.accent)
-
+            if isCompact {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(HomePalette.accent)
+            } else {
+                HStack(spacing: 8) {
+                    Text("继续")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(HomePalette.accent)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(HomePalette.accent)
+                }
+                .layoutPriority(1)
             }
-            .layoutPriority(1)
         }
-        .padding(22)
+        .padding(isCompact ? 16 : 20)
         .frame(maxWidth: .infinity, minHeight: cardHeight, maxHeight: cardHeight)
         .background(HomePalette.surface)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -724,7 +639,7 @@ private struct HomeRecentProjectCard: View {
     }
 
     private var cardHeight: CGFloat {
-        isCompact ? 206 : 188
+        isCompact ? 132 : 178
     }
 
     private var progressWidth: CGFloat {
@@ -926,8 +841,8 @@ private struct HomeActionLabel: View {
                 .font(.system(size: 18, weight: style == .primary ? .bold : .semibold))
         }
         .foregroundStyle(style == .primary ? .white : HomePalette.primaryText)
-        .padding(.horizontal, style == .primary ? 28 : 26)
-        .frame(height: 58)
+        .padding(.horizontal, style == .primary ? 26 : 24)
+        .frame(height: 52)
         .background(background)
         .clipShape(Capsule())
         .overlay(overlay)
@@ -1000,39 +915,22 @@ private struct HomeSeeAllButtonStyle: ButtonStyle {
 
 private struct HeroBackground: View {
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    HomePalette.surface,
-                    HomePalette.pageBackground,
-                    HomePalette.softFill
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+        GeometryReader { geometry in
+            ZStack {
+                HomePalette.pageBackground
 
-            DotGrid()
-                .opacity(0.30)
-        }
-    }
-}
-
-private struct DotGrid: View {
-    var body: some View {
-        Canvas { context, size in
-            let spacing: CGFloat = 18
-            let dotSize: CGFloat = 1.2
-
-            for x in stride(from: 0, through: size.width, by: spacing) {
-                for y in stride(from: 0, through: size.height, by: spacing) {
-                    let rect = CGRect(x: x, y: y, width: dotSize, height: dotSize)
-                    context.fill(
-                        Path(ellipseIn: rect),
-                        with: .color(HomePalette.accent.opacity(0.18))
+                Image("HomeBackground")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(
+                        width: geometry.size.width,
+                        height: geometry.size.height,
+                        alignment: .bottom
                     )
-                }
             }
+            .clipped()
         }
+        .accessibilityHidden(true)
     }
 }
 
@@ -1057,8 +955,12 @@ private struct HomeLayout {
         width < 760
     }
 
-    var usesStackedHero: Bool {
-        isCompact
+    var usesCondensedProjectCards: Bool {
+        width < 1320
+    }
+
+    var usesCompactHero: Bool {
+        width < 900
     }
 
     var isWideHero: Bool {
@@ -1066,7 +968,7 @@ private struct HomeLayout {
     }
 
     var showsFloatingHeroCards: Bool {
-        isWideHero || (!usesStackedHero && height >= 700)
+        isWideHero || (!usesCompactHero && height >= 700)
     }
 
     var floatingCardScale: CGFloat {
@@ -1088,12 +990,12 @@ private struct HomeLayout {
         return width < 1220 ? 54 : 80
     }
 
-    var heroSectionSpacing: CGFloat {
-        isNarrow ? 28 : 34
+    var topBarHeight: CGFloat {
+        isCompact ? 122 : 64
     }
 
     var heroCopySpacing: CGFloat {
-        isNarrow ? 20 : 24
+        isNarrow ? 14 : 18
     }
 
     var heroColumnSpacing: CGFloat {
@@ -1101,24 +1003,79 @@ private struct HomeLayout {
     }
 
     var heroTopPadding: CGFloat {
-        if isNarrow { return 34 }
-        return usesStackedHero ? 46 : 54
+        isNarrow ? 18 : 22
     }
 
     var heroBottomPadding: CGFloat {
-        isNarrow ? 28 : 42
+        isNarrow ? 14 : 18
     }
 
-    var heroMinHeight: CGFloat? {
-        usesStackedHero ? nil : 660
+    var heroHeight: CGFloat {
+        let available = height - topBarHeight - recentSectionReserve
+        if usesCompactHero {
+            return max(350, min(450, available))
+        }
+        return max(360, min(520, available))
+    }
+
+    private var recentSectionReserve: CGFloat {
+        (usesCondensedProjectCards ? 202 : 248)
+            + recentAdditionalTopSpacing
+    }
+
+    private var unusedVerticalSpace: CGFloat {
+        max(0, height - topBarHeight - heroHeight - recentSectionReserve)
+    }
+
+    var contentVerticalOffset: CGFloat {
+        min(48, unusedVerticalSpace * 0.55)
+    }
+
+    var heroBackgroundHeight: CGFloat {
+        heroHeight + recentSectionTopSpacing + recentHeaderControlHeight
     }
 
     var recentTopPadding: CGFloat {
-        isCompact ? 24 : 30
+        isCompact ? 12 : 16
+    }
+
+    var recentAdditionalTopSpacing: CGFloat {
+        isCompact ? 12 : 20
+    }
+
+    var recentSectionTopSpacing: CGFloat {
+        recentTopPadding + contentVerticalOffset + recentAdditionalTopSpacing
+    }
+
+    private var recentHeaderControlHeight: CGFloat {
+        36
+    }
+
+    var recentBottomPadding: CGFloat {
+        isCompact ? 10 : 14
+    }
+
+    var recentContentSpacing: CGFloat {
+        isCompact ? 12 : 14
+    }
+
+    var recentProjectColumns: [GridItem] {
+        let columnCount: Int
+        if width >= 900 {
+            columnCount = 3
+        } else if width >= 620 {
+            columnCount = 2
+        } else {
+            columnCount = 1
+        }
+        return Array(
+            repeating: GridItem(.flexible(minimum: 0), spacing: 16),
+            count: columnCount
+        )
     }
 
     var heroCopyMaxWidth: CGFloat {
-        if usesStackedHero {
+        if usesCompactHero {
             return min(width - horizontalPadding * 2, 760)
         }
 
@@ -1141,7 +1098,7 @@ private struct HomeLayout {
     }
 
     var usesThreeLineHeroTitle: Bool {
-        isNarrow || (width < 900 && !usesStackedHero)
+        isNarrow || (width < 900 && !usesCompactHero)
     }
 
     var heroTitleLineSpacing: CGFloat {
@@ -1161,33 +1118,38 @@ private struct HomeLayout {
     }
 
     var heroIllustrationFrameWidth: CGFloat {
-        if usesStackedHero {
-            return min(width - horizontalPadding * 2, heroIllustrationWidth + 48)
+        if width < 900 {
+            return 0
         }
 
-        if width < 900 {
-            return 340
+        if width < 1050 {
+            return 320
         }
 
         if width < 1220 {
-            return 400
+            return 380
         }
 
         return showsFloatingHeroCards ? 520 : 430
     }
 
     var heroIllustrationWidth: CGFloat {
-        if isNarrow { return 284 }
-        if width < 900 { return 300 }
-        if width < 1220 { return 350 }
-        return 430
+        heroIllustrationHeight * 0.8
     }
 
     var heroIllustrationHeight: CGFloat {
-        if isNarrow { return 356 }
-        if width < 900 { return 376 }
-        if width < 1220 { return 438 }
-        return 536
+        let preferredHeight: CGFloat
+        if isNarrow {
+            preferredHeight = 356
+        } else if width < 900 {
+            preferredHeight = 376
+        } else if width < 1220 {
+            preferredHeight = 438
+        } else {
+            preferredHeight = 536
+        }
+
+        return min(preferredHeight, max(270, heroHeight + 32))
     }
 }
 

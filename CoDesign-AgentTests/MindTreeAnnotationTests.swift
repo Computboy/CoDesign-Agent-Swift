@@ -336,7 +336,7 @@ struct MindTreeAnnotationTests {
         #expect(item.anchor == anchor)
     }
 
-    @Test @MainActor func resourceCardAnnotationHidesAndReturnsWithQuestionExpansion() {
+    @Test @MainActor func resourceCardAnnotationStaysFixedWhileDeckMoves() {
         let project = Project(name: "资源批注", briefDescription: "")
         project.stages = [
             ProgressStage(order: 1, name: "阶段 1", status: "active", completionRatio: 0.4)
@@ -411,31 +411,42 @@ struct MindTreeAnnotationTests {
             fallbackNormalizedX: 0.5,
             fallbackNormalizedY: 0.5
         )
-        let hidden = MindTreeAnnotationProjectionService.projectedTextItem(
+        let collapsed = MindTreeAnnotationProjectionService.projectedTextItem(
             annotation,
             in: collapsedSnapshot,
             knownAnchors: [anchor]
         )
         let restored = MindTreeAnnotationProjectionService.projectedTextItem(
-            hidden,
+            collapsed,
             in: expandedSnapshot,
             knownAnchors: [anchor]
         )
         let dragging = MindTreeAnnotationProjectionService.projectedTextItem(
-            hidden,
+            collapsed,
             in: draggingSnapshot,
             knownAnchors: [anchor]
         )
 
-        #expect(collapsedSnapshot.frame(for: anchor) == nil)
+        #expect(collapsedSnapshot.frame(for: anchor) != nil)
         #expect(expandedSnapshot.frame(for: anchor) != nil)
         #expect(draggingSnapshot.frame(for: anchor) != nil)
-        #expect(hidden.resolutionState == .hidden)
+        #expect(collapsed.resolutionState == .resolved)
         #expect(restored.resolutionState == .resolved)
         #expect(dragging.resolutionState == .resolved)
         #expect(restored.anchor == anchor)
         #expect(dragging.y == restored.y)
-        #expect(dragging.x < restored.x)
+        #expect(dragging.x == restored.x)
+        #expect(collapsed.x == restored.x)
+        #expect(
+            QuestionResourceDeckLayout.annotationOpacity(
+                cardProgress: 0
+            ) == 0
+        )
+        #expect(
+            QuestionResourceDeckLayout.annotationOpacity(
+                cardProgress: 1
+            ) == 1
+        )
     }
 
     @Test func deletedAnchorUsesNormalizedFallbackAndIsMarkedUnresolved() {

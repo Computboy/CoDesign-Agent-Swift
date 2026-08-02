@@ -441,9 +441,45 @@ struct ThinkingTreeProjectionTests {
             graph: graph,
             progressByQuestionID: [questionID: 1]
         )
+        let annotationFrames = Dictionary(
+            uniqueKeysWithValues: QuestionResourceDeckLayout.annotationFrames(
+                graph: graph
+            ).map { ($0.anchor, $0) }
+        )
         #expect(expandedCanvas.width > graph.contentSize.width)
         #expect(graph.node(for: questionID)?.position == owner.position)
         #expect(!graph.nodes.contains { methods.map(\.id).contains($0.momentID) })
+        for (method, presentation) in zip(methods, expanded) {
+            let anchor = MindTreeAnnotationAnchor.moment(
+                id: method.id,
+                branchVersion: presentation.questionBranchVersion,
+                stageOrder: presentation.questionStageOrder
+            )
+            #expect(
+                annotationFrames[anchor]?.x
+                    == Double(presentation.center.x)
+            )
+            #expect(
+                annotationFrames[anchor]?.y
+                    == Double(presentation.center.y)
+            )
+        }
+    }
+
+    @Test func resourceAnnotationOpacityFadesOnlyNearExpandedPosition() {
+        let hidden = QuestionResourceDeckLayout.annotationOpacity(
+            cardProgress: 0.72
+        )
+        let fading = QuestionResourceDeckLayout.annotationOpacity(
+            cardProgress: 0.86
+        )
+        let visible = QuestionResourceDeckLayout.annotationOpacity(
+            cardProgress: 1
+        )
+
+        #expect(hidden == 0)
+        #expect(fading > 0 && fading < 1)
+        #expect(visible == 1)
     }
 
     @Test func resourceDeckDragProgressUsesDirectionalThresholdsAndStableY() {
@@ -467,19 +503,36 @@ struct ThinkingTreeProjectionTests {
         #expect(
             QuestionResourceDeckLayout.shouldExpand(
                 isExpanded: false,
+                translationX: 82,
                 predictedTranslationX: 100
             )
         )
         #expect(
             !QuestionResourceDeckLayout.shouldExpand(
                 isExpanded: false,
+                translationX: 40,
                 predictedTranslationX: 40
             )
         )
         #expect(
             !QuestionResourceDeckLayout.shouldExpand(
                 isExpanded: true,
+                translationX: -58,
                 predictedTranslationX: -120
+            )
+        )
+        #expect(
+            !QuestionResourceDeckLayout.shouldExpand(
+                isExpanded: true,
+                translationX: -58,
+                predictedTranslationX: -20
+            )
+        )
+        #expect(
+            QuestionResourceDeckLayout.shouldExpand(
+                isExpanded: true,
+                translationX: -40,
+                predictedTranslationX: -42
             )
         )
 
@@ -492,6 +545,48 @@ struct ThinkingTreeProjectionTests {
                 ).y == 0
             )
         }
+    }
+
+    @Test func resourceDeckDragSourcesUseDirectManipulationDirections() {
+        let rightward = CGSize(width: 96, height: 8)
+        let leftward = CGSize(width: -96, height: 8)
+        let vertical = CGSize(width: 8, height: 96)
+
+        #expect(
+            QuestionResourceDeckInteraction.acceptsDrag(
+                source: .questionNode,
+                isExpanded: false,
+                translation: rightward
+            )
+        )
+        #expect(
+            !QuestionResourceDeckInteraction.acceptsDrag(
+                source: .questionNode,
+                isExpanded: true,
+                translation: leftward
+            )
+        )
+        #expect(
+            QuestionResourceDeckInteraction.acceptsDrag(
+                source: .resourceCard,
+                isExpanded: true,
+                translation: leftward
+            )
+        )
+        #expect(
+            !QuestionResourceDeckInteraction.acceptsDrag(
+                source: .resourceCard,
+                isExpanded: false,
+                translation: leftward
+            )
+        )
+        #expect(
+            !QuestionResourceDeckInteraction.acceptsDrag(
+                source: .resourceCard,
+                isExpanded: true,
+                translation: vertical
+            )
+        )
     }
 
     @Test @MainActor func resourceDecksForDifferentQuestionsKeepIndependentProgress() {
