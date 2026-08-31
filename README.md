@@ -1,100 +1,338 @@
 # CoDesign Agent
 
-CoDesign Agent v1.2.0 是一个面向设计类、创新类课程项目的 AI 设计澄清工作台。它不是替用户一键生成方案，而是通过有依据的苏格拉底式追问、9 阶段设计框架、结构化 Design Brief、开放式思维树、Apple Pencil 批注和完整项目包，把模糊想法逐步转化为清晰、可执行、可评审、可继续的设计过程。
+> **An AI-native design clarification workspace for iPad — helping users form decisions instead of generating answers for them.**
 
-![CoDesign Agent 思维树](tree.png)
+[中文版](README_CN.md)
 
-## 四项核心创新
+![Platform](https://img.shields.io/badge/Platform-iPadOS%20%7C%20iOS%20%7C%20macOS-111111)
+![SwiftUI](https://img.shields.io/badge/UI-SwiftUI-F05138)
+![SwiftData](https://img.shields.io/badge/Persistence-SwiftData-0A84FF)
+![PencilKit](https://img.shields.io/badge/iPad-PencilKit-8E8E93)
+![AI](https://img.shields.io/badge/AI-OpenAI--compatible-10A37F)
+![Version](https://img.shields.io/badge/version-v1.2.0-5C73D6)
 
-### 1. 苏格拉底式隐式三段提问与资源卡依据
+**Second Prize, East China Division — 2026 Mobile Application Innovation Competition**
 
-CoDesign Agent 不以“快速给出完整答案”为目标，而是先判断当前最值得推进的设计变量，每轮只提出一个能够改变设计决策的问题。系统内部使用隐式三段结构：
+CoDesign Agent v1.2.0 is an **AI-native design clarification workspace** for open-ended design and innovation projects.
 
-```text
-设计线索 Clue
-→ 一个关键问题 Question
-→ 可追溯的方法依据 Basis
-```
+Instead of treating an LLM as a one-click solution generator, CoDesign integrates AI into an explainable, revisitable and stateful design workflow. Starting from a vague idea, users are guided through evidence-backed Socratic questions, progressively build a structured Design Brief, visualize their reasoning as a branching Thinking Tree, annotate it with Apple Pencil, and preserve the entire design context as a reusable `.codesign` project package.
 
-这三段不是界面上的机械模板。默认回复通常只有两个自然的短段落：第一段内化线索或当前判断，第二段提出一个开放问题；依据则通过问题节点上的资源卡呈现。用户因此既不会被“线索 / 提问 / 依据”标题打断，又可以随时查看 AI 为什么这样问。
+## Product at a Glance
 
-每个问题在生成前都要通过资格审查：回答必须能够影响目标用户、场景、功能范围、技术路径、交互流程、边界取舍、验收标准、Stage 状态或学习轨迹。用户卡住时，系统先提供理解线索，再继续追问，不会立即抛出选项替用户完成判断。
+![CoDesign Agent main workspace with the Thinking Tree, clarification panel and stage navigation](attachments/main-interface.png)
 
-资源推荐结合当前 Stage、缺失字段、用户回答和问题类型，从本地方法卡、论文卡、案例卡、设计原则与课程框架中选择依据。资源卡绑定到实际使用它的问题节点，记录核心观点、适用原因、使用方式和引用信息，使“问题”与“依据”保持可解释关系。
+The iPad workspace keeps the active Thinking Tree, the current clarification, its supporting evidence and nine-stage progress visible in one place—so users can move between conversation, reasoning and structured project state without losing context.
 
-### 2. 思维树可视化开放式设计流程
+---
 
-CoDesign Agent 把线性聊天记录转化为一棵可生长、可分叉、可回溯的设计推理树。树中同时保留项目种子、关键问题、设计判断、已确认字段、阶段封口、当前主线、历史方案和资源依据。
+## Why CoDesign
 
-九个 Stage 提供专业覆盖范围，但不是强制用户顺序填表的封闭流程。进行中的 Stage 保持开放，完成后才生成封口卡片；用户修改旧答案时，系统保留旧分支，并让新判断沿当前分支继续生长。用户可以拖动和缩放画布、双击节点查看详情、长按编辑，并直接展开或收纳问题节点后的资源卡。
+The hardest part of an open-ended design project is often not generating features, but forming reliable decisions:
 
-思维树让用户、教师和团队成员不只看到“最后决定了什么”，还能够理解“为什么这样决定”“哪些方案曾被放弃”“哪些依据支撑了这次追问”。它是设计过程本身，而不是结果页上的装饰图。
+- target users and core scenarios remain vague;
+- general-purpose chatbots generate complete solutions too early;
+- methods and references are detached from the actual questions being asked;
+- linear chat history cannot represent rollback and alternative design branches;
+- iPad is often treated as a smaller desktop instead of a native pen-based workspace;
+- exported documents preserve conclusions, but lose the reasoning context behind them.
 
-### 3. Apple Pencil 思维树批注，提升 iPad 端移动应用竞争力
+CoDesign is designed around a different principle:
 
-思维树批注基于 PencilKit，并支持 Apple 内置的仅 Apple Pencil 书写策略：Apple Pencil 用于写字、圈画与标记，支持单双指手势。用户不需要在“书写模式”和“浏览模式”之间频繁切换，也能减少手指松开时误画或误触节点的问题。
+> **AI should help users clarify a project, while preserving how each decision was formed.**
 
-批注支持系统绘图工具、撤销、重做、清空和文本说明，并与问题节点、资源卡和 Stage 建立语义锚点。布局变化后，批注能够重新投影到对应内容；资源卡收纳时批注在固定相对位置渐隐，重新展开时渐显，避免跟随卡片逐帧移动造成性能延迟。
+---
 
-这项能力把 AI 对话、可视化推理和自然手写放进同一个 iPad 工作现场，服务课堂评图、设计工作坊、移动讨论和个人深度思考，是 CoDesign Agent 提升 iPad 端移动应用竞争力的重要差异点。
+## Core Features
 
-### 4. `.codesign` 整体状态导入导出，支持协作与思维共享
+### 1. Evidence-backed Socratic Clarification
 
-PDF 和 Markdown 只能保存静态成果，`.codesign` 则保存能够重新打开的设计现场。项目包包含项目与 Stage 状态、完整 Design Brief、思维树节点和父子关系、当前与历史分支、决策路径、资源卡、学习轨迹、Apple Pencil 笔迹、文本批注和语义锚点。
+Each AI turn focuses on the next design variable that can meaningfully change the project.
 
-接收者可以先只读预览，再将项目包导入为新项目。应用会重建阶段、Brief、思维结构和批注关系，使其他成员或另一台设备能够沿着原有上下文继续提问、修正和批注，而不是只接收到一份缺少过程的结论文件。
-
-```text
-导出完整状态
-→ 通过文件或云盘分享
-→ 预览设计内容
-→ 导入为新项目
-→ 恢复思维现场并继续设计
-```
-
-当前 `.codesign` 提供文件式、异步协作，不等同于实时多人编辑；它的核心价值是让团队交换的不只是结果，也包括判断依据、历史分支和可继续的思维上下文。
-
-## 功能概览
-
-- **9 阶段澄清框架**：覆盖痛点场景、差异化价值、项目边界、功能技术拆解、运行规则、硬性约束、验收标准、风险预案和里程碑。
-- **结构化 Design Brief**：从自然语言对话中持续抽取项目字段，并支持用户确认、编辑和标记不准确。
-- **问题节点资源卡组**：资源依据收纳在所属问题后方，可通过直接拖动展开或收回。
-- **学习轨迹记录**：沉淀用户完成的关键设计思维动作，适合课程过程记录与反思。
-- **成果看板与作品档案**：提供成熟度、澄清地图、MVP 边界、风险矩阵、设计旅程、证据墙和 Brief 海报。
-- **多格式输出**：支持中文 PDF 交接简报、Markdown、JSON 和 `.codesign` 交互项目包。
-- **Mock / Live 双模式**：默认离线可用，也可接入 OpenAI-compatible API。
-
-## 产品流程
+Internally, CoDesign follows an implicit three-part structure:
 
 ```text
-创建项目
-→ 输入模糊想法
-→ 查看设计线索，回答一个有依据的 AI 澄清问题
-→ 查看并修正 Design Brief 字段
-→ 阶段进度与思维树同步更新
-→ 展开资源卡检查依据，使用 Apple Pencil 批注
-→ 查看成果看板与作品档案
-→ 导出报告，或通过 .codesign 分享并继续完整设计状态
+Clue
+→ Question
+→ Basis
 ```
 
-## 运行环境
+- **Clue** identifies a missing assumption, contradiction or design gap.
+- **Question** asks one open question that can change the Design Brief, Stage or project direction.
+- **Basis** provides traceable design methods, papers, cases or principles.
+
+The UI does not expose these as rigid labels. The clue is integrated into natural mentor-style language, while the basis is attached to the corresponding question node as a resource card.
+
+---
+
+### 2. Thinking Tree: Turning Chat into Design Reasoning
+
+Instead of storing AI interaction as a linear conversation, CoDesign projects it into an interactive **Thinking Tree**.
+
+The tree preserves:
+
+- the initial project idea;
+- key AI questions and user answers;
+- the currently active design branch;
+- historical branches after rollback;
+- confirmed Design Brief fields;
+- completed Stage nodes;
+- method and evidence cards attached to questions;
+- Apple Pencil strokes and text annotations.
+
+An active Stage remains open while reasoning is still evolving. A Stage completion node is generated only when that Stage is actually closed.
+
+If a user revisits an earlier answer, the previous solution is preserved as history while the new reasoning continues on the active branch.
+
+---
+
+### 3. Native Apple Pencil Annotation for iPad
+
+The annotation system is built with **PencilKit** and designed around iPad-native input behavior:
+
+- Apple Pencil for handwriting, circles, marks and connecting strokes;
+- one-finger pan for canvas navigation;
+- two-finger pinch for zoom;
+- system drawing tools;
+- undo, redo and clear;
+- persistent strokes and text annotations.
+
+Annotations are not treated as absolute screen coordinates. They are associated with semantic anchors such as question nodes, resource cards and Stages.
+
+When the layout changes, annotations can be reprojected according to the underlying content instead of remaining attached to a stale UI position.
+
+---
+
+### 4. `.codesign`: A Recoverable Project State Package
+
+PDF and Markdown are useful for communication, but they only preserve static results.
+
+`.codesign` preserves a reopenable design workspace, including:
+
+- Project and Stage state;
+- structured Design Brief;
+- Thinking Tree nodes and parent-child relationships;
+- current and historical branches;
+- decision paths;
+- resource cards and learning traces;
+- Apple Pencil strokes;
+- text annotations and semantic anchors;
+- canvas and stage state;
+- schema compatibility metadata.
+
+```text
+Export project state
+→ Share file
+→ Read-only preview
+→ Import as a new project
+→ Rebuild context
+→ Continue reasoning / annotation / iteration
+```
+
+At the current stage, `.codesign` is designed for **file-based asynchronous collaboration**, not real-time collaborative editing.
+
+---
+
+## Technical Highlights
+
+CoDesign is not only an AI product prototype. It is also a complete iOS / iPadOS engineering project covering state management, model integration, interaction design, local persistence and project serialization.
+
+### Cross-platform SwiftUI Application
+
+- Built with **SwiftUI** for iPadOS, iOS and macOS.
+- iPad is treated as the primary interaction surface rather than a scaled desktop layout.
+- The product explicitly supports touch, Apple Pencil and large-screen workspace interaction.
+
+### Local-first State Management with SwiftData
+
+Project data is persisted locally with **SwiftData**, including:
+
+- projects;
+- conversations;
+- Design Brief;
+- Stage progress;
+- Thinking Tree;
+- learning traces;
+- annotations.
+
+Users can close and relaunch the app and continue from the same project state without reconstructing the session from an online conversation.
+
+### Structured AI Pipeline
+
+CoDesign does not follow a simple:
+
+```text
+Prompt → LLM → Text
+```
+
+pipeline.
+
+Instead, each user answer drives multiple synchronized product states:
+
+```mermaid
+flowchart LR
+    A[User Input] --> B[AI Clarification]
+    B --> C[Structured Extraction]
+    C --> D[Design Brief]
+    D --> E[Stage Progress]
+    D --> F[Thinking Tree]
+    B --> G[Resource Basis]
+    F --> H[Learning Trace]
+    F --> I[Apple Pencil Annotation]
+    D --> J[PDF / Markdown / JSON]
+    F --> K[.codesign Project Package]
+    I --> K
+```
+
+A valid interaction may update:
+
+1. conversation context;
+2. structured field candidates;
+3. user-confirmed Design Brief state;
+4. Stage progress;
+5. Thinking Tree;
+6. learning trace;
+7. exportable state.
+
+This turns LLM output into persistent, computable product state rather than transient chat text.
+
+### Mock / Live Dual-mode AI Service
+
+- **Mock Mode** works without an API key and is suitable for offline demos, debugging and deterministic testing.
+- **Live Mode** supports OpenAI-compatible Chat Completions.
+- `API Key`, `Base URL`, `Model` and `Thinking Type` are configurable.
+- The settings screen provides API connectivity validation before switching to live usage.
+
+### OpenAI-compatible Model Layer
+
+The model layer is compatible with OpenAI-style Chat Completions endpoints and can work with services such as:
+
+- DeepSeek;
+- Alibaba Cloud Bailian / DashScope;
+- other OpenAI-compatible model providers.
+
+The provider can be replaced without redesigning the core product workflow.
+
+### Semantic Annotation Anchoring
+
+The Apple Pencil system includes engineering beyond basic drawing:
+
+- annotations are associated with semantic content;
+- strokes can be reprojected after node and Stage layout changes;
+- annotations fade when associated resource cards collapse and restore when expanded;
+- continuous handwriting uses delayed persistence to reduce high-frequency write pressure.
+
+### Versioned Project Serialization
+
+`.codesign` currently supports `1.0`, `1.1` and `1.2` schemas.
+
+The import workflow includes:
+
+- read-only preview;
+- import as a new project;
+- node ID remapping;
+- parent-child relationship reconstruction;
+- annotation anchor reconstruction;
+- compatibility paths for future migration.
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Usage |
+|---|---|---|
+| UI | SwiftUI | iOS / iPadOS / macOS interface |
+| Persistence | SwiftData | Project, Brief, Stage, Tree, Trace, Annotation |
+| Handwriting | PencilKit | Apple Pencil drawing and annotation |
+| AI | OpenAI-compatible Chat Completions | Live clarification and structured generation |
+| Offline AI | Mock Service | Demo, test and offline workflow |
+| Structured State | Design Brief + Stage Model | Convert conversation into explicit project state |
+| Visualization | Custom Thinking Tree | Branching, rollback and resource-node interaction |
+| Serialization | `.codesign` | Full project state import / export |
+| Output | PDF / Markdown / JSON | Submission, editing, debug and backup |
+| Build & Test | Xcode / `xcodebuild` | Simulator, macOS build and automated test path |
+
+---
+
+## Architecture at a Glance
+
+```text
+┌──────────────────────────────────────────────┐
+│                  SwiftUI UI                  │
+│ Home · Workspace · Brief · Tree · Portfolio  │
+└─────────────────────┬────────────────────────┘
+                      │
+┌─────────────────────▼────────────────────────┐
+│              Product State Layer             │
+│ Project · Stage · Brief · Tree · Trace       │
+└──────────────┬─────────────────┬─────────────┘
+               │                 │
+┌──────────────▼───────┐ ┌──────▼──────────────┐
+│      AI Service      │ │  Annotation / Input │
+│ Mock / Live / API    │ │ PencilKit + Gestures│
+└──────────────┬───────┘ └───────┬─────────────┘
+               │                 │
+┌──────────────▼─────────────────▼─────────────┐
+│             SwiftData Persistence            │
+└──────────────┬───────────────────────────────┘
+               │
+┌──────────────▼───────────────────────────────┐
+│  PDF · Markdown · JSON · .codesign Export    │
+└──────────────────────────────────────────────┘
+```
+
+---
+
+## Product Workflow
+
+![CoDesign Agent workflow from an initial idea to a shareable design state](attachments/app-workflow.png)
+
+The workflow alternates between human judgment and AI assistance: a vague idea becomes a sequence of evidence-backed questions, confirmed decisions and synchronized updates to the Design Brief, Stage progress and Thinking Tree. The resulting design state can then be reviewed, annotated, exported or shared for continued work.
+
+The workflow is organized around nine design Stages:
+
+| Stage | Focus |
+|---|---|
+| 1 | Pain Point & Scenario |
+| 2 | Differentiated Value |
+| 3 | Project Boundary |
+| 4 | Feature & Technical Decomposition |
+| 5 | Runtime Logic & Rules |
+| 6 | Hard Constraints |
+| 7 | Quantified Acceptance Criteria |
+| 8 | Risk & Mitigation |
+| 9 | Milestone Planning |
+
+---
+
+## Output Formats
+
+| Format | Purpose |
+|---|---|
+| PDF | Submission, review and archiving |
+| Markdown | Further editing and documentation |
+| JSON | Debugging, backup and migration |
+| `.codesign` | Full project state, asynchronous collaboration and cross-device continuation |
+
+---
+
+## Runtime Requirements
 
 - iOS / iPadOS 26.4+
-- macOS 26.3+（Designed for iPad / macOS 构建）
-- 支持 SwiftUI 与 SwiftData 的 Xcode
-- 可选：OpenAI-compatible API Key，用于 Live 模式
+- macOS 26.3+
+- Xcode with SwiftUI / SwiftData support
+- Optional OpenAI-compatible API Key for Live Mode
 
-## 快速开始
+---
 
-克隆仓库并用 Xcode 打开：
+## Quick Start
 
 ```bash
 git clone <repository-url>
-cd CoDesign-Agent
+cd CoDesign-Agent-Swift
 open CoDesign-Agent.xcodeproj
 ```
 
-构建 iOS Simulator 版本：
+Build for iOS Simulator:
 
 ```bash
 xcodebuild -scheme CoDesign-Agent \
@@ -102,7 +340,7 @@ xcodebuild -scheme CoDesign-Agent \
   build
 ```
 
-运行测试：
+Run tests:
 
 ```bash
 xcodebuild -scheme CoDesign-Agent \
@@ -110,7 +348,7 @@ xcodebuild -scheme CoDesign-Agent \
   test
 ```
 
-构建 macOS 版本：
+Build macOS:
 
 ```bash
 xcodebuild -scheme CoDesign-Agent \
@@ -118,20 +356,22 @@ xcodebuild -scheme CoDesign-Agent \
   build
 ```
 
-## API 配置
+---
 
-应用默认使用 **Mock 模式**，无需 API Key，适合离线演示、课堂展示和开发调试。
+## API Configuration
 
-如需调用真实模型，可在应用设置页切换到 **Live 模式** 并填写：
+The application uses **Mock Mode** by default and does not require an API key.
 
-- API Key
-- Base URL
-- Model
-- Thinking Type
+Live Mode can be configured in the settings screen with:
 
-设置页提供 **测试 API Key**。测试成功后，应用会保存配置并自动切换到 Live 模式。
+```text
+API Key
+Base URL
+Model
+Thinking Type
+```
 
-也可以使用环境变量配置：
+Environment variables are also supported:
 
 ```text
 LLM_API_KEY=sk-...
@@ -140,78 +380,54 @@ LLM_MODEL=deepseek-v4-flash
 LLM_THINKING_TYPE=disabled
 ```
 
-配置优先级：
+Configuration priority:
 
-1. 应用设置页写入的 UserDefaults
-2. `LLM_*` 环境变量
-3. 旧版兼容的 `DEEPSEEK_*` 环境变量
-4. 内置默认配置
+1. App Settings / UserDefaults
+2. `LLM_*`
+3. Legacy `DEEPSEEK_*`
+4. Built-in defaults
 
-## 支持的 API 类型
+---
 
-API 客户端兼容 OpenAI Chat Completions 风格接口，可接入：
+## Documentation
 
-- DeepSeek
-- 阿里云百炼 / DashScope
-- 其他 OpenAI-compatible chat completion endpoint
+- [v1.2.0 Product Specification](docs/v1.2.0-product-spec.md)
+- [v1.1.0 Product Specification](docs/v1.1.0-product-spec.md)
+- [v1.0 App Guide](docs/v1.0-app-guide.md)
+- [Product Vision & Design Principles](docs/product-brief.md)
+- [Instruction Navigator](docs/Instruction-Navigator.md)
 
-DeepSeek 示例：
+---
 
-```text
-Base URL: https://api.deepseek.com
-Model: deepseek-v4-flash
-Thinking Type: disabled
-```
+## Engineering Notes
 
-百炼 / DashScope 示例：
+Areas worth further engineering work include:
 
-```text
-Base URL: https://dashscope.aliyuncs.com/compatible-mode/v1
-Model: qwen-plus
-Thinking Type: 不发送
-```
+- virtualization and layout performance for very deep Thinking Trees;
+- stable semantic annotation mapping after complex layout updates;
+- forward / backward compatibility and migration of `.codesign` schemas;
+- real-time multi-user editing and branch conflict resolution;
+- pluggable LLM providers and on-device model support;
+- team-defined Resource Library and retrieval augmentation.
 
-## 导出格式
+---
 
-| 格式 | 适合用途 |
-|---|---|
-| PDF | 提交、评审、归档和对外展示 |
-| Markdown | 继续编辑，同步到 Notion / 飞书 / GitHub / PRD |
-| JSON | 备份、调试和未来数据迁移 |
-| `.codesign` | 保存可重新打开的项目包，包含 Stage、Design Brief、思维树、回溯分支、资源依据、学习轨迹与批注 |
+## Award
 
-`.codesign` 文件可以从首页导入，支持只读预览，也可以导入为新项目。
+🏆 **Second Prize, East China Division — 2026 Mobile Application Innovation Competition**
 
-## 文档
+From product definition and interaction design to SwiftUI / iPadOS implementation, AI integration, local persistence and competition delivery, CoDesign was developed as a complete end-to-end application project.
 
-- [v1.2.0 产品说明](docs/v1.2.0-product-spec.md)
-- [v1.1.0 产品说明](docs/v1.1.0-product-spec.md)
-- [v1.0 应用说明](docs/v1.0-app-guide.md)
-- [产品愿景与设计原则](docs/product-brief.md)
-- [v0.8 说明文档](docs/v0.8-release-notes.md)
-- [v0.5 资源脚手架与阶段连线思维树](docs/v0.5-resource-scaffold-and-transition-tree.md)
-- [v0.4 思维发散树](docs/v0.4-thinking-tree.md)
-- [v0.2 Live API 集成规格](docs/v0.2-spec.md)
-- [使用说明书](docs/Instruction-Navigator.md)
+---
 
-## 测试
+## Version
 
-默认测试路径使用 Mock 模式，不依赖外部 API：
+Current release: **v1.2.0**
 
-```bash
-xcodebuild -scheme CoDesign-Agent \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  test
-```
+> **Use evidence-backed questions to drive design, an open Thinking Tree to preserve reasoning, Apple Pencil to capture human judgment, and `.codesign` to pass the entire design context to the next participant.**
 
-Live 模式测试需要有效 API Key 和兼容接口。
-
-## 版本
-
-当前产品文档目标版本：**v1.2.0**。
-
-v1.2.0 代表应用已经形成从有依据的隐式苏格拉底式追问、结构化 Brief 抽取、开放式思维树、问题节点资源卡、Apple Pencil 原生批注，到 `.codesign` 完整状态协作与多格式交接的产品闭环。
+---
 
 ## License
 
-由 GitHub/Computboy 开发，本项目仅用于课程学习与展示。
+This repository is currently intended for learning, academic showcase and portfolio purposes.
