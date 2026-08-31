@@ -45,6 +45,30 @@ CoDesign Agent 的目标不是“让 AI 替用户设计”，而是：
 
 ---
 
+## Product Workflow
+
+<p align="center">
+  <img src="attachments/app-workflow.png" alt="CoDesign Agent 从模糊想法到可共享设计状态的完整工作流程" width="82%">
+</p>
+
+整个流程在人类判断与 AI 辅助之间交替推进：模糊想法经过有依据的阶段化追问，逐步转化为经用户确认的设计判断，并同步更新 Design Brief、Stage 进度与思维树；最终结果可以继续审阅、批注、导出或共享。
+
+CoDesign 使用九个 Stage 覆盖开放式项目从问题定义到项目计划的完整范围：
+
+| Stage | Focus |
+|---|---|
+| 1 | 痛点与场景锚定 |
+| 2 | 差异化价值提炼 |
+| 3 | 项目边界划定 |
+| 4 | 功能与技术方案拆解 |
+| 5 | 运行逻辑与规则定义 |
+| 6 | 硬性约束设计 |
+| 7 | 量化验收标准制定 |
+| 8 | 风险识别与预案制定 |
+| 9 | 项目阶段拆分与排期 |
+
+---
+
 ## Core Features
 
 ### 1. 有依据的苏格拉底式 AI 追问
@@ -247,28 +271,6 @@ Apple Pencil 批注不仅是 Drawing Data：
 
 ---
 
-## Product Workflow
-
-![CoDesign Agent 从模糊想法到可共享设计状态的完整工作流程](attachments/app-workflow.png)
-
-整个流程在人类判断与 AI 辅助之间交替推进：模糊想法经过有依据的阶段化追问，逐步转化为经用户确认的设计判断，并同步更新 Design Brief、Stage 进度与思维树；最终结果可以继续审阅、批注、导出或共享。
-
-CoDesign 使用九个 Stage 覆盖开放式项目从问题定义到项目计划的完整范围：
-
-| Stage | Focus |
-|---|---|
-| 1 | 痛点与场景锚定 |
-| 2 | 差异化价值提炼 |
-| 3 | 项目边界划定 |
-| 4 | 功能与技术方案拆解 |
-| 5 | 运行逻辑与规则定义 |
-| 6 | 硬性约束设计 |
-| 7 | 量化验收标准制定 |
-| 8 | 风险识别与预案制定 |
-| 9 | 项目阶段拆分与排期 |
-
----
-
 ## Output Formats
 
 | Format | Purpose |
@@ -393,4 +395,4 @@ Current release: **v1.2.0**
 
 ## License
 
-This repository is currently intended for learning, academic showcase and portfolio purposes.
+本项目基于 [MIT License](LICENSE) 授权。

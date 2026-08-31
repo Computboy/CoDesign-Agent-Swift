@@ -44,6 +44,30 @@ CoDesign is designed around a different principle:
 
 ---
 
+## Product Workflow
+
+<p align="center">
+  <img src="attachments/app-workflow.png" alt="CoDesign Agent workflow from an initial idea to a shareable design state" width="82%">
+</p>
+
+The workflow alternates between human judgment and AI assistance: a vague idea becomes a sequence of evidence-backed questions, confirmed decisions and synchronized updates to the Design Brief, Stage progress and Thinking Tree. The resulting design state can then be reviewed, annotated, exported or shared for continued work.
+
+The workflow is organized around nine design Stages:
+
+| Stage | Focus |
+|---|---|
+| 1 | Pain Point & Scenario |
+| 2 | Differentiated Value |
+| 3 | Project Boundary |
+| 4 | Feature & Technical Decomposition |
+| 5 | Runtime Logic & Rules |
+| 6 | Hard Constraints |
+| 7 | Quantified Acceptance Criteria |
+| 8 | Risk & Mitigation |
+| 9 | Milestone Planning |
+
+---
+
 ## Core Features
 
 ### 1. Evidence-backed Socratic Clarification
@@ -265,28 +289,6 @@ The import workflow includes:
 
 ---
 
-## Product Workflow
-
-![CoDesign Agent workflow from an initial idea to a shareable design state](attachments/app-workflow.png)
-
-The workflow alternates between human judgment and AI assistance: a vague idea becomes a sequence of evidence-backed questions, confirmed decisions and synchronized updates to the Design Brief, Stage progress and Thinking Tree. The resulting design state can then be reviewed, annotated, exported or shared for continued work.
-
-The workflow is organized around nine design Stages:
-
-| Stage | Focus |
-|---|---|
-| 1 | Pain Point & Scenario |
-| 2 | Differentiated Value |
-| 3 | Project Boundary |
-| 4 | Feature & Technical Decomposition |
-| 5 | Runtime Logic & Rules |
-| 6 | Hard Constraints |
-| 7 | Quantified Acceptance Criteria |
-| 8 | Risk & Mitigation |
-| 9 | Milestone Planning |
-
----
-
 ## Output Formats
 
 | Format | Purpose |
@@ -413,4 +415,4 @@ Current release: **v1.2.0**
 
 ## License
 
-This repository is currently intended for learning, academic showcase and portfolio purposes.
+This project is licensed under the [MIT License](LICENSE).
