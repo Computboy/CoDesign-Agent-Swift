@@ -5,6 +5,7 @@
 <p align="center">
   <a href="README_CN.md">中文版</a>
 </p>
+
 ![Platform](https://img.shields.io/badge/Platform-iPadOS%20%7C%20iOS%20%7C%20macOS-111111)
 ![SwiftUI](https://img.shields.io/badge/UI-SwiftUI-F05138)
 ![SwiftData](https://img.shields.io/badge/Persistence-SwiftData-0A84FF)
