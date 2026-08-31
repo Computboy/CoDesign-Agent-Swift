@@ -2,8 +2,9 @@
 
 > **An AI-native design clarification workspace for iPad — helping users form decisions instead of generating answers for them.**
 
-[中文版](README_CN.md)
-
+<p align="center">
+  <a href="README_CN.md">中文版</a>
+</p>
 ![Platform](https://img.shields.io/badge/Platform-iPadOS%20%7C%20iOS%20%7C%20macOS-111111)
 ![SwiftUI](https://img.shields.io/badge/UI-SwiftUI-F05138)
 ![SwiftData](https://img.shields.io/badge/Persistence-SwiftData-0A84FF)
@@ -11,15 +12,15 @@
 ![AI](https://img.shields.io/badge/AI-OpenAI--compatible-10A37F)
 ![Version](https://img.shields.io/badge/version-v1.2.0-5C73D6)
 
-**Second Prize, East China Division — 2026 Mobile Application Innovation Competition**
+CoDesign Agent v1.2.0 is an **AI-powered design clarification workspace** for design and innovation courses, as well as open-ended projects.
 
-CoDesign Agent v1.2.0 is an **AI-native design clarification workspace** for open-ended design and innovation projects.
-
-Instead of treating an LLM as a one-click solution generator, CoDesign integrates AI into an explainable, revisitable and stateful design workflow. Starting from a vague idea, users are guided through evidence-backed Socratic questions, progressively build a structured Design Brief, visualize their reasoning as a branching Thinking Tree, annotate it with Apple Pencil, and preserve the entire design context as a reusable `.codesign` project package.
+CoDesign embeds large language models in an explainable, revisitable, annotatable, and portable design workflow. Starting from a vague idea, evidence-backed Socratic questions progressively shape a structured Design Brief, while questions, decisions, historical branches, supporting resources, and Apple Pencil annotations are preserved as a project state that can be resumed and extended.
 
 ## Product at a Glance
 
-![CoDesign Agent main workspace with the Thinking Tree, clarification panel and stage navigation](attachments/main-interface.png)
+<p align="center">
+  <img src="attachments/main-interface.png" alt="CoDesign Agent main workspace with the Thinking Tree, clarification panel and stage navigation" width="82%">
+</p>
 
 The iPad workspace keeps the active Thinking Tree, the current clarification, its supporting evidence and nine-stage progress visible in one place—so users can move between conversation, reasoning and structured project state without losing context.
 
@@ -164,26 +165,7 @@ CoDesign does not follow a simple:
 Prompt → LLM → Text
 ```
 
-pipeline.
-
-Instead, each user answer drives multiple synchronized product states:
-
-```mermaid
-flowchart LR
-    A[User Input] --> B[AI Clarification]
-    B --> C[Structured Extraction]
-    C --> D[Design Brief]
-    D --> E[Stage Progress]
-    D --> F[Thinking Tree]
-    B --> G[Resource Basis]
-    F --> H[Learning Trace]
-    F --> I[Apple Pencil Annotation]
-    D --> J[PDF / Markdown / JSON]
-    F --> K[.codesign Project Package]
-    I --> K
-```
-
-A valid interaction may update:
+pipeline. Instead, each valid user answer can update multiple synchronized product states:
 
 1. conversation context;
 2. structured field candidates;
@@ -327,7 +309,7 @@ The workflow is organized around nine design Stages:
 ## Quick Start
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Computboy/CoDesign-Agent-Swift.git
 cd CoDesign-Agent-Swift
 open CoDesign-Agent.xcodeproj
 ```

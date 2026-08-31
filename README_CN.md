@@ -3,7 +3,9 @@
 > **An AI-native design clarification workspace for iPad — helping users form decisions instead of generating answers for them.**  
 > 面向开放式设计项目的人–AI 协同工作台：让每一次追问、判断、依据、回溯与批注都成为可保存的设计过程。
 
-[English Version](README.md)
+<p align="center">
+  <a href="README.md">English Version</a>
+</p>
 
 ![Platform](https://img.shields.io/badge/Platform-iPadOS%20%7C%20iOS%20%7C%20macOS-111111)
 ![SwiftUI](https://img.shields.io/badge/UI-SwiftUI-F05138)
@@ -14,11 +16,13 @@
 
 CoDesign Agent v1.2.0 是一个面向设计类、创新类课程与开放式项目的 **AI 设计澄清工作台**。
 
-它不把大模型当作“一键生成器”，而是把 AI 嵌入一条可解释、可回溯、可批注、可迁移的设计过程：从模糊想法出发，通过有依据的苏格拉底式追问逐步形成 Design Brief，并将问题、判断、历史分支、资源依据与 Apple Pencil 批注统一沉淀为可继续工作的项目状态。
+CoDesign 将大语言模型嵌入一条可解释、可回溯、可批注、可迁移的设计流程：从模糊想法出发，通过有依据的苏格拉底式追问逐步形成结构化设计简报（Design Brief），并将问题、判断、历史分支、资源依据与 Apple Pencil 批注统一沉淀为可继续工作的项目状态。
 
 ## 产品界面
 
-![包含思维树、澄清面板与阶段导航的 CoDesign Agent 主工作台](attachments/main-interface.png)
+<p align="center">
+  <img src="attachments/main-interface.png" alt="包含思维树、澄清面板与阶段导航的 CoDesign Agent 主工作台" width="82%">
+</p>
 
 iPad 主工作台将当前思维树、AI 澄清问题、设计依据与九阶段进度集中呈现，让用户能在对话、推理结构和项目状态之间自然切换，同时保留完整上下文。
 
@@ -97,7 +101,7 @@ Clue
 
 ### 4. `.codesign`：可恢复的完整设计状态包
 
-PDF / Markdown 适合阅读与提交，但只能保存静态结果。  
+PDF / Markdown 适合阅读与提交，但只能保存静态结果。
 `.codesign` 用于保存一个可以重新打开并继续工作的设计现场，包括：
 
 - Project / Stage 状态；
@@ -147,24 +151,7 @@ CoDesign Agent 不是简单的：
 Prompt → LLM → Text
 ```
 
-而是一个状态驱动的 AI 工作流：
-
-```mermaid
-flowchart LR
-    A[User Input] --> B[AI Clarification]
-    B --> C[Structured Extraction]
-    C --> D[Design Brief]
-    D --> E[Stage Progress]
-    D --> F[Thinking Tree]
-    B --> G[Resource Basis]
-    F --> H[Learning Trace]
-    F --> I[Apple Pencil Annotation]
-    D --> J[PDF / Markdown / JSON]
-    F --> K[.codesign Project Package]
-    I --> K
-```
-
-一次有效回答会同时更新：
+而是由每次有效回答驱动多个产品状态同步更新：
 
 1. 对话上下文；
 2. Design Brief 候选字段；
@@ -305,7 +292,7 @@ CoDesign 使用九个 Stage 覆盖开放式项目从问题定义到项目计划�
 ## Quick Start
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Computboy/CoDesign-Agent-Swift.git
 cd CoDesign-Agent-Swift
 open CoDesign-Agent.xcodeproj
 ```
@@ -338,9 +325,7 @@ xcodebuild -scheme CoDesign-Agent \
 
 ## API Configuration
 
-默认使用 **Mock Mode**，无需 API Key。
-
-切换到 Live Mode 后，可以在应用设置中配置：
+默认使用 **Mock Mode**，无需 API Key。切换到 Live Mode 后，可以在应用设置中配置：
 
 ```text
 API Key
@@ -392,7 +377,7 @@ LLM_THINKING_TYPE=disabled
 
 ## Award
 
-🏆 **2026 移动应用创新赛 · 华东赛区二等奖（省级二等奖）**
+🏆 **2026 中国高校计算机大赛 · 移动应用创新赛 · 华东赛区二等奖（省级二等奖）**
 
 项目从产品定义、交互设计、SwiftUI / iPadOS 实现、AI 能力接入、状态持久化，到最终真机演示与竞赛交付，形成了完整的端到端开发闭环。
 
